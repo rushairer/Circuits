@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.3.0-alpha.5 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.3.0-alpha.6 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -81,3 +81,9 @@ The numerical model excludes inductors, nonlinear devices, live switch events an
 In RC mode, start the simulation and open **▤ 示波器** for a separate two-channel waveform viewer: CH1 simulated capacitor voltage (V) and CH2 the computed capacitor branch current (mA), each with its own axis. Change capacitor, scrub the time cursor, and export all simulated capacitor traces as CSV with explicit column units. Multi-capacitor t=0 current is blank rather than silently shown as zero. This is **not** an actual oscilloscope or an Arduino execution environment.
 
 An existing wired multimeter can display the time-sampled voltage **when both probes lie on a known capacitor-only/wire path** (including series capacitor stacks and reversed leads). Unconnected/unsupported paths display `----` and an explicit reason. Resistor-node voltage probing, in-series current measurement and physical oscilloscope simulation remain future work.
+
+### RC resistor-node measurements and numerical convergence
+
+The RC voltmeter now measures signed drops **across resistors and other resistor-network nodes** as well as capacitor paths. Its virtual high-impedance probes use sampled capacitor voltages, the ideal battery and passive resistor KCL (actual connected terminal IDs). Disconnected floating islands and inconsistent voltage constraints remain unavailable rather than being treated as zero.
+
+There are now **9 starter examples**, including **RC 电阻压降测量**: a 9V RC charging circuit with the meter across 1kΩ, falling from 9V to about 3.31V at one time constant. In the multi-capacitor numerical RC panel, choose **检查数值一致性** to compare a standard backward-Euler trace with a halved internal step; the display warns if the first output interval hides most of a fast transient. The comparison is **not an independent physical accuracy guarantee or SPICE calibration**.

@@ -63,3 +63,9 @@
 .rc-panel{pointer-events:none}
 .rc-panel .rc-plot{pointer-events:none!important}
 .rc-panel input,.rc-panel select,.rc-panel button{pointer-events:auto}
+
+/* Optional, bounded multicapacitor timestep sensitivity check. */
+.rc-accuracy-button{margin-top:10px;padding:7px 10px;font-size:11px;min-height:30px;border:1px solid #a4c8c8;border-radius:7px;background:#f5fcfb;color:#167b77;font-weight:700;cursor:pointer}
+.rc-accuracy-button:hover,.rc-accuracy-button:focus-visible{border-color:#158f88;background:#e5f8f4}
+.rc-convergence{margin-top:8px;background:#f5f9fa;border:1px solid #dce8e9;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.4}
+.rc-convergence strong{color:#256c70}.rc-convergence p{margin:5px 0}

@@ -433,3 +433,33 @@ test('one-click RC resistor-voltage sample tracks charge and keeps prior project
  await page.locator('.project-open').filter({hasText:'我的第一个电路'}).click();
  await expect(page.locator('.item[data-part="m1"]')).toHaveCount(0);
 });
+
+test('multi-cap RC convergence inspection is non-destructive and invalidates on window change',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="rc-parallel"]').click();
+ await page.locator('button[data-action="run"]').click();
+ const before=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ const panel=page.locator('.rc-network-panel');
+ await expect(panel.locator('.rc-convergence')).toHaveCount(0);
+ await panel.locator('[data-action="rc-accuracy"]').click();
+ await expect(panel.locator('.rc-convergence')).toContainText('数值一致性：通过');
+ await expect(panel.locator('.rc-convergence')).toContainText('粗细步长最大电压差');
+ await expect(panel.locator('.rc-convergence')).toContainText('不是实际仿真误差上界');
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(before);
+ await panel.locator('#rc-window').selectOption('1');
+ await expect(panel.locator('.rc-convergence')).toHaveCount(0);
+});
+test('a severely under-resolved RC window is flagged rather than marked reliable',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="rc-parallel"]').click();
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ p.parts.filter((part:{kind:string})=>part.kind==='capacitor').forEach((part:{value:number})=>{part.value=0.001});
+ await page.locator('#file').setInputFiles({name:'fast-rc.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
+ await page.locator('button[data-action="run"]').click();
+ await page.locator('#rc-window').selectOption('10');
+ await page.locator('[data-action="rc-accuracy"]').click();
+ await expect(page.locator('.rc-convergence')).toContainText('数值一致性：需关注');
+ await expect(page.locator('.rc-convergence')).toContainText('缩短时间窗口');
+});

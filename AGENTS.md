@@ -89,3 +89,8 @@
 - Cache Playwright browser binaries by project dependency manifest, while still installing OS/browser dependencies via `--with-deps`. Browser provisioning has a bounded timeout rather than blocking publishing indefinitely.
 
 - Read-only RC graph overlays must allow selecting electrical components beneath them (`pointer-events:none`); only genuine panel controls (ranges/selects/buttons) may intercept pointer input. The RC voltmeter browser regression covers this overlay interaction.
+
+## v0.3.0-alpha.6 RC node measurement and convergence
+- The high-Z RC meter can now measure resistor-node voltage **only** when the two probes are in the same connected modeled island. `src/core/rc-probes.ts` uses sampled capacitor and source voltage constraints plus passive resistor KCL; do not infer potentials between distinct floating networks. Preserve old signed-capacitor-path tests.
+- `assessRcConvergence` compares 10 vs 20 implicit-Euler substeps and detects grossly under-resolved first-sample changes; never describe its percentage as a physical accuracy bound. A pass indicates internal consistency at those two step sizes only.
+- The optional diagnostic is UI-only and must be invalidated when the electrical project, solver mode or time window changes. It must not rewrite project JSON or alter the existing default integration.

@@ -27,13 +27,15 @@
 ## v0.3 — expanded electrical simulation
 - [x] Experimental exponential LED I–V approximation with multiple series/parallel branches, solver convergence protection and per-LED overcurrent diagnostics
 - [x] Experimental DC voltage difference of ideal high-impedance multimeter probes
-- [x] Eight ready-to-run sample circuits (single LED, parallel LED, series LED, voltmeter, RC charging/discharging, dual capacitors in series/parallel), created as separate local projects
+- [x] Nine ready-to-run sample circuits (single LED, parallel LED, series LED, voltmeter, RC charging/discharging, RC resistor-voltage measurement, dual capacitors in series/parallel), created as separate local projects
 - [ ] Calibrated device libraries, diode tolerances and nonlinear model fidelity
 - [x] Analytical single-capacitor RC charge/discharge waveform, equivalent-resistance calculation for resistor networks, initial-voltage input and time-sample slider
 - [x] Bounded 2–6 capacitor linear RC backward-Euler numerical solver with source-free discharge, signed branch currents and selectable waveform traces
 - [ ] General nonlinear/inductor transient MNA, live current probes and physical oscilloscope
 - [x] Virtual two-channel RC waveform viewer (capacitor voltage and computed branch current), movable time cursor, CSV export and bounded high-impedance voltage probing over capacitor-only paths
-- [ ] Physical series current probes, resistor-node voltage probes, parameterized switches and wider numerical reference fixtures
+- [x] Resistor-node RC voltage readings reconstructed from KCL, source and capacitor voltage constraints, with disjoint floating-island safety checks
+- [x] Optional RC coarse/fine timestep consistency check with fast-transient sampling warnings and analytical reference tests
+- [ ] Physical series current probes, parameterized switches and broad external numerical reference fixtures
 
 ## v0.4 — Arduino-compatible runtime
 - [ ] Safe/deterministic AVR-compatible execution, sketch compilation, GPIO/PWM/ADC
