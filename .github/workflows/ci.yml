@@ -82,3 +82,23 @@ jobs:
         if: steps.pages.outputs.enabled == 'true'
         id: publish
         uses: actions/deploy-pages@v4
+      - name: Verify published site is reachable
+        if: steps.pages.outputs.enabled == 'true'
+        env:
+          SITE_URL: ${{ steps.publish.outputs.page_url }}
+        run: |
+          if [ -z "$SITE_URL" ]; then
+            echo '::error::Pages deployment returned an empty URL.'
+            exit 1
+          fi
+          for attempt in 1 2 3 4 5 6; do
+            site_html=$(curl --fail --silent --show-error --location --max-time 15 "$SITE_URL") || site_html=""
+            if printf '%s' "$site_html" | grep -Fq '<title>Circuits'; then
+              echo "Verified public Pages HTML at $SITE_URL"
+              exit 0
+            fi
+            echo "Pages not yet ready (attempt ${attempt}/6)"
+            sleep 5
+          done
+          echo "::error::Public Pages HTML was not reachable at $SITE_URL"
+          exit 1

@@ -33,7 +33,7 @@ npm run dev
 
 Pushes to `main` run `.github/workflows/ci.yml` (TypeScript, tests, production build), and always preserve a successful `circuits-dist` build artifact.
 
-**One-time setup:** repository administrator must visit [Settings → Pages](https://github.com/rushairer/Circuits/settings/pages) and choose **GitHub Actions** as the build and deployment source. Until then, CI can be green but the Pages deployment is explicitly skipped. Once enabled, trigger **Run workflow** in [Actions](https://github.com/rushairer/Circuits/actions/workflows/ci.yml) or push another commit.
+**One-time setup:** repository administrator must visit [Settings → Pages](https://github.com/rushairer/Circuits/settings/pages) and choose **GitHub Actions** as the build and deployment source. Until then, CI can be green but the Pages deployment is explicitly skipped. Once enabled, the workflow also performs an HTTP smoke test against the published site after deployment. Trigger **Run workflow** in [Actions](https://github.com/rushairer/Circuits/actions/workflows/ci.yml) or push another commit.
 
 Expected URL **only after a successful deployment**: https://rushairer.github.io/Circuits/.
 
