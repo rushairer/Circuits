@@ -31,6 +31,12 @@ export function buildNetlist(doc:Project):Netlist {
     /* pins are deliberately stable across toggles */
   }
   const warnings:string[]=[];
+  for(const entry of doc.insertions??[]){
+    const part=terminalKey({componentId:entry.componentId,pinId:entry.pinId});
+    const board=terminalKey({componentId:entry.boardId,pinId:entry.holeId});
+    if(uf.has(part)&&uf.has(board))uf.union(part,board);
+    else warnings.push(`插孔连接 ${entry.componentId}/${entry.pinId} 无效`);
+  }
   for(const w of doc.wires){const a=terminalKey(w.from),b=terminalKey(w.to);if(uf.has(a)&&uf.has(b))uf.union(a,b);else warnings.push(`导线 ${w.id} 存在无效端点`)}
   return {netOf(e){const key=terminalKey(e);return uf.has(key)?uf.find(key):null},warnings};
 }

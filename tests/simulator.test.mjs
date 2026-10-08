@@ -172,3 +172,65 @@ test('nearest terminal uses rotated pin geometry and breadboard hole positions',
  assert.equal(nearestTerminal(p,{x:-5000,y:-5000}),null);
  assert.equal(validTerminal(p,{componentId:'bb1',pinId:'not-a-hole'}),false);
 });
+
+import {nearestBreadboardHole,snapPartToBreadboard,reconcileInsertions,insertionTarget} from '../.test-dist/core/placement.js';
+test('dropping a resistor near breadboard sockets inserts both legs in distinct columns',()=>{
+ const p=demo(),board=p.parts.find(c=>c.id==='bb1'),r=p.parts.find(c=>c.id==='r1');
+ r.x=board.x+28+3;r.y=board.y+67-30+2;
+ const placed=snapPartToBreadboard(p,'r1');
+ const inserted=placed.insertions.filter(i=>i.componentId==='r1');
+ assert.equal(inserted.length,2);
+ assert.equal(inserted.find(i=>i.pinId==='a').holeId,'hole-a-0');
+ assert.equal(inserted.find(i=>i.pinId==='b').holeId,'hole-a-8');
+ const a=pinWorld({componentId:'r1',pinId:'a'},placed.parts);
+ const boardPad=pinWorld({componentId:'bb1',pinId:'hole-a-0'},placed.parts);
+ assert.ok(Math.hypot(a.x-boardPad.x,a.y-boardPad.y)<.001);
+ assert.equal(insertionTarget(placed,{componentId:'r1',pinId:'a'}).pinId,'hole-a-0');
+ assert.equal(p.insertions,undefined);
+});
+test('moving an inserted resistor away removes both physical contacts',()=>{
+ const p=demo(),board=p.parts.find(c=>c.id==='bb1'),r=p.parts.find(c=>c.id==='r1');
+ r.x=board.x+28;r.y=board.y+67-30;
+ const placed=snapPartToBreadboard(p,'r1');
+ assert.equal(placed.insertions.length,2);
+ const moved=structuredClone(placed);moved.parts.find(c=>c.id==='r1').y-=80;
+ assert.equal(reconcileInsertions(moved).insertions.length,0);
+});
+test('breadboard insertions conduct through internal hole strips without explicit wires',()=>{
+ const p=demo(),board=p.parts.find(c=>c.id==='bb1'),r=p.parts.find(c=>c.id==='r1');
+ r.x=board.x+28;r.y=board.y+67-30;
+ const doc=snapPartToBreadboard(p,'r1');
+ const net=buildNetlist(doc);
+ assert.equal(net.netOf({componentId:'r1',pinId:'a'}),net.netOf({componentId:'bb1',pinId:'hole-e-0'}));
+ assert.notEqual(net.netOf({componentId:'r1',pinId:'a'}),net.netOf({componentId:'r1',pinId:'b'}));
+});
+test('placement requires actual hole proximity and does not connect through board artwork',()=>{
+ const p=demo(),board=p.parts.find(c=>c.id==='bb1'),r=p.parts.find(c=>c.id==='r1');
+ r.x=board.x+225;r.y=board.y+115;
+ assert.equal(nearestBreadboardHole(p,{x:-100,y:-100}),null);
+ const placed=snapPartToBreadboard(p,'r1',2);
+ assert.ok(placed.insertions.every(i=>i.componentId!=='r1'));
+});
+test('invalid insertion owners, pad IDs and duplicate leg attachments are rejected',()=>{
+ const p=demo();
+ p.insertions=[{componentId:'r1',pinId:'a',boardId:'bb1',holeId:'hole-a-0'}];
+ assert.equal(validProject(p),true);
+ p.insertions.push({...p.insertions[0]});assert.equal(validProject(p),false);
+ p.insertions=[{componentId:'r1',pinId:'a',boardId:'bb1',holeId:'plus'}];
+ assert.equal(validProject(p),false);
+ p.insertions=[{componentId:'a1',pinId:'d13',boardId:'bb1',holeId:'hole-a-0'}];
+ assert.equal(validProject(p),false);
+});
+test('a fully breadboard-routed series resistor and LED gives a valid DC result',()=>{
+ const p=demo(),b=p.parts.find(c=>c.id==='bb1'),r=p.parts.find(c=>c.id==='r1'),l=p.parts.find(c=>c.id==='l1');
+ r.x=b.x+28;r.y=b.y+67-30;
+ l.x=b.x+28+144;l.y=b.y+67-65;
+ const contacts=reconcileInsertions(p);
+ assert.equal(contacts.insertions.length,4);
+ contacts.wires=[
+   wire('power','b1','positive','bb1','hole-c-0'),
+   wire('ground','b1','negative','bb1','hole-c-14')
+ ];
+ assert.equal(evaluate(contacts).lit,true);
+ assert.equal(evaluate(contacts).currentMilliAmps,21.21);
+});

@@ -2,7 +2,8 @@ export type Kind = 'battery' | 'resistor' | 'led' | 'breadboard' | 'arduino' | '
 export interface Part { id:string; kind:Kind; x:number; y:number; value?:number; closed?:boolean; rotation:number }
 export interface Endpoint { componentId:string; pinId:string }
 export interface Wire { id:string; from:Endpoint; to:Endpoint; color:string; bends?:{x:number;y:number}[] }
-export interface Project { schemaVersion?:2; name:string; parts:Part[]; wires:Wire[]; code:string }
+export interface Insertion { componentId:string; pinId:string; boardId:string; holeId:string }
+export interface Project { schemaVersion?:2; name:string; parts:Part[]; wires:Wire[]; code:string; insertions?:Insertion[] }
 export const parts:Kind[] = ['battery','resistor','led','breadboard','arduino','switch','pushbutton','potentiometer','capacitor','buzzer','multimeter','servo'];
 export const size:Record<Kind,[number,number]>={battery:[92,135],resistor:[140,60],led:[110,100],breadboard:[440,210],arduino:[205,175],switch:[140,90],pushbutton:[110,110],potentiometer:[120,115],capacitor:[95,105],buzzer:[110,110],multimeter:[145,160],servo:[150,120]};
 export const labels:Record<Kind,string>={battery:'9V 电池',resistor:'电阻',led:'LED',breadboard:'面包板',arduino:'Arduino Uno',switch:'拨动开关',pushbutton:'按钮开关',potentiometer:'电位器',capacitor:'电容',buzzer:'蜂鸣器',multimeter:'万用表',servo:'伺服电机'};
@@ -45,6 +46,21 @@ export function validProject(v:unknown):v is Project {
  for(const c of p.parts){
    if(!c||typeof c.id!=='string'||!/^[\w-]{1,80}$/.test(c.id)||ids.has(c.id)||!parts.includes(c.kind)||!Number.isFinite(c.x)||!Number.isFinite(c.y)||!Number.isFinite(c.rotation)||Math.abs(c.x)>100000||Math.abs(c.y)>100000||(c.closed!==undefined&&typeof c.closed!=='boolean')||c.value!==undefined&&(!Number.isFinite(c.value)||Math.abs(c.value)>1e12))return false;
    ids.add(c.id);
+ }
+ if(p.insertions!==undefined){
+   if(!Array.isArray(p.insertions)||p.insertions.length>600)return false;
+   const used=new Set<string>();
+   for(const insertion of p.insertions){
+     if(!insertion||typeof insertion.componentId!=='string'||typeof insertion.pinId!=='string'||
+       typeof insertion.boardId!=='string'||typeof insertion.holeId!=='string')return false;
+     const owner=p.parts.find(c=>c.id===insertion.componentId);
+     const board=p.parts.find(c=>c.id===insertion.boardId);
+     const key=insertion.componentId+'::'+insertion.pinId;
+     if(!owner||!['resistor','led'].includes(owner.kind)||!Object.hasOwn(pins[owner.kind],insertion.pinId)||
+       !board||board.kind!=='breadboard'||!Object.hasOwn(pins.breadboard,insertion.holeId)||
+       insertion.holeId==='plus'||insertion.holeId==='minus'||used.has(key))return false;
+     used.add(key);
+   }
  }
  const wireIds=new Set<string>();
  for(const w of p.wires){
