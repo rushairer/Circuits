@@ -70,7 +70,7 @@ test('probe: signed RC capacitor voltage is determined only by terminal net IDs'
  p.wires[4].to.pinId='a';
  const zero=readRcVoltageProbe(p,capture,'m1',20);
  assert.equal(zero.status,'measured');assert.equal(zero.volts,0);
- p.wires[4].to.pinId='b';
+ p.wires[4].to.pinId='a';
  p.wires[3].to.pinId='b';
  const reverse=readRcVoltageProbe(p,capture,'m1',20);
  assert.equal(reverse.status,'measured');assert.ok(reverse.volts<0);
