@@ -2,7 +2,7 @@ export type Kind = 'battery' | 'resistor' | 'led' | 'breadboard' | 'arduino' | '
 export interface Part { id:string; kind:Kind; x:number; y:number; value?:number; closed?:boolean; rotation:number }
 export interface Endpoint { componentId:string; pinId:string }
 export interface Wire { id:string; from:Endpoint; to:Endpoint; color:string; bends?:{x:number;y:number}[] }
-export interface Project { name:string; parts:Part[]; wires:Wire[]; code:string }
+export interface Project { schemaVersion?:2; name:string; parts:Part[]; wires:Wire[]; code:string }
 export const parts:Kind[] = ['battery','resistor','led','breadboard','arduino','switch','pushbutton','potentiometer','capacitor','buzzer','multimeter','servo'];
 export const size:Record<Kind,[number,number]>={battery:[92,135],resistor:[140,60],led:[110,100],breadboard:[440,210],arduino:[205,175],switch:[140,90],pushbutton:[110,110],potentiometer:[120,115],capacitor:[95,105],buzzer:[110,110],multimeter:[145,160],servo:[150,120]};
 export const labels:Record<Kind,string>={battery:'9V 电池',resistor:'电阻',led:'LED',breadboard:'面包板',arduino:'Arduino Uno',switch:'拨动开关',pushbutton:'按钮开关',potentiometer:'电位器',capacitor:'电容',buzzer:'蜂鸣器',multimeter:'万用表',servo:'伺服电机'};
@@ -24,7 +24,7 @@ export const pins:Record<Kind,Record<string,[number,number]>>={
   capacitor:{a:[0,79],b:[95,79]},buzzer:{positive:[0,90],negative:[110,90]},
   multimeter:{positive:[45,158],negative:[104,158]},servo:{signal:[0,75],positive:[0,95],negative:[0,115]}
 };
-export function demo():Project{return {name:'我的第一个电路',parts:[
+export function demo():Project{return {schemaVersion:2,name:'我的第一个电路',parts:[
  {id:'b1',kind:'battery',x:100,y:170,rotation:0,value:9},
  {id:'r1',kind:'resistor',x:430,y:215,rotation:0,value:330},
  {id:'l1',kind:'led',x:750,y:170,rotation:0},
@@ -39,6 +39,7 @@ export function demo():Project{return {name:'我的第一个电路',parts:[
 export function validProject(v:unknown):v is Project {
  if(!v||typeof v!=='object')return false;
  const p=v as Partial<Project>;
+ if(p.schemaVersion!==undefined&&p.schemaVersion!==2)return false;
  if(!(typeof p.name==='string'&&p.name.length<=120&&typeof p.code==='string'&&p.code.length<=300000&&Array.isArray(p.parts)&&p.parts.length<=300&&Array.isArray(p.wires)&&p.wires.length<=2000))return false;
  const ids=new Set<string>();
  for(const c of p.parts){
@@ -55,3 +56,5 @@ export function validProject(v:unknown):v is Project {
  }
  return true;
 }
+
+export function blankProject():Project{return {schemaVersion:2,name:'未命名电路',parts:[],wires:[],code:demo().code}}

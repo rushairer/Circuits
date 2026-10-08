@@ -12,3 +12,5 @@
 See `docs/ROADMAP.md` for functionality not yet implemented.
 
 - `src/core/geometry.ts`: pure world-space pin transforms, wire paths, geometry snap and bend insertion; optional wire bendpoints persist in JSON without altering electrical topology.
+
+- `src/core/storage.ts`: versioned in-browser multi-project registry, migration from legacy single draft, bounded project count and lossless switching; stores projects locally (no account or cloud sync).

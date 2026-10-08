@@ -93,3 +93,37 @@ test('import rejects invalid wire bends before SVG rendering',()=>{
  p.wires[0].bends=[{x:20,y:0}];assert.equal(validProject(p),true);
  p.wires[0].bends=Array.from({length:33},()=>({x:2,y:2}));assert.equal(validProject(p),false);
 });
+
+import {migrateWorkspace,createProject,saveCurrent,switchProject,deleteProject,activeProject,MAX_PROJECTS} from '../.test-dist/core/storage.js';
+import {blankProject} from '../.test-dist/model.js';
+test('legacy unversioned drafts migrate to versioned workspace without information loss',()=>{
+ const legacy=demo();delete legacy.schemaVersion;
+ const store=migrateWorkspace(null,legacy);
+ assert.equal(store.activeId,'default');assert.equal(activeProject(store).schemaVersion,2);
+ assert.equal(activeProject(store).wires.length,3);
+ assert.equal(validProject(activeProject(store)),true);
+});
+test('multiple projects preserve independent circuits when switching',()=>{
+ let w=migrateWorkspace(null,demo());
+ w=createProject(w,'two',blankProject(),1000);
+ w=saveCurrent(w,{...activeProject(w),name:'Another project'},1001);
+ assert.equal(activeProject(w).name,'Another project');
+ w=switchProject(w,'default');assert.equal(activeProject(w).name,'我的第一个电路');
+ w=switchProject(w,'two');assert.equal(activeProject(w).name,'Another project');
+ w=deleteProject(w,'two');assert.equal(w.activeId,'default');assert.equal(w.slots.length,1);
+});
+test('workspace corruption and foreign schema are rejected without a crash',()=>{
+ const good=migrateWorkspace(null,demo());
+ const corrupt={...good,slots:[{...good.slots[0],project:{schemaVersion:99}}]};
+ assert.equal(migrateWorkspace(corrupt).slots.length,1);
+ assert.equal(migrateWorkspace(corrupt).slots[0].project.schemaVersion,2);
+ const p=demo();p.schemaVersion=99;assert.equal(validProject(p),false);
+});
+test('workspace duplicate IDs, excess projects and final delete are rejected',()=>{
+ let w=migrateWorkspace(null,demo());
+ assert.throws(()=>createProject(w,'default',demo(),3),/already exists/);
+ assert.throws(()=>deleteProject(w,'default'),/last project/);
+ for(let i=1;i<MAX_PROJECTS;i++)w=createProject(w,'p'+i,blankProject(),i);
+ assert.equal(w.slots.length,MAX_PROJECTS);
+ assert.throws(()=>createProject(w,'excess',demo(),100),/limit/);
+});
