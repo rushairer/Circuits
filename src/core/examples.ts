@@ -8,6 +8,7 @@ export const exampleCatalog=[
  {id:'voltmeter',title:'9V 万用表测量',description:'将理想直流电压表的正负表笔接到电池两端'},
  {id:'rc-charge',title:'RC 电容充电',description:'9V 电池 + 1kΩ 电阻 + 100µF 电容，时间常数 0.1 秒'},
  {id:'rc-discharge',title:'RC 电容放电',description:'已充至 9V 的 100µF 电容经 1kΩ 电阻自然放电'},
+ {id:'rc-resistor-meter',title:'RC 电阻压降测量',description:'9V RC 充电时测量 1kΩ 电阻压降，观察 9V 逐渐下降至 0V'},
  {id:'rc-parallel',title:'双电容并联 RC',description:'100µF 与 200µF 电容并联，合计 300µF，由 9V / 1kΩ 充电'},
  {id:'rc-series',title:'双电容串联 RC',description:'两只 100µF 电容串联，观察同一支路的电压分配'}
 ] as const;
@@ -40,6 +41,16 @@ export function createExample(id:string):Project|null {
      ])
    ];
    return doc;
+ }
+ if(id==='rc-resistor-meter'){
+   const p=createExample('rc-charge')!;
+   p.name='RC 充电 · 万用表测量电阻压降';
+   p.parts.push({id:'m1',kind:'multimeter',x:910,y:455,rotation:0});
+   p.wires.push(
+     lead('wm1','m1','positive','r1','a','#e45454'),
+     lead('wm2','m1','negative','r1','b','#354553')
+   );
+   return p;
  }
  if(id==='rc-charge'){
    const p=blankProject();p.name='RC 充电 · 9V / 1kΩ / 100µF';

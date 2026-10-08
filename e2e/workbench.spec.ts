@@ -196,7 +196,7 @@ test('experimental DC voltmeter reads 9 volts from battery probes, and disconnec
 test('sample gallery creates separate dual-LED project without overwriting existing work',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(8);
+ await expect(page.locator('.example-card')).toHaveCount(9);
  await page.locator('[data-load-example="parallel"]').click();
  await expect(page.locator('input#name')).toHaveValue('双 LED 并联 · 独立限流');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -218,7 +218,7 @@ test('development index includes explicit build-revision provenance metadata',as
 test('RC example charges capacitor with time scrubber and preserved user projects',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(8);
+ await expect(page.locator('.example-card')).toHaveCount(9);
  await page.locator('[data-load-example="rc-charge"]').click();
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
  await expect(page.locator('button[data-action="solver-mode"]')).toContainText('RC 暂态');
@@ -259,7 +259,7 @@ test('RC source-free discharge shows negative capacitor current and editable ini
 test('parallel capacitor example plots selectable numerical traces and preserves project',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(8);
+ await expect(page.locator('.example-card')).toHaveCount(9);
  await page.locator('[data-load-example="rc-parallel"]').click();
  await expect(page.locator('input#name')).toHaveValue('双电容并联 · 300µF 等效');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -411,4 +411,25 @@ test('virtual scope controls do not mutate JSON circuits and the Escape key clos
  await page.keyboard.press('Escape');
  await expect(page.locator('.scope-dialog')).toHaveCount(0);
  expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(before);
+});
+
+test('one-click RC resistor-voltage sample tracks charge and keeps prior project',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await expect(page.locator('.example-card')).toHaveCount(9);
+ await page.locator('[data-load-example="rc-resistor-meter"]').click();
+ await expect(page.locator('#name')).toHaveValue('RC 充电 · 万用表测量电阻压降');
+ await expect(page.locator('button.project-switcher')).toContainText('(2)');
+ await expect(page.locator('button[data-action="solver-mode"]')).toContainText('RC 暂态');
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('text[data-meter-id="m1"]')).toHaveText('9.00');
+ await page.locator('#rc-time').evaluate((el:HTMLInputElement)=>{
+   el.value='20';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('text[data-meter-id="m1"]')).toHaveText('3.31');
+ await page.locator('.item[data-part="m1"]').click();
+ await expect(page.locator('#rc-meter-inspector')).toContainText('3.311 V');
+ await page.locator('button[data-action="projects"]').click();
+ await page.locator('.project-open').filter({hasText:'我的第一个电路'}).click();
+ await expect(page.locator('.item[data-part="m1"]')).toHaveCount(0);
 });
