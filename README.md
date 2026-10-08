@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.3.0-alpha.1 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.3.0-alpha.2 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -57,3 +57,5 @@ Mouse wheel zooms around the pointer. Hold Space while left-dragging, or use mid
 Toggle **模型：固定 2V** to **模型：非线性 DC（实验）**, then start simulation. This mode supports one DC source, resistor networks, multiple LED branches, ideal switches and **voltage only** readings from ideal open-circuit multimeter probes. The UI displays per-LED current and signed meter volts, or an explicit unsupported/unconnected message.
 
 The red LED curve is an intentionally simplified exponential approximation near 2 V at 20 mA. Overcurrent numbers, thermal performance, breakdown and device tolerances are *not* physically predictive. The default fixed 2V mode is retained for legacy projects.
+
+Use **示例电路** in the toolbar to create separate, non-destructive example projects: a baseline LED, two LEDs in parallel, two LEDs in series or a 9V voltmeter. These choose experimental nonlinear DC mode for convenient inspection.

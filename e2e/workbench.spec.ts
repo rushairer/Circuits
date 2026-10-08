@@ -192,3 +192,20 @@ test('experimental DC voltmeter reads 9 volts from battery probes, and disconnec
  await expect(page.locator('.analysis-overview')).toContainText('9.00 V');
  await expect(page.locator('.item[data-part="m1"]')).toContainText('9.00');
 });
+
+test('sample gallery creates separate dual-LED project without overwriting existing work',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await expect(page.locator('.example-card')).toHaveCount(4);
+ await page.locator('[data-load-example="parallel"]').click();
+ await expect(page.locator('input#name')).toHaveValue('双 LED 并联 · 独立限流');
+ await expect(page.locator('button.project-switcher')).toContainText('(2)');
+ await expect(page.locator('button[data-action="solver-mode"]')).toContainText('非线性 DC');
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('.analysis-overview')).toContainText('LED l1');
+ await expect(page.locator('.analysis-overview')).toContainText('LED l2');
+ await page.locator('button[data-action="projects"]').click();
+ await page.locator('.project-open').filter({hasText:'我的第一个电路'}).click();
+ await expect(page.locator('input#name')).toHaveValue('我的第一个电路');
+ await expect(page.locator('.item[data-part="l2"]')).toHaveCount(0);
+});

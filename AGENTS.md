@@ -57,3 +57,7 @@
 - Keep `src/core/dc-analysis.ts` independent from the legacy `evaluate` path. The exponential LED approximation is *not* a manufacturer-accurate physical model; flag overcurrent and unsupported configurations.
 - The initial experimental model supports one battery, positive resistors, ideal two-terminal switches and multiple LED branches; multimeter probes are ideal open-circuit voltage measurements. No MCU, SPICE transient solver, current meter or high-voltage safety model.
 - When adding a nonlinear element, test normal, reverse, parallel, series, open, shorted and failure-to-converge behavior. Never display a voltage of 0 V for an unconnected or uncomputed meter probe.
+
+## Starter example fixtures
+- `src/core/examples.ts` defines stable sample circuits as versioned valid JSON projects. Each example must pass `validProject` and meaningful nonlinear DC fixtures.
+- Choosing a sample creates a new workspace slot; do not overwrite an existing user circuit. Sample selection opts into experimental nonlinear DC but still requires the user to start simulation.

@@ -27,6 +27,7 @@
 ## v0.3 — expanded electrical simulation
 - [x] Experimental exponential LED I–V approximation with multiple series/parallel branches, solver convergence protection and per-LED overcurrent diagnostics
 - [x] Experimental DC voltage difference of ideal high-impedance multimeter probes
+- [x] Four ready-to-run sample circuits (single LED, parallel LED, series LED, voltmeter), created as separate local projects
 - [ ] Calibrated device libraries, diode tolerances and nonlinear model fidelity
 - [ ] Capacitor/inductor transient solver, current/voltage measurement and waveforms
 - [ ] Current probes, parameterized switches, oscilloscopes, and wider numerical reference fixture coverage

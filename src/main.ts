@@ -5,6 +5,7 @@ import { analyzeDC, type DcAnalysis } from './core/dc-analysis.js';
 import { snap, pinWorld, wirePoints, wirePath, nearestSegment, type Point } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
 import { blankProject } from './model.js';
+import { createExample, exampleCatalog } from './core/examples.js';
 import { zoomAt, panBy } from './core/viewport.js';
 import { translateComponents, removeComponents, rotateComponents, componentsWithinRect } from './core/selection.js';
 import { appendConnection, reconnectEndpoint, nearestTerminal } from './core/connections.js';
@@ -18,6 +19,7 @@ let simulationMode:'classic'|'nonlinear'='classic';
 let lastAnalysis:DcAnalysis|null=null;
 let persistOK=true;
 let showProjects=false;
+let showExamples=false;
 let selection:string|null=null, wiring:Endpoint|null=null, isRunning=false, search='',showCode=false, zoom=1,panX=0,panY=0;
 let selectedIds=new Set<string>();
 let marquee:{start:Point;end:Point;screenX:number;screenY:number;active:boolean;additive:boolean}|null=null;
@@ -41,7 +43,7 @@ const save=()=>{
 function openWorkspace(id:string){
  workspace=switchProject(workspace,id);
  project=reconcileInsertions(activeProject(workspace));
- selection=null;selectedIds.clear();marquee=null;panDrag=null;wiring=null;drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showCode=false;isRunning=false;undo=[];redo=[];
+ selection=null;selectedIds.clear();marquee=null;panDrag=null;wiring=null;drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;undo=[];redo=[];
  save();render();
 }
 function commit(before:Project){project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
@@ -130,6 +132,12 @@ function addBend(wireId:string,point:Point){
  selection=w.id;commit(before);
 }
 function side(){
+ if(showExamples){
+   const cards=exampleCatalog.map(item=>
+     '<button class="example-card" data-load-example="'+item.id+'"><strong>'+escape(item.title)+'</strong><small>'+escape(item.description)+'</small></button>'
+   ).join('');
+   return '<h2>示例电路 · '+exampleCatalog.length+' 个</h2><div class="field"><p>从示例创建独立的新工程，不会覆盖当前电路；默认切换为实验性非线性 DC 模式。</p><button data-action="parts">返回元件库</button></div><div class="example-list">'+cards+'</div>';
+ }
  if(showProjects){
    const rows=[...workspace.slots].sort((a,b)=>b.updatedAt-a.updatedAt).map(slot=>
      '<div class="project-row"><button class="project-open" data-open-project="'+slot.id+'"><strong>'+escape(slot.project.name)+'</strong><small>'+slot.project.parts.length+' 个元件 · '+slot.project.wires.length+' 根导线'+(slot.id===workspace.activeId?' · 当前':'')+'</small></button><button class="project-delete" aria-label="删除 '+escape(slot.project.name)+'" title="删除工程" data-delete-project="'+slot.id+'" '+(workspace.slots.length===1?'disabled':'')+'>×</button></div>'
@@ -161,7 +169,7 @@ function render(){
    }).join(''):'<p>本电路未生成可信的仿真读数</p>')+
    '<small>仅作教学近似；不含 MCU、暂态、温升及器件容差。</small></div>':'';
  const bottomReading=isRunning?(simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
- app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':'模型：非线性 DC（实验）')+'</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?(bottomReading??'仿真不可用'):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · Shift 多选 · 框选 · 空格或中键拖动画布')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.3.0-alpha.1 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':'模型：非线性 DC（实验）')+'</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?(bottomReading??'仿真不可用'):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · Shift 多选 · 框选 · 空格或中键拖动画布')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.3.0-alpha.2 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),a=x??300,b=y??300,id=uid();
  project.parts.push({id,kind,x:gridEnabled?snap(a):a,y:gridEnabled?snap(b):b,rotation:0,value:kind==='resistor'?220:kind==='battery'?9:undefined});
@@ -220,6 +228,18 @@ app.addEventListener('click',e=>{
  }
  const wire=t.closest<SVGElement>('[data-wire]');if(wire){const next=wire.getAttribute('data-wire');if(selection!==next||selectedIds.size){selectedIds.clear();selection=next;render()}return}
  const k=t.closest<HTMLElement>('[data-kind]');if(k){add(k.dataset.kind as Kind);return}
+ const example=t.closest<HTMLElement>('[data-load-example]');
+ if(example){
+   if(workspace.slots.length>=MAX_PROJECTS){alert('本地工程已达到数量上限，请先导出并清理部分旧工程');return;}
+   const doc=createExample(example.dataset.loadExample??'');
+   if(!doc)return;
+   save();
+   const id='example-'+uid();
+   workspace=createProject(workspace,id,doc,Date.now());
+   openWorkspace(id);
+   simulationMode='nonlinear';
+   render();return;
+ }
  const chosen=t.closest<HTMLElement>('[data-open-project]');
  if(chosen){
    const id=chosen.dataset.openProject!;
@@ -249,8 +269,8 @@ app.addEventListener('click',e=>{
    workspace=createProject(workspace,id,draft,Date.now());
    openWorkspace(id);break;
  }
- case 'projects':showProjects=!showProjects;showCode=false;render();break;
- case 'sample':{const b=copy();project=demo();selection=null;selectedIds.clear();commit(b);break}
+ case 'projects':showProjects=!showProjects;showExamples=false;showCode=false;render();break;
+ case 'sample':showExamples=!showExamples;showProjects=false;showCode=false;selectedIds.clear();selection=null;render();break;
  case 'undo':revert(undo,redo);break;case 'redo':revert(redo,undo);break;
  case 'select-all':selectAllParts();break;
  case 'grid':gridEnabled=!gridEnabled;localStorage.setItem('circuits-grid',gridEnabled?'on':'off');render();break;
@@ -267,7 +287,7 @@ app.addEventListener('click',e=>{
  case 'toggle-switch':{const c=project.parts.find(p=>p.id===selection);if(c?.kind==='switch'){const b=copy();c.closed=!c.closed;commit(b)}break}
  case 'rotate':rotateSelectedParts();break
  case 'delete':deleteSelection();break
- case 'code':showCode=!showCode;showProjects=false;render();break;case 'parts':selection=null;selectedIds.clear();showCode=false;showProjects=false;render();break;
+ case 'code':showCode=!showCode;showProjects=false;showExamples=false;render();break;case 'parts':selection=null;selectedIds.clear();showCode=false;showProjects=false;showExamples=false;render();break;
  case 'run':isRunning=!isRunning;render();break;
  case 'solver-mode':simulationMode=simulationMode==='classic'?'nonlinear':'classic';render();break;
  case 'zoom-in':changeZoom(1.15);break;case 'zoom-out':changeZoom(1/1.15);break;case 'fit':zoom=1;panX=0;panY=0;render();break;
