@@ -26,3 +26,8 @@
 ## Connection editing
 - Reconnect wire endpoints only through `src/core/connections.ts`; preserve wire ID, color and explicit bendpoints, and reject duplicate connections or invalid terminals.
 - Pin hit-testing uses world space after inverse camera transform; never use pixels as electrical pin identity.
+
+## Physical breadboard insertion
+- `src/core/placement.ts` detects/snaps resistor and LED leads near physical breadboard holes. Only these two kinds have automatic placement contacts at this stage.
+- `Project.insertions` holds explicit pin-to-hole identities; `buildNetlist` unions these contacts without performing geometry calculations.
+- Reconcile physical contacts on placement, rotation, import, component deletion and drag release; moving off-board must break contact. Never infer conductive contact from visual overlap with the board body.

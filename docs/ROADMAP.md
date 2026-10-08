@@ -11,7 +11,7 @@
 - [ ] Cross-browser E2E drag/rotate/wire testing and keyboard accessibility
 
 ## v0.2 — physical editing and project fidelity
-- [ ] Precise pin-to-breadboard insertion and automatic connection on placement
+- [x] Resistor/LED lead-to-hole auto-snapping, explicit insertion contacts and automatic disconnect on move/rotation (other parts pending)
 - [x] Persistent wire bendpoints (insert/drag/reset) and world-space grid snapping toggle
 - [x] Wire endpoint reconnection via world-space target snapping, with duplicate/invalid connection safeguards
 - [ ] Multi-selection and group movement
