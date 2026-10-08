@@ -18,7 +18,8 @@
 - [x] Wire endpoint reconnection via world-space target snapping, with duplicate/invalid connection safeguards
 - [x] Shift-click selection, mouse marquee, rigid group drag with preserved net topology, atomic batch delete/rotate and undo
 - [x] Focusable SVG components, Enter/Space activation, Ctrl/Cmd+A selection and arrow-key group nudge
-- [ ] Refine pan/zoom gestures and test screen reader semantics
+- [x] Wheel pointer-centered zoom and space/middle-button drag pan with geometry tests
+- [ ] Test screen reader semantics and multi-touch trackpad behavior
 - [x] Multiple projects in local browser storage, duplicate/open/delete, versioned JSON imports and legacy draft migration
 - [ ] Cloud-backed projects, share links and account login (out of scope for local prototype)
 - [ ] Visual reference comparison and editor accuracy audits

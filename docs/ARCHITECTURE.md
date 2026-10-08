@@ -20,3 +20,5 @@ See `docs/ROADMAP.md` for functionality not yet implemented.
 - `src/core/placement.ts`: spatial hit-testing and materialized resistor/LED physical insertion contacts. On release/rotate/import, contacts are reconciled from geometry; netlist consumes explicit connector IDs only, never viewport coordinates. Attached pins highlight green. Other components are not automatically inserted yet.
 
 - `src/core/selection.ts`: immutable rigid group translations, batch rotation/deletion, and full-component marquee hit testing using rotated bounding boxes. Selection is transient UI state; wire endpoints remain identified by stable pins. Group drag reconciles contacts only when released.
+
+- `src/core/viewport.ts`: pointer-anchored zoom and canvas-space panning; viewport navigation changes camera state only, not project positions or netlist.

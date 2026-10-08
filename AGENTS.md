@@ -48,3 +48,7 @@
 ## Browser compatibility gate
 - CI runs Playwright in Chromium, Firefox and WebKit; any browser regression blocks Pages deployment. Keep tests portable rather than disabling failing browsers.
 - Linux WebKit covers the engine but not native macOS Safari behavior; retain native Safari QA as an independent later task.
+
+## Canvas navigation
+- Camera pan/zoom must never modify circuit world coordinates. `src/core/viewport.ts` preserves the point underneath the cursor on zoom.
+- Space+left-drag or middle-button drag pans. Blank-canvas unmodified left drag remains marquee selection. Never intercept pointer events that start on toolbar/inspector UI.

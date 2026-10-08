@@ -122,3 +122,41 @@ test('keyboard selects focusable parts, nudges positions, and supports select-al
  await page.keyboard.press('Escape');
  await expect(page.locator('.item.selected')).toHaveCount(0);
 });
+
+test('wheel zoom preserves cursor anchor and Space-drag pans without editing the project',async({page})=>{
+ await page.goto('/');
+ const anchor=await page.evaluate(()=>{
+   const svg=document.querySelector<SVGSVGElement>('#board')!,p=svg.createSVGPoint();
+   p.x=330;p.y=135;
+   const screen=p.matrixTransform(svg.getScreenCTM()!);
+   return {x:screen.x,y:screen.y};
+ });
+ const worldUnder=()=>page.evaluate(({x,y})=>{
+   const scene=document.querySelector<SVGGElement>('#scene')!,svg=document.querySelector<SVGSVGElement>('#board')!;
+   const p=svg.createSVGPoint();p.x=x;p.y=y;
+   const world=p.matrixTransform(scene.getScreenCTM()!.inverse());
+   return {x:world.x,y:world.y};
+ },anchor);
+ const initial=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ const before=await worldUnder();
+ await page.mouse.move(anchor.x,anchor.y);
+ await page.mouse.wheel(0,-420);
+ await expect.poll(async()=>page.evaluate(()=>{
+   const t=document.querySelector('#scene')?.getAttribute('transform')||'';
+   return Number(t.match(/scale\(([^)]+)\)/)?.[1]||0);
+ })).toBeGreaterThan(1);
+ const after=await worldUnder();
+ expect(Math.abs(after.x-before.x)).toBeLessThan(.001);
+ expect(Math.abs(after.y-before.y)).toBeLessThan(.001);
+ const transform=await page.locator('#scene').getAttribute('transform');
+ await page.keyboard.down('Space');
+ await page.mouse.move(anchor.x,anchor.y);
+ await page.mouse.down();
+ await page.mouse.move(anchor.x+80,anchor.y+35,{steps:10});
+ await page.mouse.up();
+ await page.keyboard.up('Space');
+ expect(await page.locator('#scene').getAttribute('transform')).not.toBe(transform);
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(initial);
+ await page.locator('[data-action="fit"]').click();
+ await expect(page.locator('#scene')).toHaveAttribute('transform','translate(0 0) scale(1)');
+});

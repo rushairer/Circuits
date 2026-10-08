@@ -4,6 +4,7 @@ import { evaluate } from './core/simulator.js';
 import { snap, pinWorld, wirePoints, wirePath, nearestSegment, type Point } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
 import { blankProject } from './model.js';
+import { zoomAt, panBy } from './core/viewport.js';
 import { translateComponents, removeComponents, rotateComponents, componentsWithinRect } from './core/selection.js';
 import { appendConnection, reconnectEndpoint, nearestTerminal } from './core/connections.js';
 import { reconcileInsertions, snapPartToBreadboard } from './core/placement.js';
@@ -18,6 +19,8 @@ let selection:string|null=null, wiring:Endpoint|null=null, isRunning=false, sear
 let selectedIds=new Set<string>();
 let marquee:{start:Point;end:Point;screenX:number;screenY:number;active:boolean;additive:boolean}|null=null;
 let gridEnabled=localStorage.getItem('circuits-grid')!=='off';
+let spaceHeld=false;
+let panDrag:{x:number;y:number;panX:number;panY:number}|null=null;
 let bendDrag:{id:string;index:number;before:Project}|null=null;
 let endpointDrag:{id:string;side:'from'|'to';preview:Point}|null=null;
 let ignoredClick:{x:number;y:number;until:number}|null=null;
@@ -35,7 +38,7 @@ const save=()=>{
 function openWorkspace(id:string){
  workspace=switchProject(workspace,id);
  project=reconcileInsertions(activeProject(workspace));
- selection=null;selectedIds.clear();marquee=null;wiring=null;drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showCode=false;isRunning=false;undo=[];redo=[];
+ selection=null;selectedIds.clear();marquee=null;panDrag=null;wiring=null;drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showCode=false;isRunning=false;undo=[];redo=[];
  save();render();
 }
 function commit(before:Project){project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
@@ -98,6 +101,10 @@ function refreshScene(){
  const latest=wrapper.querySelector('#scene');
  if(latest)original.innerHTML=latest.innerHTML;
 }
+function changeZoom(factor:number){
+ const view=zoomAt({zoom,panX,panY},{x:550,y:400},zoom*factor);
+ zoom=view.zoom;panX=view.panX;panY=view.panY;render();
+}
 function canvasPoint(clientX:number,clientY:number):Point|null {
  const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
  if(!svg||!matrix)return null;
@@ -131,7 +138,7 @@ function side(){
  if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+(c.kind==='resistor'||c.kind==='battery'?'<label>数值 ('+(c.kind==='resistor'?'Ω':'V')+')</label><input id="value" type="number" min="1" value="'+(c.value??1)+'"/>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+(!['battery','resistor','led','breadboard','switch'].includes(c.kind)?'<p>该元件仅支持可视化与接线，暂未接入电气仿真。</p>':'')+'<button data-action="rotate">旋转 90°</button><button data-action="delete">删除元件</button><button data-action="parts">返回元件库</button></div>';
  return '<h2>▦ 组件库</h2><div class="search"><input id="search" placeholder="搜索组件..." value="'+escape(search)+'"/></div><div class="parts">'+parts.filter(k=>labels[k].toLowerCase().includes(search.toLowerCase())).map(kind=>'<button class="part" draggable="true" data-kind="'+kind+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg>'+labels[kind]+'</button>').join('')+'</div><div class="field"><p>点击添加元件，点两个引脚接线。支持从元件库拖入。</p></div>'}
 function render(){const report=evaluate(project);
- app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas">'+canvas()+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?report.reason+' · '+report.currentMilliAmps+'mA':selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 拖动元件或点击引脚接线')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.2.0-alpha.6 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?report.reason+' · '+report.currentMilliAmps+'mA':selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · Shift 多选 · 框选 · 空格或中键拖动画布')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.2.0-alpha.7 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),a=x??300,b=y??300,id=uid();
  project.parts.push({id,kind,x:gridEnabled?snap(a):a,y:gridEnabled?snap(b):b,rotation:0,value:kind==='resistor'?220:kind==='battery'?9:undefined});
@@ -239,7 +246,7 @@ app.addEventListener('click',e=>{
  case 'delete':deleteSelection();break
  case 'code':showCode=!showCode;showProjects=false;render();break;case 'parts':selection=null;selectedIds.clear();showCode=false;showProjects=false;render();break;
  case 'run':isRunning=!isRunning;render();break;
- case 'zoom-in':zoom=Math.min(2,zoom+.1);render();break;case 'zoom-out':zoom=Math.max(.4,zoom-.1);render();break;case 'fit':zoom=1;panX=0;panY=0;render();break;
+ case 'zoom-in':changeZoom(1.15);break;case 'zoom-out':changeZoom(1/1.15);break;case 'fit':zoom=1;panX=0;panY=0;render();break;
  case 'export':download(JSON.stringify(project,null,2),project.name+'.json');break;
  case 'download-code':download(project.code,'circuit.ino');break;
  case 'import':app.querySelector<HTMLInputElement>('#file')?.click();break}
@@ -257,11 +264,25 @@ app.addEventListener('dblclick',e=>{
  const point=canvasPoint(e.clientX,e.clientY);
  if(point){e.preventDefault();addBend(wire.getAttribute('data-wire')!,point)}
 });
+app.addEventListener('wheel',e=>{
+ if(!(e.target as Element).closest('.canvas')||e.deltaY===0)return;
+ e.preventDefault();
+ const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
+ if(!svg||!matrix)return;
+ const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+ const anchor=pt.matrixTransform(matrix.inverse());
+ const view=zoomAt({zoom,panX,panY},{x:anchor.x,y:anchor.y},zoom*(e.deltaY<0?1.12:1/1.12));
+ zoom=view.zoom;panX=view.panX;panY=view.panY;render();
+},{passive:false});
 app.addEventListener('pointerdown',e=>{
- if(e.button!==0)return;
  const svg=app.querySelector<SVGSVGElement>('#board'),target=e.target as Element;
  // Pointer gestures must start inside the SVG, never on toolbar or inspector controls.
  if(!target.closest('#board'))return;
+ if(e.button===1||(e.button===0&&spaceHeld)){
+   panDrag={x:e.clientX,y:e.clientY,panX,panY};
+   e.preventDefault();return;
+ }
+ if(e.button!==0)return;
  const terminalHandle=target.closest<SVGElement>('[data-wire-end]');
  if(terminalHandle){
    const id=terminalHandle.getAttribute('data-wire')!,side=terminalHandle.getAttribute('data-wire-end');
@@ -293,6 +314,18 @@ app.addEventListener('pointerdown',e=>{
  render();
 });
 window.addEventListener('pointermove',e=>{
+ if(panDrag){
+   const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
+   if(!matrix)return;
+   const scale=Math.hypot(matrix.a,matrix.b);
+   if(scale<=0)return;
+   const view=panBy({zoom,panX:panDrag.panX,panY:panDrag.panY},{
+     x:(e.clientX-panDrag.x)/scale,y:(e.clientY-panDrag.y)/scale
+   });
+   panX=view.panX;panY=view.panY;
+   app.querySelector<SVGGElement>('#scene')?.setAttribute('transform','translate('+panX+' '+panY+') scale('+zoom+')');
+   return;
+ }
  if(endpointDrag){
    const point=canvasPoint(e.clientX,e.clientY);
    if(point){
@@ -328,6 +361,11 @@ window.addEventListener('pointermove',e=>{
  refreshScene();
 });
 window.addEventListener('pointerup',e=>{
+ if(panDrag){
+   panDrag=null;
+   ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
+   render();return;
+ }
  if(endpointDrag){
    const current=endpointDrag;endpointDrag=null;
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
@@ -385,6 +423,11 @@ window.addEventListener('keydown',e=>{
    selection=selectedIds.size===1?[...selectedIds][0]:null;
    showCode=false;showProjects=false;render();return;
  }
+ if(e.key===' '&&!t.closest('button')){
+   e.preventDefault();spaceHeld=true;
+   app.querySelector('.canvas')?.classList.add('pan-mode');
+   return;
+ }
  if(command&&e.key.toLowerCase()==='a'){
    e.preventDefault();selectAllParts();
  }else if(command&&e.key.toLowerCase()==='z'){
@@ -400,12 +443,16 @@ window.addEventListener('keydown',e=>{
      project=reconcileInsertions(updated);commit(before);
    }
  }else if(e.key==='Escape'){
-   wiring=null;endpointDrag=null;bendDrag=null;drag=null;marquee=null;
+   wiring=null;endpointDrag=null;bendDrag=null;drag=null;marquee=null;panDrag=null;
    selectedIds.clear();selection=null;connectionNotice='';render();
  }else if(e.key==='Delete'||e.key==='Backspace'){
    e.preventDefault();deleteSelection();
  }
 });
+window.addEventListener('keyup',e=>{
+ if(e.key===' '){spaceHeld=false;app.querySelector('.canvas')?.classList.remove('pan-mode')}
+});
+window.addEventListener('blur',()=>{spaceHeld=false;panDrag=null});
 // Persist the first demo or migrated workspace before browser tests and user edits.
 save();
 render();

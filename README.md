@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.2.0-alpha.6 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.2.0-alpha.7 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -47,3 +47,7 @@ See [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), and [AGENT
 Tab focuses components; Enter/Space selects a focused component (Shift adds/removes). Ctrl/Cmd+A selects all components. Arrow keys nudge the selected set, Alt+Arrow nudges by one world unit, Delete removes selected parts, and Ctrl/Cmd+Z undoes one batch.
 
 CI runs the browser suite in Chromium, Firefox and Playwright's WebKit on Linux. The WebKit engine check is useful but does not replace native Safari QA on macOS/iOS.
+
+### Canvas navigation
+
+Mouse wheel zooms around the pointer. Hold Space while left-dragging, or use middle-mouse drag, to pan. Toolbar +/− zoom around the visible canvas center; Reset restores only the camera.

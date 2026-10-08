@@ -9,3 +9,5 @@
 .marquee-box{fill:#1b9f9622;stroke:#149b93;stroke-width:1.5;stroke-dasharray:6 4;pointer-events:none}.item.selected{filter:drop-shadow(0 0 5px #1a9e94)}.topbar{overflow-x:auto;scrollbar-width:thin}.topbar button{flex-shrink:0}
 
 .item[tabindex="0"]:focus-visible{outline:none;filter:drop-shadow(0 0 7px #018d88)}
+
+.canvas.pan-mode svg,.canvas.pan-mode .item{cursor:grab}.canvas.pan-mode:active svg{cursor:grabbing}
