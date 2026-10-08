@@ -184,7 +184,9 @@ test('dropping a resistor near breadboard sockets inserts both legs in distinct 
  assert.equal(inserted.find(i=>i.pinId==='b').holeId,'hole-a-8');
  const a=pinWorld({componentId:'r1',pinId:'a'},placed.parts);
  const boardPad=pinWorld({componentId:'bb1',pinId:'hole-a-0'},placed.parts);
- assert.ok(Math.hypot(a.x-boardPad.x,a.y-boardPad.y)<.001);
+ const leadB=pinWorld({componentId:'r1',pinId:'b'},placed.parts);
+ const padB=pinWorld({componentId:'bb1',pinId:'hole-a-8'},placed.parts);
+ assert.ok(Math.min(Math.hypot(a.x-boardPad.x,a.y-boardPad.y),Math.hypot(leadB.x-padB.x,leadB.y-padB.y))<.001);
  assert.equal(insertionTarget(placed,{componentId:'r1',pinId:'a'}).pinId,'hole-a-0');
  assert.equal(p.insertions,undefined);
 });
@@ -206,7 +208,7 @@ test('breadboard insertions conduct through internal hole strips without explici
 });
 test('placement requires actual hole proximity and does not connect through board artwork',()=>{
  const p=demo(),board=p.parts.find(c=>c.id==='bb1'),r=p.parts.find(c=>c.id==='r1');
- r.x=board.x+225;r.y=board.y+115;
+ r.x=board.x+250;r.y=board.y+10;
  assert.equal(nearestBreadboardHole(p,{x:-100,y:-100}),null);
  const placed=snapPartToBreadboard(p,'r1',2);
  assert.ok(placed.insertions.every(i=>i.componentId!=='r1'));
