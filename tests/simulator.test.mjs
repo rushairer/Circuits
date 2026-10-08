@@ -278,3 +278,23 @@ test('marquee contains whole rotated component bounds, independent of drag direc
  assert.deepEqual(componentsWithinRect(p,{x:420,y:200},{x:580,y:290}),[]);
  assert.deepEqual(componentsWithinRect(p,{x:460,y:160},{x:550,y:330}),['r1']);
 });
+
+import {zoomAt,panBy,viewportToWorld,MIN_ZOOM,MAX_ZOOM} from '../.test-dist/core/viewport.js';
+test('pointer-centered zoom keeps the same electrical world coordinate beneath pointer',()=>{
+ const old={zoom:1,panX:40,panY:-20},mouse={x:360,y:270};
+ const before=viewportToWorld(old,mouse),after=zoomAt(old,mouse,1.8);
+ const again=viewportToWorld(after,mouse);
+ assert.ok(Math.abs(before.x-again.x)<1e-8);
+ assert.ok(Math.abs(before.y-again.y)<1e-8);
+ assert.equal(after.zoom,1.8);
+});
+test('zoom clamping and panning reject invalid controls without mutating input',()=>{
+ const original={zoom:1,panX:0,panY:0},anchor={x:550,y:400};
+ assert.equal(zoomAt(original,anchor,1e6).zoom,MAX_ZOOM);
+ assert.equal(zoomAt(original,anchor,.0001).zoom,MIN_ZOOM);
+ assert.equal(zoomAt(original,anchor,Infinity),original);
+ const p=panBy(original,{x:40,y:-25});
+ assert.deepEqual(p,{zoom:1,panX:40,panY:-25});
+ assert.equal(original.panX,0);
+ assert.equal(panBy(original,{x:NaN,y:0}),original);
+});
