@@ -32,7 +32,8 @@
 - [x] Analytical single-capacitor RC charge/discharge waveform, equivalent-resistance calculation for resistor networks, initial-voltage input and time-sample slider
 - [x] Bounded 2–6 capacitor linear RC backward-Euler numerical solver with source-free discharge, signed branch currents and selectable waveform traces
 - [ ] General nonlinear/inductor transient MNA, live current probes and physical oscilloscope
-- [ ] Current probes, parameterized switches, oscilloscopes, and wider numerical reference fixture coverage
+- [x] Virtual two-channel RC waveform viewer (capacitor voltage and computed branch current), movable time cursor, CSV export and bounded high-impedance voltage probing over capacitor-only paths
+- [ ] Physical series current probes, resistor-node voltage probes, parameterized switches and wider numerical reference fixtures
 
 ## v0.4 — Arduino-compatible runtime
 - [ ] Safe/deterministic AVR-compatible execution, sketch compilation, GPIO/PWM/ADC

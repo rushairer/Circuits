@@ -78,3 +78,8 @@
 - The timestep/window selector and chosen capacitor trace are UI-only controls; they must not rewrite electrical project JSON. Graphical traces are teaching approximations, not live oscilloscopes.
 
 - Keyboard shortcuts must not hijack native `<input>`, `<textarea>` **or `<select>`** controls; trace/window selectors remain keyboard-operable without moving selected components.
+
+## Virtual RC measurements (v0.3.0-alpha.5)
+- The virtual oscilloscope renders already computed RC samples in two independently scaled channels (V and mA). It must not drive solver time, imply hardware measurements, or persist transient UI state to project JSON. Export CSV with explicit units and blank cells for null numerical currents.
+- `src/core/rc-probes.ts` measures signed capacitor-path potential only from explicit netlist IDs. Never display a guessed resistor voltage or treat an unconnected meter as 0 V. Multimeter display and inspector should update during user time scrubbing.
+- The modal must be keyboard dismissible and focus-contained; native select/range controls must not trigger global canvas shortcuts.

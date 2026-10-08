@@ -332,3 +332,83 @@ test('incompatible initial charges display a diagnostic instead of invented wave
  await expect(page.locator('.rc-network-panel')).toContainText('初始电压');
  await expect(page.locator('.rc-network-curve')).toHaveCount(0);
 });
+
+test('simulated oscilloscope shows two distinct RC channels, scrubs time and downloads CSV',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="rc-parallel"]').click();
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('button[data-action="scope-open"]')).toBeEnabled();
+ await page.locator('button[data-action="scope-open"]').click();
+ const dlg=page.locator('.scope-dialog');
+ await expect(dlg).toContainText('模拟示波器');
+ await expect(dlg).toContainText('向后欧拉近似');
+ await expect(page.locator('.scope-voltage-curve')).toHaveCount(1);
+ await expect(page.locator('.scope-current-curve')).toHaveCount(1);
+ await expect(page.locator('#scope-current-value')).toHaveText('—');
+ await page.locator('#scope-time').evaluate((el:HTMLInputElement)=>{
+   el.value='60';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ const v1=Number((await page.locator('#scope-voltage-value').textContent())?.replace(' V',''));
+ expect(v1).toBeGreaterThan(5.6);expect(v1).toBeLessThan(5.9);
+ await expect(page.locator('#scope-current-value')).toContainText('mA');
+ await page.locator('#scope-channel').selectOption('c2');
+ const v2=Number((await page.locator('#scope-voltage-value').textContent())?.replace(' V',''));
+ expect(Math.abs(v2-v1)).toBeLessThan(.03);
+ const [download]=await Promise.all([
+   page.waitForEvent('download'),
+   page.locator('[data-action="scope-export"]').click()
+ ]);
+ expect(download.suggestedFilename()).toBe('circuits-rc-waveform.csv');
+ await page.keyboard.press('Escape');
+ await expect(dlg).toHaveCount(0);
+ await expect(page.locator('.rc-network-panel')).toBeVisible();
+});
+
+test('RC circuit voltmeter follows time and detects reversed probes',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="rc-charge"]').click();
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ p.parts.push({id:'m1',kind:'multimeter',x:890,y:440,rotation:0});
+ p.wires.push(
+   {id:'wm1',from:{componentId:'m1',pinId:'positive'},to:{componentId:'c1',pinId:'a'},color:'#48525b'},
+   {id:'wm2',from:{componentId:'m1',pinId:'negative'},to:{componentId:'c1',pinId:'b'},color:'#48525b'}
+ );
+ await page.locator('#file').setInputFiles({name:'rc-meter.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('text[data-meter-id="m1"]')).toHaveText('0.00');
+ await page.locator('#rc-time').evaluate((el:HTMLInputElement)=>{
+   el.value='20';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('text[data-meter-id="m1"]')).toHaveText('5.69');
+ await page.locator('.item[data-part="m1"]').click();
+ await expect(page.locator('#rc-meter-inspector')).toContainText('RC 采样电压');
+ await expect(page.locator('#rc-meter-inspector')).toContainText('V');
+ p.wires[3].to.pinId='b';
+ p.wires[4].to.pinId='a';
+ await page.locator('#file').setInputFiles({name:'rc-reversed.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
+ await expect(page.locator('text[data-meter-id="m1"]')).toHaveText('0.00');
+ await page.locator('#rc-time').evaluate((el:HTMLInputElement)=>{
+   el.value='20';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('text[data-meter-id="m1"]')).toHaveText('-5.69');
+});
+
+test('virtual scope controls do not mutate JSON circuits and the Escape key closes its dialog',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="rc-discharge"]').click();
+ await page.locator('button[data-action="run"]').click();
+ const before=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ await page.locator('button[data-action="scope-open"]').click();
+ await expect(page.locator('.scope-dialog')).toBeVisible();
+ await expect(page.locator('#scope-current-value')).toContainText('mA');
+ await page.locator('#scope-time').evaluate((el:HTMLInputElement)=>{
+   el.value='20';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('#scope-voltage-value')).toHaveText('3.31 V');
+ await page.keyboard.press('Escape');
+ await expect(page.locator('.scope-dialog')).toHaveCount(0);
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(before);
+});

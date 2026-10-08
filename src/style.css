@@ -30,3 +30,30 @@
 .rc-controls label{margin:0;font-size:11px}
 .rc-controls select{min-width:0;padding:5px;border:1px solid #d9e6e9;border-radius:6px;background:#fff;color:#36515e;font-size:12px}
 @media(max-width:850px){.rc-network-panel{left:8px;right:auto;width:300px;max-height:48%}}
+
+/* Educational virtual two-channel oscilloscope. This dialog is intentionally
+   separate from editable components: opening it never changes electrical nets. */
+.scope-shade{position:absolute;inset:0;background:#102831a8;z-index:10}
+.scope-dialog{position:absolute;z-index:11;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,calc(100% - 26px));max-height:94%;overflow:auto;box-sizing:border-box;background:#f9fcfc;border:1px solid #cbdfe4;border-radius:14px;box-shadow:0 14px 45px #071b2590;padding:18px 22px;color:#314955;font-size:13px}
+.scope-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;padding:0;border:0;background:transparent;color:inherit}
+.scope-heading h2{margin:0 0 5px;font-size:19px;color:#173941}
+.scope-heading span{color:#69848e;font-size:12px}
+.scope-heading button{flex-shrink:0}
+.scope-toolbar{display:flex;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap}
+.scope-toolbar label{font-size:12px;font-weight:600}
+.scope-toolbar select{border:1px solid #c9dadf;border-radius:7px;background:#fff;color:#254753;min-width:130px;padding:7px}
+.scope-toolbar button{margin-left:auto}
+.scope-svg{display:block!important;width:100%!important;height:auto!important;aspect-ratio:610/331;background:#112b35;border-radius:9px}
+.scope-grid{stroke:#2e4c59;stroke-width:0.8;stroke-dasharray:3 5}
+.scope-axis{fill:#96b0be;font-size:11px}.scope-tick{fill:#bdd2dc;font-size:11px}
+.scope-voltage-curve{stroke:#18d5c8;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.scope-current-curve{stroke:#ffc36a;stroke-width:2.7;stroke-linecap:round;stroke-linejoin:round}
+.scope-cursor{stroke:#fff7;stroke-width:1.5;stroke-dasharray:4 3}
+.scope-readings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:13px 0 9px}
+.scope-readings div{display:flex;flex-direction:column;gap:4px;border:1px solid #dde8eb;background:white;padding:9px;border-radius:8px}
+.scope-readings span{font-size:11px;color:#647e87}
+.scope-readings strong{font-size:16px;color:#174952;font-variant-numeric:tabular-nums}
+.scope-dialog>label{display:block;font-size:12px;margin-top:10px}
+.scope-dialog input[type=range]{width:100%;accent-color:#109f9b;margin:8px 0}
+.scope-note{font-size:11px;line-height:1.6;color:#6a8790;margin:4px 0 0}
+@media(max-width:700px){.scope-dialog{padding:12px;width:calc(100% - 12px);max-height:98%}.scope-heading h2{font-size:16px}.scope-readings strong{font-size:13px}}
