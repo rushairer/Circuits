@@ -17,3 +17,8 @@
 - Distinguish passing CI from a live GitHub Pages deployment. Pages needs a one-time repository-level activation; the workflow intentionally skips deployment when unavailable.
 - Preserve `main`, avoid destructive resets, commit in coherent small batches and track remaining limitations in docs.
 - Use [ROADMAP](docs/ROADMAP.md) for scope; never claim arbitrary 1:1 parity.
+
+## v0.2 world-space editing
+- A wire bend is a persisted world-space visual coordinate. A wire's electrical connectivity is determined **only** by endpoint IDs, not by its drawn route.
+- Use `src/core/geometry.ts` for rotated terminals and wire paths. Keep view transforms and grid snapping out of the netlist.
+- Extend import validation alongside any model field, and add unit tests for malformed JSON and connection invariants.
