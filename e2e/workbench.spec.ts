@@ -209,3 +209,8 @@ test('sample gallery creates separate dual-LED project without overwriting exist
  await expect(page.locator('input#name')).toHaveValue('我的第一个电路');
  await expect(page.locator('.item[data-part="l2"]')).toHaveCount(0);
 });
+
+test('development index includes explicit build-revision provenance metadata',async({page})=>{
+ await page.goto('/');
+ await expect(page.locator('meta[name="circuits-revision"]')).toHaveAttribute('content','local');
+});

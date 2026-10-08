@@ -59,3 +59,7 @@ Toggle **模型：固定 2V** to **模型：非线性 DC（实验）**, then sta
 The red LED curve is an intentionally simplified exponential approximation near 2 V at 20 mA. Overcurrent numbers, thermal performance, breakdown and device tolerances are *not* physically predictive. The default fixed 2V mode is retained for legacy projects.
 
 Use **示例电路** in the toolbar to create separate, non-destructive example projects: a baseline LED, two LEDs in parallel, two LEDs in series or a 9V voltmeter. These choose experimental nonlinear DC mode for convenient inspection.
+
+### Release provenance
+
+The production HTML embeds `circuits-revision=<git SHA>`. CI verifies the exact current commit over public HTTPS after Pages deployment, with cache-busting and bounded retries. A successful workflow therefore means the expected version—not merely an older page title—was reachable.

@@ -61,3 +61,7 @@
 ## Starter example fixtures
 - `src/core/examples.ts` defines stable sample circuits as versioned valid JSON projects. Each example must pass `validProject` and meaningful nonlinear DC fixtures.
 - Choosing a sample creates a new workspace slot; do not overwrite an existing user circuit. Sample selection opts into experimental nonlinear DC but still requires the user to start simulation.
+
+## GitHub Pages release identity
+- Vite adds a `circuits-revision` HTML meta tag from the build's exact git SHA (or `local` for a dev build).
+- The Pages job checks that *public HTTP* serves the new SHA, not merely any previous Circuits page. Deployment artifacts may occasionally lag in GitHub's APIs: one bounded retry is permitted, not infinite retries or a false green status.
