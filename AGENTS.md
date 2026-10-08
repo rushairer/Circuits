@@ -60,7 +60,7 @@
 
 ## Starter example fixtures
 - `src/core/examples.ts` defines stable sample circuits as versioned valid JSON projects. Each example must pass `validProject` and the appropriate nonlinear DC, analytical RC, or numerical RC reference fixtures.
-- Choosing a sample creates a new workspace slot; do not overwrite an existing user circuit. Sample selection opts into experimental nonlinear DC but still requires the user to start simulation.
+- Choosing a sample creates a new workspace slot; do not overwrite an existing user circuit. Sample selection opts into the appropriate experimental RC or nonlinear DC mode but still requires the user to start simulation.
 
 ## GitHub Pages release identity
 - Vite adds a `circuits-revision` HTML meta tag from the build's exact git SHA (or `local` for a dev build).
@@ -81,7 +81,7 @@
 
 ## Virtual RC measurements (v0.3.0-alpha.5)
 - The virtual oscilloscope renders already computed RC samples in two independently scaled channels (V and mA). It must not drive solver time, imply hardware measurements, or persist transient UI state to project JSON. Export CSV with explicit units and blank cells for null numerical currents.
-- `src/core/rc-probes.ts` measures signed capacitor-path potential only from explicit netlist IDs. Never display a guessed resistor voltage or treat an unconnected meter as 0 V. Multimeter display and inspector should update during user time scrubbing.
+- `src/core/rc-probes.ts` measures signed voltage only between electrically connected, modeled RC nodes (capacitor or resistor) using explicit netlist IDs, capacitor samples, known ideal source constraints and resistor KCL. Never guess voltages across unrelated floating islands or treat an unconnected meter as 0 V. Multimeter display and inspector must update during time scrubbing.
 - The modal must be keyboard dismissible and focus-contained; native select/range controls must not trigger global canvas shortcuts.
 
 ## Superseded CI runs and browser provisioning

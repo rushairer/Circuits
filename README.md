@@ -72,7 +72,7 @@ The solver handles **one ideal capacitor**, linear resistors, static ideal switc
 
 ### Multiple capacitor RC numerical analysis
 
-Two new starter examples compare 100µF/200µF **parallel** capacitors and two 100µF **series** capacitors, charged by a 9V source through 1kΩ. The existing RC toolbar mode automatically chooses the analytical model for one capacitor or a bounded backward-Euler linear network model for 2–6 capacitors. Start simulation, choose a capacitor trace, select a 0.1–10 second display window and scrub its 101 voltage/current readings. All 8 examples create separate local projects.
+Two new starter examples compare 100µF/200µF **parallel** capacitors and two 100µF **series** capacitors, charged by a 9V source through 1kΩ. The existing RC toolbar mode automatically chooses the analytical model for one capacitor or a bounded backward-Euler linear network model for 2–6 capacitors. Start simulation, choose a capacitor trace, select a 0.1–10 second display window and scrub its 101 voltage/current readings. All 9 examples create separate local projects.
 
 The numerical model excludes inductors, nonlinear devices, live switch events and multiple independent voltage sources. It detects incompatible initial charges and hard source/connection conflicts; the first sampled current is intentionally unavailable, rather than fabricated as 0 mA. This waveform viewer is not a physical oscilloscope.
 
@@ -80,7 +80,7 @@ The numerical model excludes inductors, nonlinear devices, live switch events an
 
 In RC mode, start the simulation and open **▤ 示波器** for a separate two-channel waveform viewer: CH1 simulated capacitor voltage (V) and CH2 the computed capacitor branch current (mA), each with its own axis. Change capacitor, scrub the time cursor, and export all simulated capacitor traces as CSV with explicit column units. Multi-capacitor t=0 current is blank rather than silently shown as zero. This is **not** an actual oscilloscope or an Arduino execution environment.
 
-An existing wired multimeter can display the time-sampled voltage **when both probes lie on a known capacitor-only/wire path** (including series capacitor stacks and reversed leads). Unconnected/unsupported paths display `----` and an explicit reason. Resistor-node voltage probing, in-series current measurement and physical oscilloscope simulation remain future work.
+An existing wired multimeter shows signed RC sample voltage **within the same connected modeled RC island**, including resistor nodes, series capacitors and reversed leads. Disconnected floating islands, inconsistent constraints and unsupported circuits show `----` with an explicit reason. Physical in-series current measurement and hardware oscilloscope simulation remain future work.
 
 ### RC resistor-node measurements and numerical convergence
 
