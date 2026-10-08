@@ -28,7 +28,7 @@ interface Edge { a:string; b:string; conductance:number }
 interface Capacitor { id:string; a:string; b:string; farads:number; initial:number }
 interface Constraint { a:string; b:string; difference:number }
 const OUTPUT_INTERVALS=100;
-const SUBSTEPS=10;
+const DEFAULT_SUBSTEPS=10;
 const MAX_CAPACITORS=6;
 const MAX_UNKNOWN_NODES=32;
 const MAX_RESISTORS=80;
@@ -123,7 +123,7 @@ function consistentInitialConditions(constraints:readonly Constraint[]):boolean 
 }
 
 export function analyzeRCNetwork(
- project:Project,options:{durationSeconds?:number}={}
+ project:Project,options:{durationSeconds?:number;substepsPerInterval?:number}={}
 ):RcNetworkAnalysis {
   const result:RcNetworkAnalysis={
     ok:false,reason:'无法分析 RC 网络',capacitorIds:[],
@@ -134,6 +134,9 @@ export function analyzeRCNetwork(
   if(parts.length<2||parts.length>MAX_CAPACITORS)
     return reject('多电容求解器仅支持 2–6 只理想电容；单电容请使用解析 RC');
   const duration=options.durationSeconds??0.5;
+  const substeps=options.substepsPerInterval??DEFAULT_SUBSTEPS;
+  if(!Number.isInteger(substeps)||substeps<2||substeps>40)
+    return reject('数值积分每采样间隔需要 2–40 个内部步长');
   if(!Number.isFinite(duration)||duration<0.01||duration>30)
     return reject('数值波形窗口须介于 0.01 秒和 30 秒');
   const batteries=project.parts.filter(p=>p.kind==='battery');
@@ -199,7 +202,7 @@ export function analyzeRCNetwork(
   if(unknown.length>MAX_UNKNOWN_NODES)
     return reject('网络未知节点超过 32 个，已拒绝大规模数值求解');
   const index=new Map(unknown.map((node,i)=>[node,i]));
-  const dt=duration/(OUTPUT_INTERVALS*SUBSTEPS);
+  const dt=duration/(OUTPUT_INTERVALS*substeps);
   const caps=capacitors.map(c=>({...c,conductance:c.farads/dt}));
   const allEdges:Edge[]=[...resistors,...caps];
   const matrix=Array.from({length:unknown.length},
@@ -233,7 +236,7 @@ export function analyzeRCNetwork(
   }
   append(0,capacitors.map(()=>null));
   const known=(name:string,x:readonly number[])=>fixed.get(name)??x[index.get(name)!];
-  for(let step=1;step<=OUTPUT_INTERVALS*SUBSTEPS;step++){
+  for(let step=1;step<=OUTPUT_INTERVALS*substeps;step++){
     const rhs=fixedRhs.slice();
     caps.forEach((cap,i)=>{
       const currentHistory=cap.conductance*capValues[i],ia=index.get(cap.a),ib=index.get(cap.b);
@@ -251,7 +254,7 @@ export function analyzeRCNetwork(
     if(capValues.some(v=>!Number.isFinite(v)||Math.abs(v)>1e7)||
        currents.some(v=>!Number.isFinite(v)||Math.abs(v)>1e9))
       return reject('数值积分出现异常增益，已停止输出');
-    if(step%SUBSTEPS===0)append(duration*step/(OUTPUT_INTERVALS*SUBSTEPS),currents);
+    if(step%substeps===0)append(duration*step/(OUTPUT_INTERVALS*substeps),currents);
   }
   const warnings=[
     '向后欧拉有限步长近似；快速暂态可能因采样窗口过大而失真',
