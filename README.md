@@ -4,13 +4,13 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.1.2 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.2.0-alpha.2 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
 - SVG editor with a 12-kind component palette: battery, resistor, LED, breadboard, Arduino Uno, switch, pushbutton, potentiometer, capacitor, buzzer, multimeter, servo
 - Add, drag, rotate, select, delete and wire components by pin; wire selection, color editing and deletion
-- Undo/redo, browser autosave, JSON project import/export, zoom, and text-only Arduino sketch editor
+- Undo/redo, multi-project browser library, duplicate/open/delete projects, versioned JSON import/export, zoom, grid snapping, editable wire bends, and text-only Arduino sketch editor
 - Breadboard connectivity: five-hole strips, separated sides, independent power rails split into two segments
 - Experimental DC modified nodal analysis for **one battery + one LED** with resistor networks (including parallel paths), plus a toggleable ideal two-terminal switch
 - Import schema validation and Node unit tests

@@ -14,7 +14,8 @@
 - [ ] Precise pin-to-breadboard insertion and automatic connection on placement
 - [x] Persistent wire bendpoints (insert/drag/reset) and world-space grid snapping toggle
 - [ ] Endpoint editing and multi-selection
-- [ ] Multiple saved local projects, versioned import schema and migrations
+- [x] Multiple projects in local browser storage, duplicate/open/delete, versioned JSON imports and legacy draft migration
+- [ ] Cloud-backed projects, share links and account login (out of scope for local prototype)
 - [ ] Visual reference comparison and editor accuracy audits
 
 ## v0.3 — expanded electrical simulation
