@@ -10,3 +10,5 @@
 - UI and SVG coordinates are not part of electrical connectivity; moving a part does not break attached wires.
 
 See `docs/ROADMAP.md` for functionality not yet implemented.
+
+- `src/core/geometry.ts`: pure world-space pin transforms, wire paths, geometry snap and bend insertion; optional wire bendpoints persist in JSON without altering electrical topology.

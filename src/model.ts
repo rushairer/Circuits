@@ -1,7 +1,7 @@
 export type Kind = 'battery' | 'resistor' | 'led' | 'breadboard' | 'arduino' | 'switch' | 'pushbutton' | 'potentiometer' | 'capacitor' | 'buzzer' | 'multimeter' | 'servo';
 export interface Part { id:string; kind:Kind; x:number; y:number; value?:number; closed?:boolean; rotation:number }
 export interface Endpoint { componentId:string; pinId:string }
-export interface Wire { id:string; from:Endpoint; to:Endpoint; color:string }
+export interface Wire { id:string; from:Endpoint; to:Endpoint; color:string; bends?:{x:number;y:number}[] }
 export interface Project { name:string; parts:Part[]; wires:Wire[]; code:string }
 export const parts:Kind[] = ['battery','resistor','led','breadboard','arduino','switch','pushbutton','potentiometer','capacitor','buzzer','multimeter','servo'];
 export const size:Record<Kind,[number,number]>={battery:[92,135],resistor:[140,60],led:[110,100],breadboard:[440,210],arduino:[205,175],switch:[140,90],pushbutton:[110,110],potentiometer:[120,115],capacitor:[95,105],buzzer:[110,110],multimeter:[145,160],servo:[150,120]};
@@ -48,6 +48,7 @@ export function validProject(v:unknown):v is Project {
  const wireIds=new Set<string>();
  for(const w of p.wires){
    if(!w||typeof w.id!=='string'||!/^[\w-]{1,80}$/.test(w.id)||wireIds.has(w.id)||!w.from||!w.to||!/^#[0-9a-fA-F]{6}$/.test(w.color))return false;
+   if(w.bends!==undefined&&(!Array.isArray(w.bends)||w.bends.length>32||w.bends.some(b=>!b||!Number.isFinite(b.x)||!Number.isFinite(b.y)||Math.abs(b.x)>100000||Math.abs(b.y)>100000)))return false;
    const from=p.parts.find(c=>c.id===w.from.componentId),to=p.parts.find(c=>c.id===w.to.componentId);
    if(!from||!to||!Object.hasOwn(pins[from.kind],w.from.pinId)||!Object.hasOwn(pins[to.kind],w.to.pinId)||w.from.componentId===w.to.componentId&&w.from.pinId===w.to.pinId)return false;
    wireIds.add(w.id);

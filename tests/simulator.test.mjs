@@ -63,3 +63,33 @@ test('a switched series circuit toggles LED only when closed',()=>{
  p.parts.find(c=>c.id==='s1').closed=true;
  assert.equal(evaluate(p).lit,true);
 });
+
+import {snap,pinWorld,wirePoints,wirePath,nearestSegment} from '../.test-dist/core/geometry.js';
+test('grid snapping is consistent including negative world-space coordinates',()=>{
+ assert.equal(snap(16),20); assert.equal(snap(-16),-20);assert.equal(snap(35,5),35);
+ assert.throws(()=>snap(4,0),/Invalid/);
+});
+test('rotated resistor endpoints follow component transforms',()=>{
+ const p=demo(),r=p.parts.find(c=>c.id==='r1');
+ r.rotation=90;const left=pinWorld({componentId:'r1',pinId:'a'},p.parts);
+ const right=pinWorld({componentId:'r1',pinId:'b'},p.parts);
+ assert.ok(left&&right);assert.ok(Math.abs(left.x-right.x)<1e-8);
+ assert.ok(right.y>left.y);
+});
+test('bends change only visual routing, not electrical connectivity',()=>{
+ const p=demo(),baseline=evaluate(p),w=p.wires[0];
+ w.bends=[{x:123,y:321},{x:246,y:345}];
+ assert.equal(validProject(p),true);
+ assert.equal(wirePoints(w,p.parts).length,4);
+ assert.equal(wirePath(wirePoints(w,p.parts),true).split(' L').length,4);
+ assert.deepEqual(evaluate(p),baseline);
+});
+test('nearest bend position uses segment distance rather than insertion order',()=>{
+ assert.equal(nearestSegment([{x:0,y:0},{x:10,y:0},{x:10,y:10}],{x:8,y:9}),1);
+ assert.equal(nearestSegment([{x:0,y:0},{x:10,y:0},{x:10,y:10}],{x:5,y:1}),0);
+});
+test('import rejects invalid wire bends before SVG rendering',()=>{
+ const p=demo();p.wires[0].bends=[{x:Infinity,y:0}];assert.equal(validProject(p),false);
+ p.wires[0].bends=[{x:20,y:0}];assert.equal(validProject(p),true);
+ p.wires[0].bends=Array.from({length:33},()=>({x:2,y:2}));assert.equal(validProject(p),false);
+});
