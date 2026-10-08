@@ -13,7 +13,8 @@
 ## v0.2 — physical editing and project fidelity
 - [ ] Precise pin-to-breadboard insertion and automatic connection on placement
 - [x] Persistent wire bendpoints (insert/drag/reset) and world-space grid snapping toggle
-- [ ] Endpoint editing and multi-selection
+- [x] Wire endpoint reconnection via world-space target snapping, with duplicate/invalid connection safeguards
+- [ ] Multi-selection and group movement
 - [x] Multiple projects in local browser storage, duplicate/open/delete, versioned JSON imports and legacy draft migration
 - [ ] Cloud-backed projects, share links and account login (out of scope for local prototype)
 - [ ] Visual reference comparison and editor accuracy audits

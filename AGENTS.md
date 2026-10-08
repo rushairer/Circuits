@@ -22,3 +22,7 @@
 - A wire bend is a persisted world-space visual coordinate. A wire's electrical connectivity is determined **only** by endpoint IDs, not by its drawn route.
 - Use `src/core/geometry.ts` for rotated terminals and wire paths. Keep view transforms and grid snapping out of the netlist.
 - Extend import validation alongside any model field, and add unit tests for malformed JSON and connection invariants.
+
+## Connection editing
+- Reconnect wire endpoints only through `src/core/connections.ts`; preserve wire ID, color and explicit bendpoints, and reject duplicate connections or invalid terminals.
+- Pin hit-testing uses world space after inverse camera transform; never use pixels as electrical pin identity.
