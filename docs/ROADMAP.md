@@ -1,27 +1,31 @@
 # Circuits functional parity roadmap
 
-## v0.1.x — editor and DC foundation (in progress)
-- [x] Browser component palette and SVG editor, pin wiring, JSON import/export, local persistence
-- [x] Battery / resistors / one LED experimental DC modified nodal analysis, including parallel resistance
-- [x] Basic breadboard top/bottom rail split, five-hole strip net connectivity
-- [x] Import validation for valid component/pin references
-- [x] Actions: typecheck/tests/build, verified artifact, conditional Pages deployment
-- [ ] Enable GitHub Pages in repository Settings and verify the site is actually online
-- [ ] Component pin rendering during rotation and cross-browser E2E interactions
+## v0.1.x — editor and DC foundation (implemented and under verification)
+- [x] Browser component palette, SVG editor, pin wiring, JSON import/export, browser persistence
+- [x] Battery/resistors/one LED experimental DC modified nodal analysis, including parallel resistance
+- [x] Breadboard five-hole strip groups, two separate power rails with midpoint splits
+- [x] Import validation for component and pin references
+- [x] 12 original SVG component illustrations; toggleable ideal switch, wire selection and color editing
+- [x] Typecheck, unit tests, production build, persistent verified artifact, conditional Pages deploy
+- [ ] Enable GitHub Pages via repository Settings and confirm live deployment
+- [ ] Cross-browser E2E drag/rotate/wire testing and keyboard accessibility
 
-## v0.2 — physical editing
-- [ ] Precise breadboard contact placement, pin insertion and automatic connection
-- [ ] Wire bends and endpoint editing, multi-select and snap, multiple saved local projects
-- [x] Initial original SVG illustrations for 12 component types; toggleable two-terminal switch in DC circuit\n- [ ] Formal project schema migrations and advanced component visual parity
+## v0.2 — physical editing and project fidelity
+- [ ] Precise pin-to-breadboard insertion and automatic connection on placement
+- [ ] Wire bendpoints and endpoint editing, multi-selection and grid snapping
+- [ ] Multiple saved local projects, versioned import schema and migrations
+- [ ] Visual reference comparison and editor accuracy audits
 
-## v0.3 — simulation
-- [ ] Multi-LED, diode I/V, resistor/capacitor/inductor, transient solver and safety diagnostics
-- [ ] Switches, instrumentation (multimeter, oscilloscope), measured waveform fixtures
+## v0.3 — expanded electrical simulation
+- [ ] Nonlinear LED/diode I–V and multiple LED branch models
+- [ ] Capacitor/inductor transient solver, current/voltage measurement and waveforms
+- [ ] Parameterized switches, instrumentation, validation against reference fixtures
 
-## v0.4 — microcontroller
-- [ ] Deterministic AVR runtime, Arduino code compilation, GPIO/PWM/ADC, serial console and libraries
+## v0.4 — Arduino-compatible runtime
+- [ ] Safe/deterministic AVR-compatible execution, sketch compilation, GPIO/PWM/ADC
+- [ ] Serial monitor and curated peripherals/libraries
 
-## v0.5 — workflow
-- [ ] Blocks/Text code, schematic synchronization, shared projects, parity audit
+## v0.5 — workflow parity
+- [ ] Block ↔ text coding, synchronized schematic, shared projects and parity audit
 
-**Status:** not a complete 1:1 clone, no Autodesk affiliation. A visible component is not proof of electrical support.
+**Not yet functional parity.** A visible component does not imply an electrical model. No Autodesk affiliation.
