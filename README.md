@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.3.0-alpha.3 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.3.0-alpha.4 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -69,3 +69,9 @@ The production HTML embeds `circuits-revision=<git SHA>`. CI verifies the exact 
 Use **示例电路** to open RC charging (9V, 1kΩ, 100µF) or source-free discharge (9V capacitor initial condition, 1kΩ). Each creates a separate project and selects **模型：RC 暂态（实验）**. Start simulation for the voltage trace; move the time slider to inspect 101 deterministic samples from 0 to 5 time constants. Capacitor inspector accepts capacitance in µF and initial signed voltage in V.
 
 The solver handles **one ideal capacitor**, linear resistors, static ideal switches, breadboard connections, and zero or one DC battery. It calculates Rth and V∞ from actual connected pin networks, not the pixel drawing. Multiple capacitors/inductors, time-varying switches, LED nonlinear transients and oscilloscopes are not implemented; those circuits return unsupported diagnostics.
+
+### Multiple capacitor RC numerical analysis
+
+Two new starter examples compare 100µF/200µF **parallel** capacitors and two 100µF **series** capacitors, charged by a 9V source through 1kΩ. The existing RC toolbar mode automatically chooses the analytical model for one capacitor or a bounded backward-Euler linear network model for 2–6 capacitors. Start simulation, choose a capacitor trace, select a 0.1–10 second display window and scrub its 101 voltage/current readings. All 8 examples create separate local projects.
+
+The numerical model excludes inductors, nonlinear devices, live switch events and multiple independent voltage sources. It detects incompatible initial charges and hard source/connection conflicts; the first sampled current is intentionally unavailable, rather than fabricated as 0 mA. This waveform viewer is not a physical oscilloscope.

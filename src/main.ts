@@ -3,6 +3,7 @@ import { demo, validProject, parts, labels, pins, size, type Project, type Kind,
 import { evaluate } from './core/simulator.js';
 import { analyzeDC, type DcAnalysis } from './core/dc-analysis.js';
 import { analyzeRC, type RcAnalysis, type RcSample } from './core/rc-transient.js';
+import { analyzeRCNetwork, type RcNetworkAnalysis } from './core/rc-network.js';
 import { snap, pinWorld, wirePoints, wirePath, nearestSegment, type Point } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
 import { blankProject } from './model.js';
@@ -19,7 +20,10 @@ let project:Project=reconcileInsertions(activeProject(workspace));
 let simulationMode:'classic'|'nonlinear'|'rc'='classic';
 let lastAnalysis:DcAnalysis|null=null;
 let lastTransient:RcAnalysis|null=null;
+let lastNetwork:RcNetworkAnalysis|null=null;
 let rcTimeIndex=0;
+let rcWindowSeconds=0.5;
+let rcTraceId='';
 let persistOK=true;
 let showProjects=false;
 let showExamples=false;
@@ -139,7 +143,7 @@ function side(){
    const cards=exampleCatalog.map(item=>
      '<button class="example-card" data-load-example="'+item.id+'"><strong>'+escape(item.title)+'</strong><small>'+escape(item.description)+'</small></button>'
    ).join('');
-   return '<h2>示例电路 · '+exampleCatalog.length+' 个</h2><div class="field"><p>从示例创建独立的新工程，不会覆盖当前电路；默认切换为实验性非线性 DC 模式。</p><button data-action="parts">返回元件库</button></div><div class="example-list">'+cards+'</div>';
+   return '<h2>示例电路 · '+exampleCatalog.length+' 个</h2><div class="field"><p>从示例创建独立的新工程，不会覆盖当前电路；自动匹配非线性 DC 或 RC 暂态模式。</p><button data-action="parts">返回元件库</button></div><div class="example-list">'+cards+'</div>';
  }
  if(showProjects){
    const rows=[...workspace.slots].sort((a,b)=>b.updatedAt-a.updatedAt).map(slot=>
@@ -156,7 +160,9 @@ function side(){
  const meterReading=c?.kind==='multimeter'?lastAnalysis?.meters[c.id]:null;
  const rcValue=c?.kind==='capacitor'&&lastTransient?.ok&&lastTransient.capacitorId===c.id?
    lastTransient.samples[rcTimeIndex]:null;
- if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+(c.kind==='resistor'||c.kind==='battery'||c.kind==='capacitor'?'<label>数值 ('+(c.kind==='resistor'?'Ω':c.kind==='capacitor'?'µF':'V')+')</label><input id="value" type="number" min="'+(c.kind==='capacitor'?'0.001':'1')+'" step="any" value="'+(c.value??(c.kind==='capacitor'?100:1))+'"/>':'')+(c.kind==='capacitor'?'<label>初始电压（V）</label><input id="rc-initial" type="number" min="-1000" max="1000" step="any" value="'+(c.initialVolts??0)+'"/><small>按 t=0 初始状态计算，不模拟电路的历史充电过程。</small>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(rcValue?'<p>RC 当前采样：'+rcValue.voltageVolts.toFixed(3)+' V · '+rcValue.currentMilliAmps.toFixed(3)+' mA</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+(c.kind==='capacitor'?'<p>电容仅在 RC 暂态模式中支持单只理想电容充放电。</p>':'')+(!['battery','resistor','led','breadboard','switch','capacitor','multimeter'].includes(c.kind)?'<p>该元件仅支持可视化与接线，暂未接入电气仿真。</p>':'')+'<button data-action="rotate">旋转 90°</button><button data-action="delete">删除元件</button><button data-action="parts">返回元件库</button></div>';
+ const networkValue=c?.kind==='capacitor'&&lastNetwork?.ok?
+   lastNetwork.samples[rcTimeIndex]?.capacitors[c.id]:null;
+ if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+(c.kind==='resistor'||c.kind==='battery'||c.kind==='capacitor'?'<label>数值 ('+(c.kind==='resistor'?'Ω':c.kind==='capacitor'?'µF':'V')+')</label><input id="value" type="number" min="'+(c.kind==='capacitor'?'0.001':'1')+'" step="any" value="'+(c.value??(c.kind==='capacitor'?100:1))+'"/>':'')+(c.kind==='capacitor'?'<label>初始电压（V）</label><input id="rc-initial" type="number" min="-1000" max="1000" step="any" value="'+(c.initialVolts??0)+'"/><small>按 t=0 初始状态计算，不模拟电路的历史充电过程。</small>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(rcValue?'<p>RC 当前采样：'+rcValue.voltageVolts.toFixed(3)+' V · '+rcValue.currentMilliAmps.toFixed(3)+' mA</p>':'')+(networkValue?'<p id="rc-network-inspector">多电容当前采样：'+networkValue.voltageVolts.toFixed(3)+' V · '+(networkValue.currentMilliAmps===null?'未估算':networkValue.currentMilliAmps.toFixed(3)+' mA')+'</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'') +(c.kind==='capacitor'?'<p>RC 暂态支持单电容解析及 2–6 只电容线性数值积分；非线性/电感未模拟。</p>':'')+(!['battery','resistor','led','breadboard','switch','capacitor','multimeter'].includes(c.kind)?'<p>该元件仅支持可视化与接线，暂未接入电气仿真。</p>':'')+'<button data-action="rotate">旋转 90°</button><button data-action="delete">删除元件</button><button data-action="parts">返回元件库</button></div>';
  return '<h2>▦ 组件库</h2><div class="search"><input id="search" placeholder="搜索组件..." value="'+escape(search)+'"/></div><div class="parts">'+parts.filter(k=>labels[k].toLowerCase().includes(search.toLowerCase())).map(kind=>'<button class="part" draggable="true" data-kind="'+kind+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg>'+labels[kind]+'</button>').join('')+'</div><div class="field"><p>点击添加元件，点两个引脚接线。支持从元件库拖入。</p></div>'}
 function rcBounds(samples:readonly RcSample[]){
  const values=samples.map(p=>p.voltageVolts),minimum=Math.min(...values),maximum=Math.max(...values);
@@ -187,9 +193,51 @@ function rcPanel(analysis:RcAnalysis):string {
   '<span>电容电流 <strong id="rc-current-value">'+sample.currentMilliAmps.toFixed(3)+' mA</strong></span></div>'+
   '<small>波形为 0–5τ 的解析采样，不代表 MCU/示波器实时运行，也不适用于非线性器件。</small></section>';
 }
+
+function networkPoint(value:number,i:number,bounds:{low:number;high:number}){
+ return {x:38+340*i/100,y:158-125*(value-bounds.low)/(bounds.high-bounds.low)};
+}
+function networkBounds(analysis:RcNetworkAnalysis,id:string){
+ const values=analysis.samples.map(s=>s.capacitors[id].voltageVolts);
+ const min=Math.min(...values),max=Math.max(...values),pad=Math.max(0.25,(max-min)*0.1);
+ return {low:min-pad,high:max+pad};
+}
+function rcNetworkPanel(analysis:RcNetworkAnalysis):string {
+ if(!analysis.ok)return '<section class="rc-panel rc-network-panel" role="status"><h3>多电容 RC · 无法求解</h3><p class="rc-warning">'+escape(analysis.reason)+'</p><small>不会显示虚构的波形。仅支持 2–6 只理想电容与线性电阻。</small></section>';
+ const id=analysis.capacitorIds.includes(rcTraceId)?rcTraceId:analysis.capacitorIds[0];
+ rcTraceId=id;
+ const idx=Math.max(0,Math.min(100,rcTimeIndex)),data=analysis.samples;
+ const bounds=networkBounds(analysis,id),point=data[idx].capacitors[id];
+ const positions=data.map((row,i)=>{
+   const xy=networkPoint(row.capacitors[id].voltageVolts,i,bounds);
+   return xy.x.toFixed(2)+','+xy.y.toFixed(2);
+ }).join(' ');
+ const cursor=networkPoint(point.voltageVolts,idx,bounds);
+ const selectCaps=analysis.capacitorIds.map(partId=>'<option value="'+escape(partId)+'" '+(partId===id?'selected':'')+'>电容 '+escape(partId)+'</option>').join('');
+ const windows=[0.1,0.5,1,5,10].map(seconds=>'<option value="'+seconds+'" '+(seconds===rcWindowSeconds?'selected':'')+'>'+seconds+' s</option>').join('');
+ const currentText=point.currentMilliAmps===null?'—':point.currentMilliAmps.toFixed(3)+' mA';
+ return '<section class="rc-panel rc-network-panel" aria-label="多电容 RC 数值波形"><h3>多电容 RC · 数值近似</h3>'+
+  '<div class="rc-controls"><label for="rc-trace">显示电容</label><select id="rc-trace" aria-label="选择电容电压曲线">'+selectCaps+'</select>'+
+  '<label for="rc-window">仿真时间窗口</label><select id="rc-window" aria-label="选择仿真时间窗口">'+windows+'</select></div>'+
+  '<svg class="rc-plot" role="img" aria-label="所选电容电压随时间变化" viewBox="0 0 420 190">'+
+  '<path d="M38 24V158H378" fill="none" stroke="#8eaaaf" stroke-width="1.5"/>'+
+  '<line x1="38" y1="92" x2="378" y2="92" stroke="#d5e3e5" stroke-dasharray="5 5"/>'+
+  '<polyline class="rc-network-curve" fill="none" stroke="#008f87" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" points="'+positions+'"/>'+
+  '<circle id="rc-network-marker" cx="'+cursor.x.toFixed(2)+'" cy="'+cursor.y.toFixed(2)+'" r="5" fill="#f9a23d" stroke="#fff" stroke-width="2"/>'+
+  '<text x="37" y="15" font-size="12" fill="#4c6671">'+bounds.high.toFixed(2)+' V</text>'+
+  '<text x="37" y="179" font-size="12" fill="#4c6671">'+bounds.low.toFixed(2)+' V</text>'+
+  '<text x="378" y="179" font-size="12" fill="#4c6671" text-anchor="end">'+analysis.durationSeconds!.toFixed(2)+' s</text></svg>'+
+  '<label for="rc-network-time">采样时刻 · <span id="rc-network-time-value">'+data[idx].timeSeconds.toFixed(3)+'</span> s</label>'+
+  '<input id="rc-network-time" type="range" min="0" max="100" step="1" value="'+idx+'" aria-label="选择多电容采样时刻"/>'+
+  '<div class="rc-values"><span>电容电压 <strong id="rc-network-voltage">'+point.voltageVolts.toFixed(2)+' V</strong></span>'+
+  '<span>电容电流 <strong id="rc-network-current">'+currentText+'</strong></span></div>'+
+  '<small>固定步长向后欧拉积分，仅作教学近似。t=0 电流不估算；并非真实示波器或 SPICE。</small></section>';
+}
 function render(){
  lastAnalysis=isRunning&&simulationMode==='nonlinear'?analyzeDC(project):null;
- lastTransient=isRunning&&simulationMode==='rc'?analyzeRC(project):null;
+ const numberOfCapacitors=project.parts.filter(p=>p.kind==='capacitor').length;
+ lastTransient=isRunning&&simulationMode==='rc'&&numberOfCapacitors<=1?analyzeRC(project):null;
+ lastNetwork=isRunning&&simulationMode==='rc'&&numberOfCapacitors>1?analyzeRCNetwork(project,{durationSeconds:rcWindowSeconds}):null;
  const report=simulationMode==='classic'?evaluate(project):null;
  const details=lastAnalysis;
  const analysisHTML=details?'<div class="analysis-overview" role="status"><strong>实验性非线性 DC</strong><p>'+escape(details.reason)+'</p>'+
@@ -203,8 +251,8 @@ function render(){
      return '<div class="analysis-line"><span>电压表 '+escape(p.id)+'</span><strong>'+value+'</strong></div>';
    }).join(''):'<p>本电路未生成可信的仿真读数</p>')+
    '<small>仅作教学近似；不含 MCU、暂态、温升及器件容差。</small></div>':'';
- const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
- app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+(lastTransient?rcPanel(lastTransient):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?(bottomReading??'仿真不可用'):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · Shift 多选 · 框选 · 空格或中键拖动画布')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.3.0-alpha.3 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+ const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastNetwork?.reason??lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?(bottomReading??'仿真不可用'):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · Shift 多选 · 框选 · 空格或中键拖动画布')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.3.0-alpha.4 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),a=x??300,b=y??300,id=uid();
  project.parts.push({id,kind,x:gridEnabled?snap(a):a,y:gridEnabled?snap(b):b,rotation:0,value:kind==='resistor'?220:kind==='battery'?9:kind==='capacitor'?100:undefined,initialVolts:kind==='capacitor'?0:undefined});
@@ -273,7 +321,7 @@ app.addEventListener('click',e=>{
    workspace=createProject(workspace,id,doc,Date.now());
    openWorkspace(id);
    simulationMode=example.dataset.loadExample?.startsWith('rc-')?'rc':'nonlinear';
-   rcTimeIndex=0;
+   rcTimeIndex=0;rcTraceId='';rcWindowSeconds=0.5;
    render();return;
  }
  const chosen=t.closest<HTMLElement>('[data-open-project]');
@@ -325,7 +373,7 @@ app.addEventListener('click',e=>{
  case 'delete':deleteSelection();break
  case 'code':showCode=!showCode;showProjects=false;showExamples=false;render();break;case 'parts':selection=null;selectedIds.clear();showCode=false;showProjects=false;showExamples=false;render();break;
  case 'run':isRunning=!isRunning;render();break;
- case 'solver-mode':simulationMode=simulationMode==='classic'?'nonlinear':simulationMode==='nonlinear'?'rc':'classic';rcTimeIndex=0;render();break;
+ case 'solver-mode':simulationMode=simulationMode==='classic'?'nonlinear':simulationMode==='nonlinear'?'rc':'classic';rcTimeIndex=0;rcTraceId='';render();break;
  case 'zoom-in':changeZoom(1.15);break;case 'zoom-out':changeZoom(1/1.15);break;case 'fit':zoom=1;panX=0;panY=0;render();break;
  case 'export':download(JSON.stringify(project,null,2),project.name+'.json');break;
  case 'download-code':download(project.code,'circuit.ino');break;
@@ -333,6 +381,27 @@ app.addEventListener('click',e=>{
 });
 app.addEventListener('input',e=>{
  const t=e.target as HTMLInputElement;
+ if(t.id==='rc-network-time'&&lastNetwork?.ok){
+   rcTimeIndex=Math.max(0,Math.min(100,Math.round(Number(t.value)||0)));
+   const id=lastNetwork.capacitorIds.includes(rcTraceId)?rcTraceId:lastNetwork.capacitorIds[0];
+   const sample=lastNetwork.samples[rcTimeIndex],item=sample.capacitors[id];
+   const xy=networkPoint(item.voltageVolts,rcTimeIndex,networkBounds(lastNetwork,id));
+   const marker=app.querySelector<SVGCircleElement>('#rc-network-marker');
+   marker?.setAttribute('cx',xy.x.toFixed(2));marker?.setAttribute('cy',xy.y.toFixed(2));
+   const write=(id:string,value:string)=>{
+     const el=app.querySelector<HTMLElement>('#'+id);if(el)el.textContent=value;
+   };
+   const current=item.currentMilliAmps===null?'—':item.currentMilliAmps.toFixed(3)+' mA';
+   write('rc-network-time-value',sample.timeSeconds.toFixed(3));
+   write('rc-network-voltage',item.voltageVolts.toFixed(2)+' V');
+   write('rc-network-current',current);
+   if(selection&&sample.capacitors[selection]){
+     const selected=sample.capacitors[selection];
+     write('rc-network-inspector','多电容当前采样：'+selected.voltageVolts.toFixed(3)+' V · '+
+       (selected.currentMilliAmps===null?'未估算':selected.currentMilliAmps.toFixed(3)+' mA'));
+   }
+   return;
+ }
  if(t.id==='rc-time'&&lastTransient?.ok){
    rcTimeIndex=Math.max(0,Math.min(100,Number(t.value)||0));
    const sample=lastTransient.samples[rcTimeIndex],bounds=rcBounds(lastTransient.samples);
@@ -346,7 +415,18 @@ app.addEventListener('input',e=>{
    return;
  }
  if(t.id==='search'){search=t.value;render();app.querySelector<HTMLInputElement>('#search')?.focus()}if(t.id==='code'){project.code=t.value;save()}});
-app.addEventListener('change',async e=>{const t=e.target as HTMLInputElement;if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){const b=copy();w.color=t.value;commit(b)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}
+app.addEventListener('change',async e=>{
+ const t=e.target as HTMLInputElement;
+ if(t.id==='rc-trace'&&lastNetwork?.ok){
+   if(lastNetwork.capacitorIds.includes(t.value)){rcTraceId=t.value;render()}
+   return;
+ }
+ if(t.id==='rc-window'){
+   const selected=Number(t.value);
+   if([0.1,0.5,1,5,10].includes(selected)){rcWindowSeconds=selected;rcTimeIndex=0;render()}
+   return;
+ }
+ if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){const b=copy();w.color=t.value;commit(b)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}
  if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
 app.addEventListener('dragstart',e=>{const p=(e.target as Element).closest<HTMLElement>('[data-kind]');if(p)e.dataTransfer?.setData('text/circuit-kind',p.dataset.kind!)});
 app.addEventListener('dragover',e=>{if((e.target as Element).closest('.canvas'))e.preventDefault()});

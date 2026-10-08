@@ -196,7 +196,7 @@ test('experimental DC voltmeter reads 9 volts from battery probes, and disconnec
 test('sample gallery creates separate dual-LED project without overwriting existing work',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(6);
+ await expect(page.locator('.example-card')).toHaveCount(8);
  await page.locator('[data-load-example="parallel"]').click();
  await expect(page.locator('input#name')).toHaveValue('双 LED 并联 · 独立限流');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -218,7 +218,7 @@ test('development index includes explicit build-revision provenance metadata',as
 test('RC example charges capacitor with time scrubber and preserved user projects',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(6);
+ await expect(page.locator('.example-card')).toHaveCount(8);
  await page.locator('[data-load-example="rc-charge"]').click();
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
  await expect(page.locator('button[data-action="solver-mode"]')).toContainText('RC 暂态');
@@ -254,4 +254,70 @@ test('RC source-free discharge shows negative capacitor current and editable ini
  await expect(page.locator('#rc-initial')).toHaveCount(0);
  await page.locator('.item[data-part="c1"]').click();
  await expect(page.locator('#rc-initial')).toHaveValue('6');
+});
+
+test('parallel capacitor example plots selectable numerical traces and preserves project',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await expect(page.locator('.example-card')).toHaveCount(8);
+ await page.locator('[data-load-example="rc-parallel"]').click();
+ await expect(page.locator('input#name')).toHaveValue('双电容并联 · 300µF 等效');
+ await expect(page.locator('button.project-switcher')).toContainText('(2)');
+ await expect(page.locator('button[data-action="solver-mode"]')).toContainText('RC 暂态');
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('.rc-network-panel')).toContainText('多电容 RC · 数值近似');
+ await expect(page.locator('.rc-network-curve')).toHaveCount(1);
+ await expect(page.locator('#rc-network-current')).toHaveText('—');
+ await page.locator('#rc-network-time').evaluate((el:HTMLInputElement)=>{
+   el.value='60';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ const c1=Number((await page.locator('#rc-network-voltage').textContent())?.replace(' V',''));
+ expect(c1).toBeGreaterThan(5.6);expect(c1).toBeLessThan(5.8);
+ await page.locator('#rc-trace').selectOption('c2');
+ const c2=Number((await page.locator('#rc-network-voltage').textContent())?.replace(' V',''));
+ expect(Math.abs(c1-c2)).toBeLessThan(.03);
+ await page.locator('#rc-window').selectOption('0.1');
+ await expect(page.locator('#rc-network-time-value')).toHaveText('0.000');
+ await page.locator('#rc-network-time').evaluate((el:HTMLInputElement)=>{
+   el.value='100';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ const early=Number((await page.locator('#rc-network-voltage').textContent())?.replace(' V',''));
+ expect(early).toBeLessThan(c2);
+ await page.locator('button[data-action="projects"]').click();
+ await page.locator('.project-open').filter({hasText:'我的第一个电路'}).click();
+ await expect(page.locator('.item[data-part="c2"]')).toHaveCount(0);
+});
+
+test('series capacitor numerical traces split voltage evenly',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="rc-series"]').click();
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('.rc-network-panel')).toContainText('数值近似');
+ await page.locator('#rc-network-time').evaluate((el:HTMLInputElement)=>{
+   el.value='10';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ const one=Number((await page.locator('#rc-network-voltage').textContent())?.replace(' V',''));
+ expect(one).toBeGreaterThan(2.78);expect(one).toBeLessThan(2.92);
+ await page.locator('#rc-trace').selectOption('c2');
+ const two=Number((await page.locator('#rc-network-voltage').textContent())?.replace(' V',''));
+ expect(Math.abs(one-two)).toBeLessThan(.03);
+ await page.locator('.item[data-part="c2"]').click();
+ await expect(page.locator('#rc-network-inspector')).toContainText('多电容当前采样');
+});
+
+test('incompatible initial charges display a diagnostic instead of invented waveform',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="rc-parallel"]').click();
+ const draft=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ draft.parts.find((p:{id:string})=>p.id==='c2').initialVolts=3;
+ await page.locator('#file').setInputFiles({
+   name:'conflicting-capacitors.json',
+   mimeType:'application/json',
+   buffer:Buffer.from(JSON.stringify(draft))
+ });
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('.rc-network-panel')).toContainText('初始电压');
+ await expect(page.locator('.rc-network-curve')).toHaveCount(0);
 });

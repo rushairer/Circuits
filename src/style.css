@@ -21,3 +21,12 @@
 
 /* v0.3 RC analytical waveform instrument */
 .rc-panel{position:absolute;top:auto;bottom:80px;right:16px;width:360px;max-width:calc(100% - 32px);max-height:50%;overflow:auto;z-index:3;padding:14px;background:#fffffff2;border:1px solid #d5e4e8;border-radius:12px;box-shadow:0 8px 25px #213b4929;font-size:12px;color:#334c5a}.rc-panel h3{margin:0 0 8px;color:#098c82;font-size:15px}.rc-panel p{margin:6px 0 8px;line-height:1.6}.rc-panel small{display:block;color:#8295a0;font-size:11px;line-height:1.5;margin-top:10px}.rc-panel .rc-warning{color:#b15c38}.rc-plot{display:block!important;width:100%!important;height:170px!important;background:#f7fafb;border:1px solid #e4ecee;border-radius:7px}.rc-panel label{display:block;margin-top:10px;font-size:12px}.rc-panel input[type=range]{width:100%;height:24px;accent-color:#008f87;cursor:pointer}.rc-values{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #e0eced;padding-top:9px}.rc-values span{display:flex;flex-direction:column;gap:3px}.rc-values strong{font-variant-numeric:tabular-nums;color:#345366;font-size:14px}@media(max-width:850px){.rc-panel{right:8px;top:auto;bottom:80px;width:300px;max-height:48%}}
+
+/* Multi-capacitor sampled-voltage panel: positioned away from source fixtures.
+   The plot itself does not steal clicks from underlying circuit elements. */
+.rc-network-panel{left:18px;right:auto;bottom:82px;width:380px;max-height:55%;pointer-events:none}
+.rc-network-panel select,.rc-network-panel input{pointer-events:auto}
+.rc-controls{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;column-gap:9px;row-gap:8px;margin-bottom:9px}
+.rc-controls label{margin:0;font-size:11px}
+.rc-controls select{min-width:0;padding:5px;border:1px solid #d9e6e9;border-radius:6px;background:#fff;color:#36515e;font-size:12px}
+@media(max-width:850px){.rc-network-panel{left:8px;right:auto;width:300px;max-height:48%}}

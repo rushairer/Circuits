@@ -71,3 +71,8 @@
 - `Part.value` is in microfarads only for `kind==='capacitor'`. The optional capacitor-only `initialVolts` is the t=0 signed voltage from pin a to pin b, validated by `validProject`; existing v2 JSON documents without the field remain valid.
 - Reject missing finite RC discharge paths, shorts, unsupported connected parts or too many capacitors instead of producing invented waveforms. Switching a circuit after startup is not simulated; switch state is fixed over the entire analytical trace.
 - Keep classic fixed 2V and nonlinear DC modes independently available, and do not repurpose the ideal DC voltmeter as an RC oscilloscope.
+
+## Multi-capacitor numerical RC (v0.3.0-alpha.4)
+- Do not break the existing `analyzeRC` single-capacitor analytical reference fixtures. For 2–6 capacitors, use the separate `src/core/rc-network.ts` backward-Euler solver and keep sampling results bounded and finite.
+- Capacitor initial voltages are signed V(a)-V(b). Conflicting zero-time capacitor/ideal battery constraints must be rejected instead of simulating impulses or silently forcing an arbitrary state. Current at t=0 is deliberately `null`.
+- The timestep/window selector and chosen capacitor trace are UI-only controls; they must not rewrite electrical project JSON. Graphical traces are teaching approximations, not live oscilloscopes.
