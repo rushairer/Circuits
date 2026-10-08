@@ -236,3 +236,45 @@ test('a fully breadboard-routed series resistor and LED gives a valid DC result'
  assert.equal(evaluate(contacts).lit,true);
  assert.equal(evaluate(contacts).currentMilliAmps,21.21);
 });
+
+import {translateComponents,removeComponents,rotateComponents,componentsWithinRect} from '../.test-dist/core/selection.js';
+test('multi-select translation preserves relative offsets, wire identities, and original project',()=>{
+ const before=demo(),moved=translateComponents(before,['b1','r1'],{x:24,y:-16},10);
+ assert.equal(moved.parts.find(p=>p.id==='b1').x,120);
+ assert.equal(moved.parts.find(p=>p.id==='r1').x,450);
+ assert.equal(moved.parts.find(p=>p.id==='r1').y,195);
+ assert.equal(before.parts.find(p=>p.id==='b1').x,100);
+ assert.deepEqual(moved.wires,before.wires);
+ assert.deepEqual(evaluate(moved),evaluate(before));
+ assert.equal(validProject(moved),true);
+});
+test('moving beyond project bounds refuses to produce an invalid project',()=>{
+ const p=demo();
+ assert.equal(translateComponents(p,['b1','r1'],{x:200000,y:0}),p);
+ assert.equal(translateComponents(p,['b1'],{x:Infinity,y:0}),p);
+});
+test('batch delete removes connected wires and insertion references atomically',()=>{
+ const p=demo();
+ p.insertions=[{componentId:'r1',pinId:'a',boardId:'bb1',holeId:'hole-a-0'}];
+ const next=removeComponents(p,['r1','bb1']);
+ assert.equal(next.parts.some(x=>x.id==='r1'||x.id==='bb1'),false);
+ assert.equal(next.wires.length,1);
+ assert.equal(next.insertions.length,0);
+ assert.equal(validProject(next),true);
+ assert.equal(p.parts.length,5);
+});
+test('batch rotation rotates members independently and keeps pin IDs stable',()=>{
+ const p=demo(),changed=rotateComponents(p,['r1','l1']);
+ assert.equal(changed.parts.find(x=>x.id==='r1').rotation,90);
+ assert.equal(changed.parts.find(x=>x.id==='l1').rotation,90);
+ assert.equal(changed.parts.find(x=>x.id==='b1').rotation,0);
+ assert.deepEqual(evaluate(changed),evaluate(p));
+});
+test('marquee contains whole rotated component bounds, independent of drag direction',()=>{
+ const p=demo();
+ assert.deepEqual(componentsWithinRect(p,{x:420,y:200},{x:580,y:290}),['r1']);
+ assert.deepEqual(componentsWithinRect(p,{x:580,y:290},{x:420,y:200}),['r1']);
+ p.parts.find(c=>c.id==='r1').rotation=90;
+ assert.deepEqual(componentsWithinRect(p,{x:420,y:200},{x:580,y:290}),[]);
+ assert.deepEqual(componentsWithinRect(p,{x:460,y:160},{x:550,y:330}),['r1']);
+});
