@@ -25,6 +25,7 @@ Circuits 是独立开源的浏览器电路设计工作台，使用 **TypeScript 
 npm install
 npm run typecheck
 npm test
+npm run test:e2e # 首次执行前运行 npx playwright install chromium
 npm run build
 npm run dev
 ```

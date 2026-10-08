@@ -31,3 +31,7 @@
 - `src/core/placement.ts` detects/snaps resistor and LED leads near physical breadboard holes. Only these two kinds have automatic placement contacts at this stage.
 - `Project.insertions` holds explicit pin-to-hole identities; `buildNetlist` unions these contacts without performing geometry calculations.
 - Reconcile physical contacts on placement, rotation, import, component deletion and drag release; moving off-board must break contact. Never infer conductive contact from visual overlap with the board body.
+
+## UI browser verification
+- `npm run test:e2e` uses Playwright Chromium and Vite's local dev server; run this alongside TypeScript, unit tests and build when browser dependencies are available.
+- In GitHub Actions the browser suite is a release quality gate; a failing browser test must prevent Pages deployment.

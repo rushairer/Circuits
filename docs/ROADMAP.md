@@ -8,7 +8,8 @@
 - [x] 12 original SVG component illustrations; toggleable ideal switch, wire selection and color editing
 - [x] Typecheck, unit tests, production build, persistent verified artifact, conditional Pages deploy
 - [ ] Enable GitHub Pages via repository Settings and confirm live deployment
-- [ ] Cross-browser E2E drag/rotate/wire testing and keyboard accessibility
+- [x] Chromium browser E2E test gate: smoke, local project persistence and endpoint retargeting
+- [ ] Expand Firefox/WebKit interaction tests, drag/rotate regressions and keyboard accessibility
 
 ## v0.2 — physical editing and project fidelity
 - [x] Resistor/LED lead-to-hole auto-snapping, explicit insertion contacts and automatic disconnect on move/rotation (other parts pending)

@@ -25,6 +25,7 @@ Requires Node.js 22.12+.
 npm install
 npm run typecheck
 npm test
+npm run test:e2e # requires: npx playwright install chromium
 npm run build
 npm run dev
 ```
