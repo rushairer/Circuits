@@ -27,6 +27,8 @@ export function buildNetlist(doc:Project):Netlist {
       const group=c.kind==='breadboard'?groupForBreadboard(pinId):null;
       if(group){const x=first.get(group);if(x)uf.union(key,x);else first.set(group,key)}
     }
+    if(c.kind==='switch'&&c.closed)uf.union(terminalKey({componentId:c.id,pinId:'a'}),terminalKey({componentId:c.id,pinId:'b'}));
+    /* pins are deliberately stable across toggles */
   }
   const warnings:string[]=[];
   for(const w of doc.wires){const a=terminalKey(w.from),b=terminalKey(w.to);if(uf.has(a)&&uf.has(b))uf.union(a,b);else warnings.push(`导线 ${w.id} 存在无效端点`)}

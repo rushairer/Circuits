@@ -37,6 +37,9 @@ export function evaluate(project:Project):Reading {
  if(!batteries.length||!leds.length)return off('需要电池、LED 和正确接线');
  if(batteries.length!==1||leds.length!==1)return off('实验性求解器仅支持一个电源与一只 LED');
  const b=batteries[0],led=leds[0],graph=buildNetlist(project);
+ const unsupported=new Set(project.wires.flatMap(w=>[w.from.componentId,w.to.componentId]));
+ if(project.parts.some(p=>unsupported.has(p.id)&&!['battery','resistor','led','breadboard','switch'].includes(p.kind)))
+   return off('电路连接了暂未提供电气模型的元件');
  if(graph.warnings.length)return off(graph.warnings[0]);
  const pin=(componentId:string,pinId:string)=>graph.netOf({componentId,pinId});
  const plus=pin(b.id,'positive'),minus=pin(b.id,'negative'),anode=pin(led.id,'anode'),cathode=pin(led.id,'cathode');

@@ -1,11 +1,11 @@
-export type Kind = 'battery' | 'resistor' | 'led' | 'breadboard' | 'arduino';
-export interface Part { id:string; kind:Kind; x:number; y:number; value?:number; rotation:number }
+export type Kind = 'battery' | 'resistor' | 'led' | 'breadboard' | 'arduino' | 'switch' | 'pushbutton' | 'potentiometer' | 'capacitor' | 'buzzer' | 'multimeter' | 'servo';
+export interface Part { id:string; kind:Kind; x:number; y:number; value?:number; closed?:boolean; rotation:number }
 export interface Endpoint { componentId:string; pinId:string }
 export interface Wire { id:string; from:Endpoint; to:Endpoint; color:string }
 export interface Project { name:string; parts:Part[]; wires:Wire[]; code:string }
-export const parts:Kind[] = ['battery','resistor','led','breadboard','arduino'];
-export const size:Record<Kind,[number,number]>={battery:[92,135],resistor:[140,60],led:[110,100],breadboard:[440,210],arduino:[205,175]};
-export const labels:Record<Kind,string>={battery:'9V 电池',resistor:'电阻',led:'LED',breadboard:'面包板',arduino:'Arduino Uno'};
+export const parts:Kind[] = ['battery','resistor','led','breadboard','arduino','switch','pushbutton','potentiometer','capacitor','buzzer','multimeter','servo'];
+export const size:Record<Kind,[number,number]>={battery:[92,135],resistor:[140,60],led:[110,100],breadboard:[440,210],arduino:[205,175],switch:[140,90],pushbutton:[110,110],potentiometer:[120,115],capacitor:[95,105],buzzer:[110,110],multimeter:[145,160],servo:[150,120]};
+export const labels:Record<Kind,string>={battery:'9V 电池',resistor:'电阻',led:'LED',breadboard:'面包板',arduino:'Arduino Uno',switch:'拨动开关',pushbutton:'按钮开关',potentiometer:'电位器',capacitor:'电容',buzzer:'蜂鸣器',multimeter:'万用表',servo:'伺服电机'};
 const breadboardPins:Record<string,[number,number]>={plus:[30,26],minus:[30,178]};
 for(let column=0;column<22;column++){
   const x=28+column*18;
@@ -18,7 +18,11 @@ for(let column=0;column<22;column++){
 }
 export const pins:Record<Kind,Record<string,[number,number]>>={
   battery:{positive:[90,38],negative:[90,100]},resistor:{a:[0,30],b:[140,30]},led:{anode:[0,65],cathode:[110,65]},
-  breadboard:breadboardPins,arduino:{d13:[166,8],gnd:[70,165],v5:[105,165]}
+  breadboard:breadboardPins,arduino:{d13:[166,8],gnd:[70,165],v5:[105,165]},
+  switch:{a:[0,55],b:[140,55]},pushbutton:{a:[0,65],b:[110,65]},
+  potentiometer:{a:[0,90],wiper:[60,108],b:[120,90]},
+  capacitor:{a:[0,79],b:[95,79]},buzzer:{positive:[0,90],negative:[110,90]},
+  multimeter:{positive:[45,158],negative:[104,158]},servo:{signal:[0,75],positive:[0,95],negative:[0,115]}
 };
 export function demo():Project{return {name:'我的第一个电路',parts:[
  {id:'b1',kind:'battery',x:100,y:170,rotation:0,value:9},
@@ -38,7 +42,7 @@ export function validProject(v:unknown):v is Project {
  if(!(typeof p.name==='string'&&p.name.length<=120&&typeof p.code==='string'&&p.code.length<=300000&&Array.isArray(p.parts)&&p.parts.length<=300&&Array.isArray(p.wires)&&p.wires.length<=2000))return false;
  const ids=new Set<string>();
  for(const c of p.parts){
-   if(!c||typeof c.id!=='string'||!/^[\w-]{1,80}$/.test(c.id)||ids.has(c.id)||!parts.includes(c.kind)||!Number.isFinite(c.x)||!Number.isFinite(c.y)||!Number.isFinite(c.rotation)||Math.abs(c.x)>100000||Math.abs(c.y)>100000||c.value!==undefined&&(!Number.isFinite(c.value)||Math.abs(c.value)>1e12))return false;
+   if(!c||typeof c.id!=='string'||!/^[\w-]{1,80}$/.test(c.id)||ids.has(c.id)||!parts.includes(c.kind)||!Number.isFinite(c.x)||!Number.isFinite(c.y)||!Number.isFinite(c.rotation)||Math.abs(c.x)>100000||Math.abs(c.y)>100000||(c.closed!==undefined&&typeof c.closed!=='boolean')||c.value!==undefined&&(!Number.isFinite(c.value)||Math.abs(c.value)>1e12))return false;
    ids.add(c.id);
  }
  const wireIds=new Set<string>();

@@ -49,3 +49,17 @@ test('breadboard power bus can bridge an LED series route',()=>{
  p.wires.push(wire('w4','bb1','hole-e-0','r1','a'));
  assert.equal(evaluate(p).lit,true);
 });
+
+test('component catalogue has 12 distinct visual models with pin definitions',()=>{
+ const {parts,pins}=require('../.test-dist/model.js');
+ assert.equal(parts.length,12);assert.equal(new Set(parts).size,12);
+ for(const kind of parts)assert.ok(Object.keys(pins[kind]).length>=2);
+});
+test('a switched series circuit toggles LED only when closed',()=>{
+ const p=demo();p.parts.push({id:'s1',kind:'switch',x:100,y:100,rotation:0,closed:false});
+ p.wires[0]=wire('w1','b1','positive','s1','a');
+ p.wires.push(wire('sw','s1','b','r1','a'));
+ assert.equal(evaluate(p).lit,false);
+ p.parts.find(c=>c.id==='s1').closed=true;
+ assert.equal(evaluate(p).lit,true);
+});

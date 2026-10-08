@@ -12,7 +12,7 @@
 ## v0.2 — physical editing
 - [ ] Precise breadboard contact placement, pin insertion and automatic connection
 - [ ] Wire bends and endpoint editing, multi-select and snap, multiple saved local projects
-- [ ] Expand original UI illustrations to full component set; formal project schema migrations
+- [x] Initial original SVG illustrations for 12 component types; toggleable two-terminal switch in DC circuit\n- [ ] Formal project schema migrations and advanced component visual parity
 
 ## v0.3 — simulation
 - [ ] Multi-LED, diode I/V, resistor/capacitor/inductor, transient solver and safety diagnostics
