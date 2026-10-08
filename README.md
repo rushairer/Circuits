@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.2.0-alpha.5 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.2.0-alpha.6 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -41,3 +41,7 @@ Expected URL **only after a successful deployment**: https://rushairer.github.io
 ## Scope and licensing
 
 See [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), and [AGENTS.md](AGENTS.md). This independent project is not affiliated with Autodesk or Tinkercad. Original project code is MIT licensed.
+
+### Keyboard operation
+
+Tab focuses components; Enter/Space selects a focused component (Shift adds/removes). Ctrl/Cmd+A selects all components. Arrow keys nudge the selected set, Alt+Arrow nudges by one world unit, Delete removes selected parts, and Ctrl/Cmd+Z undoes one batch.

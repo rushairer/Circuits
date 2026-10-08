@@ -4,7 +4,7 @@
 
 Circuits 是独立开源的浏览器电路设计工作台，使用 **TypeScript + Vite** 开发。长期目标是对标 Tinkercad Circuits 的功能体验，而非复制 Autodesk 专有源码、商标或素材。
 
-> **当前 v0.2.0-alpha.5 是实验性原型，不是已完成的 1:1 复刻。** 无 Arduino 指令执行能力，不是通用 SPICE 仿真器。
+> **当前 v0.2.0-alpha.6 是实验性原型，不是已完成的 1:1 复刻。** 无 Arduino 指令执行能力，不是通用 SPICE 仿真器。
 
 ## 已实现
 
@@ -42,3 +42,7 @@ npm run dev
 ## 下一阶段
 
 按 [ROADMAP](docs/ROADMAP.md) 先完善面包板插孔交互、导线编辑、工程模型版本化与端到端测试，再推进真实元件模型、仪表和 Arduino 模拟运行时。项目与 Autodesk / Tinkercad 无关联，代码采用 MIT 许可证。
+
+### 键盘操作
+
+Tab 聚焦元件，Enter / 空格选择当前元件，Shift 组合多选；Ctrl/Cmd+A 全选，方向键移动选中元件，Alt+方向键微移，Delete 删除，Ctrl/Cmd+Z 撤销。

@@ -40,3 +40,7 @@
 - `src/core/selection.ts` owns batch transforms/deletes and marquee geometry. Keep changes immutable and preserve stable wire identities; never infer circuit contact from visual paths.
 - Shift-click and empty-canvas marquee build a transient selected-ID set. Group drag uses one snapped displacement; contact reconciliation happens on release.
 - Undo and redo must keep an entire batch operation as one history entry and must not leave dangling wires or stale insertions.
+
+## Keyboard accessibility
+- SVG parts carry tabindex, role=button, aria-label, and aria-pressed. Enter/Space and Shift+Enter/Space activate selections.
+- Arrows nudge the whole selected set in world coordinates; Alt+Arrow is precise. Each nudge is one undo entry and reconciles physical breadboard contacts.

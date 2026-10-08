@@ -95,3 +95,30 @@ test('marquee selection contains a component but does not include an adjacent co
   await expect(page.locator('.item.selected')).toHaveCount(1);
   await expect(page.locator('.item[data-part="r1"]')).toHaveClass(/selected/);
 });
+
+test('keyboard selects focusable parts, nudges positions, and supports select-all and escape',async({page})=>{
+ await page.goto('/');
+ const resistor=page.locator('.item[data-part="r1"]');
+ await expect(resistor).toHaveAttribute('role','button');
+ await resistor.focus();
+ await page.keyboard.press('Enter');
+ await expect(page.locator('.item[data-part="r1"]')).toHaveAttribute('aria-pressed','true');
+ const original=await page.evaluate(()=>{
+   const p=JSON.parse(localStorage.getItem('circuits-project')||'{}');
+   return p.parts.find((x:{id:string})=>x.id==='r1').x as number;
+ });
+ await page.keyboard.press('ArrowRight');
+ await expect.poll(async()=>page.evaluate(()=>{
+   const p=JSON.parse(localStorage.getItem('circuits-project')||'{}');
+   return p.parts.find((x:{id:string})=>x.id==='r1').x as number;
+ })).toBe(original+10);
+ await page.keyboard.press('ControlOrMeta+z');
+ await expect.poll(async()=>page.evaluate(()=>{
+   const p=JSON.parse(localStorage.getItem('circuits-project')||'{}');
+   return p.parts.find((x:{id:string})=>x.id==='r1').x as number;
+ })).toBe(original);
+ await page.keyboard.press('ControlOrMeta+a');
+ await expect(page.locator('.item.selected')).toHaveCount(5);
+ await page.keyboard.press('Escape');
+ await expect(page.locator('.item.selected')).toHaveCount(0);
+});
