@@ -45,7 +45,7 @@ export function validProject(v:unknown):v is Project {
  for(const w of p.wires){
    if(!w||typeof w.id!=='string'||!/^[\w-]{1,80}$/.test(w.id)||wireIds.has(w.id)||!w.from||!w.to||!/^#[0-9a-fA-F]{6}$/.test(w.color))return false;
    const from=p.parts.find(c=>c.id===w.from.componentId),to=p.parts.find(c=>c.id===w.to.componentId);
-   if(!from||!to||!(w.from.pinId in pins[from.kind])||!(w.to.pinId in pins[to.kind])||w.from.componentId===w.to.componentId&&w.from.pinId===w.to.pinId)return false;
+   if(!from||!to||!Object.hasOwn(pins[from.kind],w.from.pinId)||!Object.hasOwn(pins[to.kind],w.to.pinId)||w.from.componentId===w.to.componentId&&w.from.pinId===w.to.pinId)return false;
    wireIds.add(w.id);
  }
  return true;

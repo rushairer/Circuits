@@ -11,7 +11,13 @@ const save=()=>localStorage.setItem('circuits-project',JSON.stringify(project));
 function commit(before:Project){undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
 function revert(stack:Project[],other:Project[]){const prev=stack.pop();if(!prev)return;other.push(copy());project=prev;selection=null;save();render()}
 const uid=()=>crypto.randomUUID().slice(0,8);
-const pos=(e:Endpoint)=>{const c=project.parts.find(p=>p.id===e.componentId),pin=c&&pins[c.kind][e.pinId];return c&&pin?[c.x+pin[0],c.y+pin[1]]:null};
+const pos=(e:Endpoint):[number,number]|null=>{
+ const c=project.parts.find(p=>p.id===e.componentId),pin=c&&pins[c.kind][e.pinId];
+ if(!c||!pin)return null;
+ const [w,h]=size[c.kind],angle=c.rotation*Math.PI/180,dx=pin[0]-w/2,dy=pin[1]-h/2;
+ return [c.x+w/2+dx*Math.cos(angle)-dy*Math.sin(angle),
+         c.y+h/2+dx*Math.sin(angle)+dy*Math.cos(angle)];
+};
 function art(c:Part){const [w,h]=size[c.kind];
  if(c.kind==='battery')return '<rect x="8" y="10" width="76" height="119" rx="12" fill="#303b43"/><rect x="8" y="10" width="76" height="32" rx="9" fill="#eca738"/><text x="46" y="86" font-size="25" text-anchor="middle" fill="white">9V</text><text x="70" y="42" fill="white">+</text><text x="70" y="108" fill="white">−</text>';
  if(c.kind==='resistor')return '<path d="M0 30H140" stroke="#b7a17d" stroke-width="5"/><rect x="36" y="13" width="68" height="35" rx="16" fill="#d7b68c" stroke="#bc936c"/><path d="M54 13v35m12-35v35m12-35v35" stroke="#9c542e" stroke-width="6"/><text x="70" y="9" font-size="13" text-anchor="middle" fill="#667988">'+(c.value??220)+'Ω</text>';
@@ -21,15 +27,24 @@ function art(c:Part){const [w,h]=size[c.kind];
 function canvas(){const wires=project.wires.map(w=>{const a=pos(w.from),b=pos(w.to);return a&&b?'<path class="wire" data-wire="'+w.id+'" d="M'+a[0]+' '+a[1]+' L'+((a[0]+b[0])/2)+' '+a[1]+' L'+((a[0]+b[0])/2)+' '+b[1]+' L'+b[0]+' '+b[1]+'" stroke="'+w.color+'" stroke-width="5" fill="none"/>':''}).join('');
  const readings=isRunning?evaluate(project):null;
  const shapes=project.parts.map(c=>{const [w,h]=size[c.kind],glow=c.kind==='led'&&readings?.lit?'<circle cx="54" cy="49" r="52" fill="#ff7a74" opacity=".2"/>':'';
- const pinsSvg=Object.entries(pins[c.kind]).map(([name,p])=>'<circle class="pin" data-part="'+c.id+'" data-pin="'+name+'" cx="'+p[0]+'" cy="'+p[1]+'" r="7" fill="#e6c08a" stroke="#a58142" stroke-width="2"><title>'+name+'</title></circle>').join('');
+ const board=c.kind==='breadboard';
+ const pinsSvg=Object.entries(pins[c.kind]).map(([name,p])=>'<circle class="pin" data-part="'+c.id+'" data-pin="'+name+'" cx="'+p[0]+'" cy="'+p[1]+'" r="'+(board?4.4:7)+'" fill="'+(board?'#44535e':'#e6c08a')+'" stroke="'+(board?'#b2c4cb':'#a58142')+'" stroke-width="'+(board?1.2:2)+'"><title>'+name+'</title></circle>').join('');
  return '<g class="item '+(selection===c.id?'selected':'')+'" data-part="'+c.id+'" transform="translate('+c.x+' '+c.y+')"><g transform="rotate('+c.rotation+' '+w/2+' '+h/2+')">'+glow+art(c)+pinsSvg+'</g></g>'}).join('');
  return '<svg id="board" viewBox="0 0 1100 800"><defs><pattern id="dot" width="21" height="21" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c5cfd3"/></pattern></defs><rect width="1100" height="800" fill="#f3f5f6"/><rect width="1100" height="800" fill="url(#dot)"/><g id="scene" transform="translate('+panX+' '+panY+') scale('+zoom+')">'+wires+shapes+'</g></svg>'}
+function refreshScene(){
+ const original=app.querySelector('#scene');
+ if(!original)return;
+ const wrapper=document.createElement('div');
+ wrapper.innerHTML=canvas();
+ const latest=wrapper.querySelector('#scene');
+ if(latest)original.innerHTML=latest.innerHTML;
+}
 function side(){if(showCode)return '<h2>代码编辑器 · Arduino C++</h2><div class="field"><p>仅提供文本编辑和导出，尚未运行 MCU 程序。</p><textarea id="code">'+escape(project.code)+'</textarea><button data-action="download-code">下载 .ino</button><button data-action="code">返回元件库</button></div>';
  const c=project.parts.find(p=>p.id===selection);
  if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+(c.kind==='resistor'||c.kind==='battery'?'<label>数值 ('+(c.kind==='resistor'?'Ω':'V')+')</label><input id="value" type="number" min="1" value="'+(c.value??1)+'"/>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p><button data-action="rotate">旋转 90°</button><button data-action="delete">删除元件</button><button data-action="parts">返回元件库</button></div>';
  return '<h2>▦ 组件库</h2><div class="search"><input id="search" placeholder="搜索组件..." value="'+escape(search)+'"/></div><div class="parts">'+parts.filter(k=>labels[k].toLowerCase().includes(search.toLowerCase())).map(kind=>'<button class="part" draggable="true" data-kind="'+kind+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg>'+labels[kind]+'</button>').join('')+'</div><div class="field"><p>点击添加元件，点两个引脚接线。支持从元件库拖入。</p></div>'}
 function render(){const report=evaluate(project);
- app.innerHTML='<header><span class="brand">◉ Circuits</span><span style="color:#afbac1">我的工作区 ›</span><input id="name" value="'+escape(project.name)+'"/><span class="status">● 保存于此浏览器</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas">'+canvas()+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线</div><div class="bottom"><span>'+(wiring?'正在接线：点选第二个引脚':isRunning?report.reason+' · '+report.currentMilliAmps+'mA':'设计模式 · 拖动元件或点击引脚接线')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.1.0 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><span style="color:#afbac1">我的工作区 ›</span><input id="name" value="'+escape(project.name)+'"/><span class="status">● 保存于此浏览器</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas">'+canvas()+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线</div><div class="bottom"><span>'+(wiring?'正在接线：点选第二个引脚':isRunning?report.reason+' · '+report.currentMilliAmps+'mA':'设计模式 · 拖动元件或点击引脚接线')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.1.1 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){const b=copy();project.parts.push({id:uid(),kind,x:x??300,y:y??300,rotation:0,value:kind==='resistor'?220:kind==='battery'?9:undefined});commit(b)}
 function connect(a:Endpoint){if(!wiring){wiring=a;return render()}if(wiring.componentId===a.componentId&&wiring.pinId===a.pinId){wiring=null;return render()}const b=copy();project.wires.push({id:uid(),from:wiring,to:a,color:'#e45454'});wiring=null;commit(b)}
 function download(text:string,name:string){const url=URL.createObjectURL(new Blob([text]));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
@@ -57,8 +72,26 @@ app.addEventListener('change',async e=>{const t=e.target as HTMLInputElement;if(
 app.addEventListener('dragstart',e=>{const p=(e.target as Element).closest<HTMLElement>('[data-kind]');if(p)e.dataTransfer?.setData('text/circuit-kind',p.dataset.kind!)});
 app.addEventListener('dragover',e=>{if((e.target as Element).closest('.canvas'))e.preventDefault()});
 app.addEventListener('drop',e=>{const svg=app.querySelector<SVGSVGElement>('#board');const kind=e.dataTransfer?.getData('text/circuit-kind') as Kind;if(!svg||!parts.includes(kind)||!(e.target as Element).closest('.canvas'))return;e.preventDefault();const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM();if(!m)return;const p=pt.matrixTransform(m.inverse());add(kind,(p.x-panX)/zoom-size[kind][0]/2,(p.y-panY)/zoom-size[kind][1]/2)});
-app.addEventListener('pointerdown',e=>{const svg=app.querySelector<SVGSVGElement>('#board');const target=e.target as Element;const component=target.closest<SVGGElement>('[data-part]');if(!svg||!component||target.closest('[data-pin]'))return;const c=project.parts.find(p=>p.id===component.dataset.part);if(!c)return;drag={id:c.id,x:e.clientX,y:e.clientY,ox:c.x,oy:c.y,before:copy()}});
-window.addEventListener('pointermove',e=>{if(!drag)return;const svg=app.querySelector<SVGSVGElement>('#board');if(!svg)return;const rect=svg.getBoundingClientRect();const c=project.parts.find(p=>p.id===drag!.id);if(c){c.x=drag.ox+(e.clientX-drag.x)*1100/rect.width/zoom;c.y=drag.oy+(e.clientY-drag.y)*800/rect.height/zoom;const scene=app.querySelector('#scene');if(scene){scene.innerHTML='';render()}}});
+app.addEventListener('pointerdown',e=>{
+ if(e.button!==0)return;
+ const svg=app.querySelector<SVGSVGElement>('#board'),target=e.target as Element;
+ const component=target.closest<SVGGElement>('[data-part]');
+ if(!svg||!component||target.closest('[data-pin]'))return;
+ const c=project.parts.find(p=>p.id===component.dataset.part);if(!c)return;
+ drag={id:c.id,x:e.clientX,y:e.clientY,ox:c.x,oy:c.y,before:copy()};
+ selection=c.id;render();
+});
+window.addEventListener('pointermove',e=>{
+ if(!drag)return;
+ const svg=app.querySelector<SVGSVGElement>('#board'),c=project.parts.find(p=>p.id===drag!.id);
+ const matrix=svg?.getScreenCTM();
+ if(!c||!matrix)return;
+ const scale=Math.hypot(matrix.a,matrix.b)*zoom;
+ if(scale<=0)return;
+ c.x=Math.round((drag.ox+(e.clientX-drag.x)/scale)*2)/2;
+ c.y=Math.round((drag.oy+(e.clientY-drag.y)/scale)*2)/2;
+ refreshScene();
+});
 window.addEventListener('pointerup',()=>{if(!drag)return;const d=drag;drag=null;const c=project.parts.find(p=>p.id===d.id);if(c&&(c.x!==d.ox||c.y!==d.oy))commit(d.before)});
 window.addEventListener('keydown',e=>{const t=e.target as HTMLElement;if(['INPUT','TEXTAREA'].includes(t.tagName))return;if((e.metaKey||e.ctrlKey)&&e.key==='z'){e.preventDefault();revert(e.shiftKey?redo:undo,e.shiftKey?undo:redo)}else if(e.key==='Escape'){wiring=null;selection=null;render()}else if(e.key==='Delete'){const b=copy();project.parts=project.parts.filter(c=>c.id!==selection);project.wires=project.wires.filter(w=>w.id!==selection);selection=null;commit(b)}});
 render();
