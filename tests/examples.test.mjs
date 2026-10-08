@@ -8,7 +8,7 @@ import { analyzeRC } from '../.test-dist/core/rc-transient.js';
 test('all documented example circuits are valid versioned JSON projects',()=>{
  assert.equal(exampleCatalog.length,6);
  const ids=new Set(exampleCatalog.map(e=>e.id));
- assert.equal(ids.size,4);
+ assert.equal(ids.size,6);
  for(const e of exampleCatalog){
   const p=createExample(e.id);
   assert.ok(p,e.id);
