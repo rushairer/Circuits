@@ -35,3 +35,8 @@
 ## UI browser verification
 - `npm run test:e2e` uses Playwright Chromium and Vite's local dev server; run this alongside TypeScript, unit tests and build when browser dependencies are available.
 - In GitHub Actions the browser suite is a release quality gate; a failing browser test must prevent Pages deployment.
+
+## Multi-selection and batch edits
+- `src/core/selection.ts` owns batch transforms/deletes and marquee geometry. Keep changes immutable and preserve stable wire identities; never infer circuit contact from visual paths.
+- Shift-click and empty-canvas marquee build a transient selected-ID set. Group drag uses one snapped displacement; contact reconciliation happens on release.
+- Undo and redo must keep an entire batch operation as one history entry and must not leave dangling wires or stale insertions.

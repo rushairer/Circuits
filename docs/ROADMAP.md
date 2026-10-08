@@ -15,7 +15,8 @@
 - [x] Resistor/LED lead-to-hole auto-snapping, explicit insertion contacts and automatic disconnect on move/rotation (other parts pending)
 - [x] Persistent wire bendpoints (insert/drag/reset) and world-space grid snapping toggle
 - [x] Wire endpoint reconnection via world-space target snapping, with duplicate/invalid connection safeguards
-- [ ] Multi-selection and group movement
+- [x] Shift-click selection, mouse marquee, rigid group drag with preserved net topology, atomic batch delete/rotate and undo
+- [ ] Refine multi-selection keyboard access and pan/zoom behavior
 - [x] Multiple projects in local browser storage, duplicate/open/delete, versioned JSON imports and legacy draft migration
 - [ ] Cloud-backed projects, share links and account login (out of scope for local prototype)
 - [ ] Visual reference comparison and editor accuracy audits

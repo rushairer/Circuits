@@ -4,6 +4,7 @@ import { evaluate } from './core/simulator.js';
 import { snap, pinWorld, wirePoints, wirePath, nearestSegment, type Point } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
 import { blankProject } from './model.js';
+import { translateComponents, removeComponents, rotateComponents, componentsWithinRect } from './core/selection.js';
 import { appendConnection, reconnectEndpoint, nearestTerminal } from './core/connections.js';
 import { reconcileInsertions, snapPartToBreadboard } from './core/placement.js';
 const app=document.querySelector<HTMLDivElement>('#app')!;
@@ -14,12 +15,14 @@ let project:Project=reconcileInsertions(activeProject(workspace));
 let persistOK=true;
 let showProjects=false;
 let selection:string|null=null, wiring:Endpoint|null=null, isRunning=false, search='',showCode=false, zoom=1,panX=0,panY=0;
+let selectedIds=new Set<string>();
+let marquee:{start:Point;end:Point;screenX:number;screenY:number;active:boolean;additive:boolean}|null=null;
 let gridEnabled=localStorage.getItem('circuits-grid')!=='off';
 let bendDrag:{id:string;index:number;before:Project}|null=null;
 let endpointDrag:{id:string;side:'from'|'to';preview:Point}|null=null;
 let ignoredClick:{x:number;y:number;until:number}|null=null;
 let connectionNotice='';
-let undo:Project[]=[],redo:Project[]=[],drag:{id:string,x:number,y:number,ox:number,oy:number,before:Project}|null=null;
+let undo:Project[]=[],redo:Project[]=[],drag:{ids:string[];x:number;y:number;before:Project}|null=null;
 const copy=():Project=>structuredClone(project);
 const save=()=>{
  workspace=saveCurrent(workspace,project,Date.now());
@@ -32,11 +35,11 @@ const save=()=>{
 function openWorkspace(id:string){
  workspace=switchProject(workspace,id);
  project=reconcileInsertions(activeProject(workspace));
- selection=null;wiring=null;drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showCode=false;isRunning=false;undo=[];redo=[];
+ selection=null;selectedIds.clear();marquee=null;wiring=null;drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showCode=false;isRunning=false;undo=[];redo=[];
  save();render();
 }
 function commit(before:Project){project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
-function revert(stack:Project[],other:Project[]){const prev=stack.pop();if(!prev)return;other.push(copy());project=prev;selection=null;save();render()}
+function revert(stack:Project[],other:Project[]){const prev=stack.pop();if(!prev)return;other.push(copy());project=prev;selection=null;selectedIds.clear();marquee=null;save();render()}
 const uid=()=>crypto.randomUUID().slice(0,8);
 const pos=(e:Endpoint):[number,number]|null=>{
  const p=pinWorld(e,project.parts);return p?[p.x,p.y]:null;
@@ -75,7 +78,8 @@ function canvas(){
    const inserted=insertedPins.has(c.id+'::'+name);
    return '<circle class="pin" data-part="'+c.id+'" data-pin="'+name+'" cx="'+p[0]+'" cy="'+p[1]+'" r="'+(board?4.4:7)+'" fill="'+(inserted?'#19bd89':board?'#44535e':'#e6c08a')+'" stroke="'+(inserted?'#057d62':board?'#b2c4cb':'#a58142')+'" stroke-width="'+(board?1.2:2)+'"><title>'+name+(inserted?' · 已插入':'')+'</title></circle>';
  }).join('');
- return '<g class="item '+(selection===c.id?'selected':'')+'" data-part="'+c.id+'" transform="translate('+c.x+' '+c.y+')"><g transform="rotate('+c.rotation+' '+w/2+' '+h/2+')">'+glow+art(c)+pinsSvg+'</g></g>'}).join('');
+ return '<g class="item '+(selectedIds.has(c.id)?'selected':'')+'" data-part="'+c.id+'" transform="translate('+c.x+' '+c.y+')"><g transform="rotate('+c.rotation+' '+w/2+' '+h/2+')">'+glow+art(c)+pinsSvg+'</g></g>'}).join('');
+ const marqueeMarkup=marquee?.active?'<rect class="marquee-box" x="'+Math.min(marquee.start.x,marquee.end.x)+'" y="'+Math.min(marquee.start.y,marquee.end.y)+'" width="'+Math.abs(marquee.start.x-marquee.end.x)+'" height="'+Math.abs(marquee.start.y-marquee.end.y)+'"/>':'';
  const terminalHandles=project.wires.filter(w=>w.id===selection).map(w=>{
    const coords=wirePoints(w,project.parts);
    if(!coords)return '';
@@ -85,7 +89,7 @@ function canvas(){
      return '<circle class="endpoint-handle" data-wire="'+w.id+'" data-wire-end="'+side+'" cx="'+point.x+'" cy="'+point.y+'" r="10" fill="white" stroke="#0e9e95" stroke-width="3"><title>拖动重接 '+(side==='from'?'起点':'终点')+'</title></circle>';
    }).join('');
  }).join('');
- return '<svg id="board" viewBox="0 0 1100 800"><defs><pattern id="dot" width="21" height="21" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c5cfd3"/></pattern></defs><rect width="1100" height="800" fill="#f3f5f6"/><rect width="1100" height="800" fill="url(#dot)"/><g id="scene" transform="translate('+panX+' '+panY+') scale('+zoom+')">'+wires+shapes+terminalHandles+'</g></svg>'}
+ return '<svg id="board" viewBox="0 0 1100 800"><defs><pattern id="dot" width="21" height="21" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c5cfd3"/></pattern></defs><rect width="1100" height="800" fill="#f3f5f6"/><rect width="1100" height="800" fill="url(#dot)"/><g id="scene" transform="translate('+panX+' '+panY+') scale('+zoom+')">'+wires+shapes+terminalHandles+marqueeMarkup+'</g></svg>'}
 function refreshScene(){
  const original=app.querySelector('#scene');
  if(!original)return;
@@ -119,6 +123,7 @@ function side(){
    ).join('');
    return '<h2>我的电路 · '+workspace.slots.length+'/'+MAX_PROJECTS+'</h2><div class="field"><p>工程保存在当前浏览器；切换不会覆盖此前的工程。建议定期导出 JSON 备份。</p><button data-action="new">＋ 新建电路</button><button data-action="duplicate">复制当前工程</button><button data-action="projects">返回编辑器</button></div><div class="project-collection">'+rows+'</div>';
  }
+ if(selectedIds.size>1&&!showCode)return '<h2>已选中 '+selectedIds.size+' 个元件</h2><div class="field"><p>拖动任意已选中元件可整体移动，所有引脚接线会自动跟随。</p><p>按住 Shift 单击添加或移除选中；在空白画布拖动可框选。</p><button data-action="rotate">分别旋转 90°</button><button data-action="delete">删除所选元件</button><button data-action="parts">取消选择</button></div>';
  const chosenWire=project.wires.find(w=>w.id===selection);
  if(chosenWire&&!showCode)return '<h2>导线属性</h2><div class="field"><p>起点：'+escape(chosenWire.from.componentId)+' / '+escape(chosenWire.from.pinId)+'</p><p>终点：'+escape(chosenWire.to.componentId)+' / '+escape(chosenWire.to.pinId)+'</p><label for="wire-color">导线颜色</label><input id="wire-color" type="color" value="'+chosenWire.color+'"/><p>折点 '+(chosenWire.bends?.length??0)+' 个。拖动空心端点到其他元件或面包板插孔即可重新接线；折点圆形手柄可拖动，双击导线添加折点。</p><button data-action="wire-add-bend">＋ 添加折点</button><button data-action="wire-reset-bends">恢复自动走线</button><p>编辑颜色和折点均不改变电气连接。</p><button data-action="delete">删除导线</button><button data-action="parts">返回元件库</button></div>';
  if(showCode)return '<h2>代码编辑器 · Arduino C++</h2><div class="field"><p>仅提供文本编辑和导出，尚未运行 MCU 程序。</p><textarea id="code" maxlength="300000">'+escape(project.code)+'</textarea><button data-action="download-code">下载 .ino</button><button data-action="code">返回元件库</button></div>';
@@ -126,7 +131,7 @@ function side(){
  if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+(c.kind==='resistor'||c.kind==='battery'?'<label>数值 ('+(c.kind==='resistor'?'Ω':'V')+')</label><input id="value" type="number" min="1" value="'+(c.value??1)+'"/>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+(!['battery','resistor','led','breadboard','switch'].includes(c.kind)?'<p>该元件仅支持可视化与接线，暂未接入电气仿真。</p>':'')+'<button data-action="rotate">旋转 90°</button><button data-action="delete">删除元件</button><button data-action="parts">返回元件库</button></div>';
  return '<h2>▦ 组件库</h2><div class="search"><input id="search" placeholder="搜索组件..." value="'+escape(search)+'"/></div><div class="parts">'+parts.filter(k=>labels[k].toLowerCase().includes(search.toLowerCase())).map(kind=>'<button class="part" draggable="true" data-kind="'+kind+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg>'+labels[kind]+'</button>').join('')+'</div><div class="field"><p>点击添加元件，点两个引脚接线。支持从元件库拖入。</p></div>'}
 function render(){const report=evaluate(project);
- app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas">'+canvas()+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?report.reason+' · '+report.currentMilliAmps+'mA':'设计模式 · 拖动元件或点击引脚接线')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.2.0-alpha.4 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas">'+canvas()+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?report.reason+' · '+report.currentMilliAmps+'mA':selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 拖动元件或点击引脚接线')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.2.0-alpha.5 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),a=x??300,b=y??300,id=uid();
  project.parts.push({id,kind,x:gridEnabled?snap(a):a,y:gridEnabled?snap(b):b,rotation:0,value:kind==='resistor'?220:kind==='battery'?9:undefined});
@@ -141,6 +146,29 @@ function connect(a:Endpoint){
  if(!result){connectionNotice='不能重复接线，也不能把同一引脚连接到自己';render();return}
  const before=copy();project=result;connectionNotice='';commit(before);
 }
+function selectAllParts(){
+ selectedIds=new Set(project.parts.map(p=>p.id));
+ selection=selectedIds.size===1?[...selectedIds][0]:null;render();
+}
+function rotateSelectedParts(){
+ if(!selectedIds.size)return;
+ const before=copy();
+ project=reconcileInsertions(rotateComponents(project,[...selectedIds]));
+ commit(before);
+}
+function deleteSelection(){
+ const before=copy();
+ let changed=false;
+ if(selectedIds.size){
+   const next=removeComponents(project,[...selectedIds]);
+   if(next!==project){project=reconcileInsertions(next);changed=true}
+ }else if(selection){
+   const wires=project.wires.filter(w=>w.id!==selection);
+   if(wires.length!==project.wires.length){project={...project,wires};changed=true}
+ }
+ if(!changed)return;
+ selectedIds.clear();selection=null;commit(before);
+}
 function download(text:string,name:string){const url=URL.createObjectURL(new Blob([text]));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
 app.addEventListener('click',e=>{
  if(ignoredClick&&e.timeStamp<ignoredClick.until&&Math.hypot(e.clientX-ignoredClick.x,e.clientY-ignoredClick.y)<4){
@@ -148,9 +176,19 @@ app.addEventListener('click',e=>{
  }
  ignoredClick=null;
  const t=e.target as Element;
- const p=t.closest<SVGElement>('[data-pin]');if(p){const g=p.closest<SVGGElement>('[data-part]');if(g){connect({componentId:g.dataset.part!,pinId:p.dataset.pin!});return}}
- const part=t.closest<SVGGElement>('[data-part]');if(part){selection=part.dataset.part!;render();return}
- const wire=t.closest<SVGElement>('[data-wire]');if(wire){const next=wire.getAttribute('data-wire');if(selection!==next){selection=next;render()}return}
+ const p=t.closest<SVGElement>('[data-pin]');if(p){const g=p.closest<SVGGElement>('[data-part]');if(g){selectedIds.clear();connect({componentId:g.dataset.part!,pinId:p.dataset.pin!});return}}
+ const part=t.closest<SVGGElement>('[data-part]');
+ if(part){
+   const id=part.dataset.part!;
+   if(e.shiftKey||e.ctrlKey||e.metaKey){
+     selectedIds=new Set(selectedIds);
+     if(selectedIds.has(id))selectedIds.delete(id);
+     else selectedIds.add(id);
+   }else if(!selectedIds.has(id))selectedIds=new Set([id]);
+   selection=selectedIds.size===1?[...selectedIds][0]:null;
+   showCode=false;showProjects=false;render();return;
+ }
+ const wire=t.closest<SVGElement>('[data-wire]');if(wire){const next=wire.getAttribute('data-wire');if(selection!==next||selectedIds.size){selectedIds.clear();selection=next;render()}return}
  const k=t.closest<HTMLElement>('[data-kind]');if(k){add(k.dataset.kind as Kind);return}
  const chosen=t.closest<HTMLElement>('[data-open-project]');
  if(chosen){
@@ -182,8 +220,9 @@ app.addEventListener('click',e=>{
    openWorkspace(id);break;
  }
  case 'projects':showProjects=!showProjects;showCode=false;render();break;
- case 'sample':{const b=copy();project=demo();selection=null;commit(b);break}
+ case 'sample':{const b=copy();project=demo();selection=null;selectedIds.clear();commit(b);break}
  case 'undo':revert(undo,redo);break;case 'redo':revert(redo,undo);break;
+ case 'select-all':selectAllParts();break;
  case 'grid':gridEnabled=!gridEnabled;localStorage.setItem('circuits-grid',gridEnabled?'on':'off');render();break;
  case 'wire-add-bend':{
    const w=project.wires.find(w=>w.id===selection),coords=w&&wirePoints(w,project.parts);
@@ -196,9 +235,9 @@ app.addEventListener('click',e=>{
    break;
  }
  case 'toggle-switch':{const c=project.parts.find(p=>p.id===selection);if(c?.kind==='switch'){const b=copy();c.closed=!c.closed;commit(b)}break}
- case 'rotate':{const b=copy();project.parts=project.parts.map(c=>c.id===selection?{...c,rotation:(c.rotation+90)%360}:c);project=reconcileInsertions(project);commit(b);break}
- case 'delete':{const b=copy();project.parts=project.parts.filter(c=>c.id!==selection);project.wires=project.wires.filter(w=>w.id!==selection&&w.from.componentId!==selection&&w.to.componentId!==selection);selection=null;commit(b);break}
- case 'code':showCode=!showCode;showProjects=false;render();break;case 'parts':selection=null;showCode=false;showProjects=false;render();break;
+ case 'rotate':rotateSelectedParts();break
+ case 'delete':deleteSelection();break
+ case 'code':showCode=!showCode;showProjects=false;render();break;case 'parts':selection=null;selectedIds.clear();showCode=false;showProjects=false;render();break;
  case 'run':isRunning=!isRunning;render();break;
  case 'zoom-in':zoom=Math.min(2,zoom+.1);render();break;case 'zoom-out':zoom=Math.max(.4,zoom-.1);render();break;case 'fit':zoom=1;panX=0;panY=0;render();break;
  case 'export':download(JSON.stringify(project,null,2),project.name+'.json');break;
@@ -206,7 +245,7 @@ app.addEventListener('click',e=>{
  case 'import':app.querySelector<HTMLInputElement>('#file')?.click();break}
 });
 app.addEventListener('input',e=>{const t=e.target as HTMLInputElement;if(t.id==='search'){search=t.value;render();app.querySelector<HTMLInputElement>('#search')?.focus()}if(t.id==='code'){project.code=t.value;save()}});
-app.addEventListener('change',async e=>{const t=e.target as HTMLInputElement;if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){const b=copy();w.color=t.value;commit(b)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=1e12){const b=copy();c.value=num;commit(b)}}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
+app.addEventListener('change',async e=>{const t=e.target as HTMLInputElement;if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){const b=copy();w.color=t.value;commit(b)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=1e12){const b=copy();c.value=num;commit(b)}}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
 app.addEventListener('dragstart',e=>{const p=(e.target as Element).closest<HTMLElement>('[data-kind]');if(p)e.dataTransfer?.setData('text/circuit-kind',p.dataset.kind!)});
 app.addEventListener('dragover',e=>{if((e.target as Element).closest('.canvas'))e.preventDefault()});
 app.addEventListener('drop',e=>{const svg=app.querySelector<SVGSVGElement>('#board');const kind=e.dataTransfer?.getData('text/circuit-kind') as Kind;if(!svg||!parts.includes(kind)||!(e.target as Element).closest('.canvas'))return;e.preventDefault();const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM();if(!m)return;const p=pt.matrixTransform(m.inverse());add(kind,(p.x-panX)/zoom-size[kind][0]/2,(p.y-panY)/zoom-size[kind][1]/2)});
@@ -234,11 +273,22 @@ app.addEventListener('pointerdown',e=>{
    const w=project.wires.find(x=>x.id===handle.getAttribute('data-wire')),index=Number(handle.getAttribute('data-bend-index'));
    if(w?.bends?.[index]){bendDrag={id:w.id,index,before:copy()};return}
  }
+ if(!svg)return;
  const component=target.closest<SVGGElement>('[data-part]');
- if(!svg||!component||target.closest('[data-pin]'))return;
- const c=project.parts.find(p=>p.id===component.dataset.part);if(!c)return;
- drag={id:c.id,x:e.clientX,y:e.clientY,ox:c.x,oy:c.y,before:copy()};
- selection=c.id;render();
+ if(!component){
+   if(target.closest('[data-wire]'))return;
+   const at=canvasPoint(e.clientX,e.clientY);
+   if(at)marquee={start:at,end:at,screenX:e.clientX,screenY:e.clientY,active:false,additive:e.shiftKey};
+   return;
+ }
+ if(target.closest('[data-pin]')||e.shiftKey||e.ctrlKey||e.metaKey)return;
+ const id=component.dataset.part!;
+ if(!project.parts.some(p=>p.id===id))return;
+ if(!selectedIds.has(id))selectedIds=new Set([id]);
+ const ids=[...selectedIds];
+ selection=ids.length===1?id:null;
+ drag={ids,x:e.clientX,y:e.clientY,before:copy()};
+ render();
 });
 window.addEventListener('pointermove',e=>{
  if(endpointDrag){
@@ -258,15 +308,21 @@ window.addEventListener('pointermove',e=>{
    }
    return;
  }
+ if(marquee){
+   const point=canvasPoint(e.clientX,e.clientY);
+   if(point){
+     marquee.end=point;
+     marquee.active=marquee.active||Math.hypot(e.clientX-marquee.screenX,e.clientY-marquee.screenY)>5;
+     if(marquee.active)refreshScene();
+   }
+   return;
+ }
  if(!drag)return;
- const svg=app.querySelector<SVGSVGElement>('#board'),c=project.parts.find(p=>p.id===drag!.id);
- const matrix=svg?.getScreenCTM();
- if(!c||!matrix)return;
+ const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
+ if(!matrix)return;
  const scale=Math.hypot(matrix.a,matrix.b)*zoom;
  if(scale<=0)return;
- const x=drag.ox+(e.clientX-drag.x)/scale,y=drag.oy+(e.clientY-drag.y)/scale;
- c.x=gridEnabled?snap(x):Math.round(x*2)/2;
- c.y=gridEnabled?snap(y):Math.round(y*2)/2;
+ project=translateComponents(drag.before,drag.ids,{x:(e.clientX-drag.x)/scale,y:(e.clientY-drag.y)/scale},gridEnabled?10:null);
  refreshScene();
 });
 window.addEventListener('pointerup',e=>{
@@ -291,10 +347,40 @@ window.addEventListener('pointerup',e=>{
    if(before&&after&&(before.x!==after.x||before.y!==after.y))commit(d.before);
    return;
  }
+ if(marquee){
+   const box=marquee;marquee=null;
+   if(box.active){
+     const ids=componentsWithinRect(project,box.start,box.end);
+     selectedIds=box.additive?new Set([...selectedIds,...ids]):new Set(ids);
+     selection=selectedIds.size===1?[...selectedIds][0]:null;
+     ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
+   }else if(!box.additive){selectedIds.clear();selection=null}
+   render();return;
+ }
  if(!drag)return;
  const d=drag;drag=null;
- const c=project.parts.find(p=>p.id===d.id);
- if(c&&(c.x!==d.ox||c.y!==d.oy)){project=snapPartToBreadboard(project,d.id);commit(d.before)}
+ const moved=d.ids.some(id=>{
+   const before=d.before.parts.find(p=>p.id===id),after=project.parts.find(p=>p.id===id);
+   return before&&after&&(before.x!==after.x||before.y!==after.y);
+ });
+ if(moved){
+   project=d.ids.length===1?snapPartToBreadboard(project,d.ids[0]):reconcileInsertions(project);
+   commit(d.before);
+ }else render();
 });
-window.addEventListener('keydown',e=>{const t=e.target as HTMLElement;if(['INPUT','TEXTAREA'].includes(t.tagName))return;if((e.metaKey||e.ctrlKey)&&e.key==='z'){e.preventDefault();revert(e.shiftKey?redo:undo,e.shiftKey?undo:redo)}else if(e.key==='Escape'){wiring=null;endpointDrag=null;bendDrag=null;selection=null;connectionNotice='';render()}else if(e.key==='Delete'){const b=copy();project.parts=project.parts.filter(c=>c.id!==selection);project.wires=project.wires.filter(w=>w.id!==selection&&w.from.componentId!==selection&&w.to.componentId!==selection);selection=null;commit(b)}});
+window.addEventListener('keydown',e=>{
+ const t=e.target as HTMLElement;
+ if(['INPUT','TEXTAREA'].includes(t.tagName))return;
+ const command=e.ctrlKey||e.metaKey;
+ if(command&&e.key.toLowerCase()==='a'){
+   e.preventDefault();selectAllParts();
+ }else if(command&&e.key.toLowerCase()==='z'){
+   e.preventDefault();revert(e.shiftKey?redo:undo,e.shiftKey?undo:redo);
+ }else if(e.key==='Escape'){
+   wiring=null;endpointDrag=null;bendDrag=null;drag=null;marquee=null;
+   selectedIds.clear();selection=null;connectionNotice='';render();
+ }else if(e.key==='Delete'||e.key==='Backspace'){
+   e.preventDefault();deleteSelection();
+ }
+});
 render();

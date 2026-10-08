@@ -18,3 +18,5 @@ See `docs/ROADMAP.md` for functionality not yet implemented.
 - `src/core/connections.ts`: identity-based wire addition, endpoint retargeting, duplicate detection, and nearest-pin lookup. Editor viewport is converted to world coordinates before selecting target terminals.
 
 - `src/core/placement.ts`: spatial hit-testing and materialized resistor/LED physical insertion contacts. On release/rotate/import, contacts are reconciled from geometry; netlist consumes explicit connector IDs only, never viewport coordinates. Attached pins highlight green. Other components are not automatically inserted yet.
+
+- `src/core/selection.ts`: immutable rigid group translations, batch rotation/deletion, and full-component marquee hit testing using rotated bounding boxes. Selection is transient UI state; wire endpoints remain identified by stable pins. Group drag reconciles contacts only when released.

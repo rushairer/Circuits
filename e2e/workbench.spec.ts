@@ -43,3 +43,55 @@ test('existing wire end can be dragged to a breadboard hole', async ({page})=>{
     return p.wires?.find((wire:{id:string})=>wire.id==='w1')?.to?.pinId;
   })).toBe('hole-a-1');
 });
+
+test('Shift-selection moves several components as a rigid group and can undo deletion',async({page})=>{
+  await page.goto('/');
+  await page.locator('.item[data-part="r1"]').click();
+  await page.locator('.item[data-part="l1"]').click({modifiers:['Shift']});
+  await expect(page.locator('.inspector h2')).toContainText('已选中 2 个元件');
+  const initial=await page.evaluate(()=>{
+    const p=JSON.parse(localStorage.getItem('circuits-project')||'{}');
+    return {r:p.parts.find((x:{id:string})=>x.id==='r1'),l:p.parts.find((x:{id:string})=>x.id==='l1')};
+  });
+  const box=await page.locator('.item[data-part="r1"]').boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x+box!.width/2,box!.y+box!.height/2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x+box!.width/2+52,box!.y+box!.height/2+12,{steps:14});
+  await page.mouse.up();
+  const moved=await page.evaluate(()=>{
+    const p=JSON.parse(localStorage.getItem('circuits-project')||'{}');
+    return {r:p.parts.find((x:{id:string})=>x.id==='r1'),l:p.parts.find((x:{id:string})=>x.id==='l1'),wires:p.wires};
+  });
+  const dx=moved.r.x-initial.r.x,dy=moved.r.y-initial.r.y;
+  expect(Math.abs(dx)).toBeGreaterThan(0);
+  expect(moved.l.x-initial.l.x).toBe(dx);
+  expect(moved.l.y-initial.l.y).toBe(dy);
+  expect(moved.wires).toHaveLength(3);
+  await page.locator('.topbar button[data-action="delete"]').click();
+  await expect(page.locator('.item[data-part="r1"]')).toHaveCount(0);
+  await expect(page.locator('.item[data-part="l1"]')).toHaveCount(0);
+  await page.locator('.topbar button[data-action="undo"]').click();
+  await expect(page.locator('.item[data-part="r1"]')).toHaveCount(1);
+  await expect(page.locator('.item[data-part="l1"]')).toHaveCount(1);
+});
+
+test('marquee selection contains a component but does not include an adjacent component',async({page})=>{
+  await page.goto('/');
+  const points=await page.evaluate(()=>{
+    const scene=document.querySelector<SVGGElement>('#scene')!;
+    const svg=document.querySelector<SVGSVGElement>('#board')!;
+    const matrix=scene.getScreenCTM()!;
+    const screen=(x:number,y:number)=>{
+      const p=svg.createSVGPoint();p.x=x;p.y=y;
+      const c=p.matrixTransform(matrix);return {x:c.x,y:c.y};
+    };
+    return {start:screen(415,190),end:screen(582,293)};
+  });
+  await page.mouse.move(points.start.x,points.start.y);
+  await page.mouse.down();
+  await page.mouse.move(points.end.x,points.end.y,{steps:12});
+  await page.mouse.up();
+  await expect(page.locator('.item.selected')).toHaveCount(1);
+  await expect(page.locator('.item[data-part="r1"]')).toHaveClass(/selected/);
+});

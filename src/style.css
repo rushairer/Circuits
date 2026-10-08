@@ -4,3 +4,6 @@
 .project-switcher{border:0;background:#f0f8f7;color:#148e84;border-radius:6px;padding:9px 12px;font-size:13px;font-weight:700}.project-collection{display:flex;flex-direction:column;gap:8px;padding:2px 14px 20px}.project-row{display:flex;gap:6px;border:1px solid #e1e8ec;border-radius:8px;padding:5px;min-height:64px}.project-row:hover{border-color:#a2cfc7}.project-open{min-width:0;flex:1;background:#fff;border:0;text-align:left;display:flex;flex-direction:column;gap:6px;justify-content:center;padding:6px}.project-open strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.project-open small{color:#8799a6}.project-delete{font-size:20px;border:0;background:#fff;color:#889ba7;padding:0 8px}.project-delete:hover{color:#d15a55}
 
 .endpoint-handle{cursor:crosshair;filter:drop-shadow(0 1px 3px #3343);pointer-events:all}.endpoint-handle:hover{stroke:#056f6b;stroke-width:4;fill:#d9f7f2}
+
+/* Selection, group movement and marquee. */
+.marquee-box{fill:#1b9f9622;stroke:#149b93;stroke-width:1.5;stroke-dasharray:6 4;pointer-events:none}.item.selected{filter:drop-shadow(0 0 5px #1a9e94)}.topbar{overflow-x:auto;scrollbar-width:thin}.topbar button{flex-shrink:0}
