@@ -1,5 +1,5 @@
 export type Kind = 'battery' | 'resistor' | 'led' | 'breadboard' | 'arduino' | 'switch' | 'pushbutton' | 'potentiometer' | 'capacitor' | 'buzzer' | 'multimeter' | 'servo';
-export interface Part { id:string; kind:Kind; x:number; y:number; value?:number; closed?:boolean; rotation:number }
+export interface Part { id:string; kind:Kind; x:number; y:number; value?:number; initialVolts?:number; closed?:boolean; rotation:number }
 export interface Endpoint { componentId:string; pinId:string }
 export interface Wire { id:string; from:Endpoint; to:Endpoint; color:string; bends?:{x:number;y:number}[] }
 export interface Insertion { componentId:string; pinId:string; boardId:string; holeId:string }
@@ -44,7 +44,7 @@ export function validProject(v:unknown):v is Project {
  if(!(typeof p.name==='string'&&p.name.length<=120&&typeof p.code==='string'&&p.code.length<=300000&&Array.isArray(p.parts)&&p.parts.length<=300&&Array.isArray(p.wires)&&p.wires.length<=2000))return false;
  const ids=new Set<string>();
  for(const c of p.parts){
-   if(!c||typeof c.id!=='string'||!/^[\w-]{1,80}$/.test(c.id)||ids.has(c.id)||!parts.includes(c.kind)||!Number.isFinite(c.x)||!Number.isFinite(c.y)||!Number.isFinite(c.rotation)||Math.abs(c.x)>100000||Math.abs(c.y)>100000||(c.closed!==undefined&&typeof c.closed!=='boolean')||c.value!==undefined&&(!Number.isFinite(c.value)||Math.abs(c.value)>1e12))return false;
+   if(!c||typeof c.id!=='string'||!/^[\w-]{1,80}$/.test(c.id)||ids.has(c.id)||!parts.includes(c.kind)||!Number.isFinite(c.x)||!Number.isFinite(c.y)||!Number.isFinite(c.rotation)||Math.abs(c.x)>100000||Math.abs(c.y)>100000||(c.closed!==undefined&&typeof c.closed!=='boolean')||(c.initialVolts!==undefined&&(c.kind!=='capacitor'||!Number.isFinite(c.initialVolts)||Math.abs(c.initialVolts)>1000))||c.value!==undefined&&(!Number.isFinite(c.value)||Math.abs(c.value)>1e12))return false;
    ids.add(c.id);
  }
  if(p.insertions!==undefined){
