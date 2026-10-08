@@ -83,3 +83,7 @@
 - The virtual oscilloscope renders already computed RC samples in two independently scaled channels (V and mA). It must not drive solver time, imply hardware measurements, or persist transient UI state to project JSON. Export CSV with explicit units and blank cells for null numerical currents.
 - `src/core/rc-probes.ts` measures signed capacitor-path potential only from explicit netlist IDs. Never display a guessed resistor voltage or treat an unconnected meter as 0 V. Multimeter display and inspector should update during user time scrubbing.
 - The modal must be keyboard dismissible and focus-contained; native select/range controls must not trigger global canvas shortcuts.
+
+## Superseded CI runs and browser provisioning
+- On main pushes, GitHub Actions cancels older runs of the same branch. Only the final HEAD's successful quality gate and public Pages SHA are release evidence; a cancelled intermediate run is not a code regression.
+- Cache Playwright browser binaries by project dependency manifest, while still installing OS/browser dependencies via `--with-deps`. Browser provisioning has a bounded timeout rather than blocking publishing indefinitely.
