@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.3.0-alpha.2 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.3.0-alpha.3 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -63,3 +63,9 @@ Use **示例电路** in the toolbar to create separate, non-destructive example 
 ### Release provenance
 
 The production HTML embeds `circuits-revision=<git SHA>`. CI verifies the exact current commit over public HTTPS after Pages deployment, with cache-busting and bounded retries. A successful workflow therefore means the expected version—not merely an older page title—was reachable.
+
+### RC charging/discharging (experimental)
+
+Use **示例电路** to open RC charging (9V, 1kΩ, 100µF) or source-free discharge (9V capacitor initial condition, 1kΩ). Each creates a separate project and selects **模型：RC 暂态（实验）**. Start simulation for the voltage trace; move the time slider to inspect 101 deterministic samples from 0 to 5 time constants. Capacitor inspector accepts capacitance in µF and initial signed voltage in V.
+
+The solver handles **one ideal capacitor**, linear resistors, static ideal switches, breadboard connections, and zero or one DC battery. It calculates Rth and V∞ from actual connected pin networks, not the pixel drawing. Multiple capacitors/inductors, time-varying switches, LED nonlinear transients and oscilloscopes are not implemented; those circuits return unsupported diagnostics.

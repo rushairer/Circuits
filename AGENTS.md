@@ -65,3 +65,9 @@
 ## GitHub Pages release identity
 - Vite adds a `circuits-revision` HTML meta tag from the build's exact git SHA (or `local` for a dev build).
 - The Pages job checks that *public HTTP* serves the new SHA, not merely any previous Circuits page. Deployment artifacts may occasionally lag in GitHub's APIs: one bounded retry is permitted, not infinite retries or a false green status.
+
+## RC transient analysis (v0.3.0-alpha.3)
+- `src/core/rc-transient.ts` independently calculates the Thevenin equivalent of a *single ideal capacitor* across resistor/switch/breadboard networks, optionally powered by one ideal battery. Its output is an analytical step response sampled over 0–5τ; it is not a numerical multi-element transient solver.
+- `Part.value` is in microfarads only for `kind==='capacitor'`. The optional capacitor-only `initialVolts` is the t=0 signed voltage from pin a to pin b, validated by `validProject`; existing v2 JSON documents without the field remain valid.
+- Reject missing finite RC discharge paths, shorts, unsupported connected parts or too many capacitors instead of producing invented waveforms. Switching a circuit after startup is not simulated; switch state is fixed over the entire analytical trace.
+- Keep classic fixed 2V and nonlinear DC modes independently available, and do not repurpose the ideal DC voltmeter as an RC oscilloscope.

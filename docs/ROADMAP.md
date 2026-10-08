@@ -27,9 +27,10 @@
 ## v0.3 — expanded electrical simulation
 - [x] Experimental exponential LED I–V approximation with multiple series/parallel branches, solver convergence protection and per-LED overcurrent diagnostics
 - [x] Experimental DC voltage difference of ideal high-impedance multimeter probes
-- [x] Four ready-to-run sample circuits (single LED, parallel LED, series LED, voltmeter), created as separate local projects
+- [x] Six ready-to-run sample circuits (single LED, parallel LED, series LED, voltmeter, RC charging, RC discharging), created as separate local projects
 - [ ] Calibrated device libraries, diode tolerances and nonlinear model fidelity
-- [ ] Capacitor/inductor transient solver, current/voltage measurement and waveforms
+- [x] Analytical single-capacitor RC charge/discharge waveform, equivalent-resistance calculation for resistor networks, initial-voltage input and time-sample slider
+- [ ] General multi-capacitor/inductor transient solver, live current probes and oscilloscope
 - [ ] Current probes, parameterized switches, oscilloscopes, and wider numerical reference fixture coverage
 
 ## v0.4 — Arduino-compatible runtime

@@ -196,7 +196,7 @@ test('experimental DC voltmeter reads 9 volts from battery probes, and disconnec
 test('sample gallery creates separate dual-LED project without overwriting existing work',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(4);
+ await expect(page.locator('.example-card')).toHaveCount(6);
  await page.locator('[data-load-example="parallel"]').click();
  await expect(page.locator('input#name')).toHaveValue('双 LED 并联 · 独立限流');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -213,4 +213,45 @@ test('sample gallery creates separate dual-LED project without overwriting exist
 test('development index includes explicit build-revision provenance metadata',async({page})=>{
  await page.goto('/');
  await expect(page.locator('meta[name="circuits-revision"]')).toHaveAttribute('content','local');
+});
+
+test('RC example charges capacitor with time scrubber and preserved user projects',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await expect(page.locator('.example-card')).toHaveCount(6);
+ await page.locator('[data-load-example="rc-charge"]').click();
+ await expect(page.locator('button.project-switcher')).toContainText('(2)');
+ await expect(page.locator('button[data-action="solver-mode"]')).toContainText('RC 暂态');
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('.rc-panel')).toContainText('τ 0.1000 s');
+ await expect(page.locator('.rc-curve')).toHaveCount(1);
+ await expect(page.locator('#rc-voltage-value')).toHaveText('0.00 V');
+ await page.locator('#rc-time').evaluate((el:HTMLInputElement)=>{el.value='20';el.dispatchEvent(new Event('input',{bubbles:true}))});
+ await expect(page.locator('#rc-voltage-value')).toHaveText('5.69 V');
+ await expect(page.locator('#rc-current-value')).toHaveText('3.311 mA');
+ await page.locator('.item[data-part="c1"]').click();
+ await expect(page.locator('#rc-initial')).toHaveValue('0');
+ await expect(page.locator('#value')).toHaveValue('100');
+ await page.locator('button[data-action="projects"]').click();
+ await page.locator('.project-open').filter({hasText:'我的第一个电路'}).click();
+ await expect(page.locator('.item[data-part="c1"]')).toHaveCount(0);
+});
+
+test('RC source-free discharge shows negative capacitor current and editable initial charge',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="rc-discharge"]').click();
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('#rc-voltage-value')).toHaveText('9.00 V');
+ await expect(page.locator('#rc-current-value')).toHaveText('-9.000 mA');
+ await page.locator('#rc-time').evaluate((el:HTMLInputElement)=>{el.value='20';el.dispatchEvent(new Event('input',{bubbles:true}))});
+ await expect(page.locator('#rc-voltage-value')).toHaveText('3.31 V');
+ await page.locator('.item[data-part="c1"]').click();
+ await page.locator('#rc-initial').fill('6');
+ await page.locator('#rc-initial').press('Tab');
+ await expect(page.locator('#rc-voltage-value')).toHaveText('6.00 V');
+ await page.reload();
+ await expect(page.locator('#rc-initial')).toHaveCount(0);
+ await page.locator('.item[data-part="c1"]').click();
+ await expect(page.locator('#rc-initial')).toHaveValue('6');
 });
