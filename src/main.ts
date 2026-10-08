@@ -1,6 +1,7 @@
 import './style.css';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
+import { analyzeDC, type DcAnalysis } from './core/dc-analysis.js';
 import { snap, pinWorld, wirePoints, wirePath, nearestSegment, type Point } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
 import { blankProject } from './model.js';
@@ -13,6 +14,8 @@ const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const savedJSON=(key:string):unknown=>{try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}};
 let workspace=migrateWorkspace(savedJSON(WORKSPACE_KEY),savedJSON('circuits-project'));
 let project:Project=reconcileInsertions(activeProject(workspace));
+let simulationMode:'classic'|'nonlinear'='classic';
+let lastAnalysis:DcAnalysis|null=null;
 let persistOK=true;
 let showProjects=false;
 let selection:string|null=null, wiring:Endpoint|null=null, isRunning=false, search='',showCode=false, zoom=1,panX=0,panY=0;
@@ -47,7 +50,10 @@ const uid=()=>crypto.randomUUID().slice(0,8);
 const pos=(e:Endpoint):[number,number]|null=>{
  const p=pinWorld(e,project.parts);return p?[p.x,p.y]:null;
 };
-function art(c:Part){const [w,h]=size[c.kind];
+function art(c:Part){
+ const [w,h]=size[c.kind];
+ const probe=lastAnalysis?.meters[c.id];
+ const probeText=probe?.status==='measured'&&probe.volts!==null?probe.volts.toFixed(2):'----';
  if(c.kind==='battery')return '<rect x="8" y="10" width="76" height="119" rx="12" fill="#303b43"/><rect x="8" y="10" width="76" height="32" rx="9" fill="#eca738"/><text x="46" y="86" font-size="25" text-anchor="middle" fill="white">9V</text><text x="70" y="42" fill="white">+</text><text x="70" y="108" fill="white">−</text>';
  if(c.kind==='resistor')return '<path d="M0 30H140" stroke="#b7a17d" stroke-width="5"/><rect x="36" y="13" width="68" height="35" rx="16" fill="#d7b68c" stroke="#bc936c"/><path d="M54 13v35m12-35v35m12-35v35" stroke="#9c542e" stroke-width="6"/><text x="70" y="9" font-size="13" text-anchor="middle" fill="#667988">'+(c.value??220)+'Ω</text>';
  if(c.kind==='led')return '<path d="M0 65H110" stroke="#b6c1c7" stroke-width="5"/><path d="M34 64V42a21 21 0 0 1 42 0v22z" fill="#ee525c"/><rect x="32" y="61" width="46" height="12" rx="4" fill="#d73b4a"/><path d="M45 42a11 11 0 0 1 12-12" stroke="#fff8" fill="none" stroke-width="4"/>';
@@ -56,7 +62,7 @@ function art(c:Part){const [w,h]=size[c.kind];
  if(c.kind==='potentiometer')return '<path d="M0 90H34M86 90H120M60 75v33" stroke="#a6b4bb" stroke-width="4"/><circle cx="60" cy="54" r="42" fill="#2d8cbb"/><circle cx="60" cy="54" r="30" fill="#4dadd2"/><path d="M60 54L82 33" stroke="white" stroke-width="5"/>';
  if(c.kind==='capacitor')return '<path d="M0 79H30M64 79H95" stroke="#b2bbc1" stroke-width="5"/><rect x="29" y="23" width="37" height="75" rx="12" fill="#278ac1"/><path d="M40 31v56" stroke="#c6ebfd" stroke-width="6"/>';
  if(c.kind==='buzzer')return '<path d="M0 90H29M81 90H110" stroke="#bac3ca" stroke-width="5"/><rect x="21" y="20" width="70" height="79" rx="12" fill="#323b46"/><circle cx="55" cy="56" r="31" fill="#151f29" stroke="#68717d" stroke-width="5"/><circle cx="55" cy="56" r="9" fill="#46515f"/>';
- if(c.kind==='multimeter')return '<rect x="8" y="4" width="129" height="152" rx="13" fill="#e1ac34" stroke="#be8427" stroke-width="3"/><rect x="25" y="23" width="95" height="48" rx="5" fill="#a7bfba"/><text x="116" y="57" font-size="22" text-anchor="end" font-family="monospace" fill="#27493e">0.00</text><circle cx="73" cy="112" r="27" fill="#323940"/><path d="M73 112v-18" stroke="white" stroke-width="4"/>';
+ if(c.kind==='multimeter')return '<rect x="8" y="4" width="129" height="152" rx="13" fill="#e1ac34" stroke="#be8427" stroke-width="3"/><rect x="25" y="23" width="95" height="48" rx="5" fill="#a7bfba"/><text x="116" y="57" font-size="22" text-anchor="end" font-family="monospace" fill="#27493e">'+probeText+'</text><circle cx="73" cy="112" r="27" fill="#323940"/><path d="M73 112v-18" stroke="white" stroke-width="4"/>';
  if(c.kind==='servo')return '<path d="M0 75H25M0 95H25M0 115H25" stroke="#bda373" stroke-width="4"/><rect x="23" y="37" width="123" height="77" rx="9" fill="#2b74aa"/><circle cx="98" cy="37" r="23" fill="#d7dde1"/><path d="M98 37V5" stroke="#f3f4f4" stroke-width="11"/>';
  if(c.kind==='arduino')return '<rect x="4" y="4" width="196" height="164" rx="12" fill="#2276aa" stroke="#125983" stroke-width="3"/><rect x="25" y="55" width="78" height="45" rx="4" fill="#263e51"/><rect x="4" y="45" width="35" height="34" rx="4" fill="#c1cfd5"/><rect x="40" y="126" width="33" height="39" rx="4" fill="#26313a"/><text x="103" y="38" fill="white" font-size="24" font-weight="bold">UNO</text><text x="90" y="122" fill="#e4f5ff" font-size="14">ARDUINO</text>'+Array.from({length:13},(_,i)=>'<rect x="'+(30+i*13)+'" y="2" width="8" height="9" fill="#243745"/>').join('');
  return '<rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="9" fill="#f6f7f6" stroke="#bdc9cc" stroke-width="3"/><path d="M18 35h404 M18 167h404" stroke="#e06a6a" stroke-width="2"/><path d="M18 48h404 M18 180h404" stroke="#5d9fd4" stroke-width="2"/>'+Array.from({length:22},(_,x)=>Array.from({length:10},(_,y)=>'<circle cx="'+(28+x*18)+'" cy="'+(67+y*9)+'" r="2.8" fill="#89959b"/>').join('')).join('') }
@@ -73,9 +79,9 @@ function canvas(){
    const bends=selected?(w.bends??[]).map((p,i)=>'<circle class="bend-handle" data-wire="'+w.id+'" data-bend-index="'+i+'" cx="'+p.x+'" cy="'+p.y+'" r="8" fill="#ffffff" stroke="#0f9c94" stroke-width="3"/>').join(''):'';
    return '<g><path class="wire" data-wire="'+w.id+'" d="'+d+'" stroke="'+w.color+'" stroke-width="'+(selected?8:5)+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'+bends+'</g>';
  }).join('');
- const readings=isRunning?evaluate(project):null;
+ const readings=isRunning&&simulationMode==='classic'?evaluate(project):null;
  const insertedPins=new Set((project.insertions??[]).flatMap(x=>[x.componentId+'::'+x.pinId,x.boardId+'::'+x.holeId]));
- const shapes=project.parts.map(c=>{const [w,h]=size[c.kind],glow=c.kind==='led'&&readings?.lit?'<circle cx="54" cy="49" r="52" fill="#ff7a74" opacity=".2"/>':'';
+ const shapes=project.parts.map(c=>{const [w,h]=size[c.kind],glow=c.kind==='led'&&isRunning&&(simulationMode==='classic'?readings?.lit:lastAnalysis?.leds[c.id]?.lit)?'<circle cx="54" cy="49" r="52" fill="#ff7a74" opacity=".2"/>':'';
  const board=c.kind==='breadboard';
  const pinsSvg=Object.entries(pins[c.kind]).map(([name,p])=>{
    const inserted=insertedPins.has(c.id+'::'+name);
@@ -135,10 +141,27 @@ function side(){
  if(chosenWire&&!showCode)return '<h2>导线属性</h2><div class="field"><p>起点：'+escape(chosenWire.from.componentId)+' / '+escape(chosenWire.from.pinId)+'</p><p>终点：'+escape(chosenWire.to.componentId)+' / '+escape(chosenWire.to.pinId)+'</p><label for="wire-color">导线颜色</label><input id="wire-color" type="color" value="'+chosenWire.color+'"/><p>折点 '+(chosenWire.bends?.length??0)+' 个。拖动空心端点到其他元件或面包板插孔即可重新接线；折点圆形手柄可拖动，双击导线添加折点。</p><button data-action="wire-add-bend">＋ 添加折点</button><button data-action="wire-reset-bends">恢复自动走线</button><p>编辑颜色和折点均不改变电气连接。</p><button data-action="delete">删除导线</button><button data-action="parts">返回元件库</button></div>';
  if(showCode)return '<h2>代码编辑器 · Arduino C++</h2><div class="field"><p>仅提供文本编辑和导出，尚未运行 MCU 程序。</p><textarea id="code" maxlength="300000">'+escape(project.code)+'</textarea><button data-action="download-code">下载 .ino</button><button data-action="code">返回元件库</button></div>';
  const c=project.parts.find(p=>p.id===selection);
- if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+(c.kind==='resistor'||c.kind==='battery'?'<label>数值 ('+(c.kind==='resistor'?'Ω':'V')+')</label><input id="value" type="number" min="1" value="'+(c.value??1)+'"/>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+(!['battery','resistor','led','breadboard','switch'].includes(c.kind)?'<p>该元件仅支持可视化与接线，暂未接入电气仿真。</p>':'')+'<button data-action="rotate">旋转 90°</button><button data-action="delete">删除元件</button><button data-action="parts">返回元件库</button></div>';
+ const ledReading=c?.kind==='led'?lastAnalysis?.leds[c.id]:null;
+ const meterReading=c?.kind==='multimeter'?lastAnalysis?.meters[c.id]:null;
+ if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+(c.kind==='resistor'||c.kind==='battery'?'<label>数值 ('+(c.kind==='resistor'?'Ω':'V')+')</label><input id="value" type="number" min="1" value="'+(c.value??1)+'"/>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+(!['battery','resistor','led','breadboard','switch'].includes(c.kind)?'<p>该元件仅支持可视化与接线，暂未接入电气仿真。</p>':'')+'<button data-action="rotate">旋转 90°</button><button data-action="delete">删除元件</button><button data-action="parts">返回元件库</button></div>';
  return '<h2>▦ 组件库</h2><div class="search"><input id="search" placeholder="搜索组件..." value="'+escape(search)+'"/></div><div class="parts">'+parts.filter(k=>labels[k].toLowerCase().includes(search.toLowerCase())).map(kind=>'<button class="part" draggable="true" data-kind="'+kind+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg>'+labels[kind]+'</button>').join('')+'</div><div class="field"><p>点击添加元件，点两个引脚接线。支持从元件库拖入。</p></div>'}
-function render(){const report=evaluate(project);
- app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?report.reason+' · '+report.currentMilliAmps+'mA':selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · Shift 多选 · 框选 · 空格或中键拖动画布')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.2.0-alpha.7 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+function render(){
+ lastAnalysis=isRunning&&simulationMode==='nonlinear'?analyzeDC(project):null;
+ const report=simulationMode==='classic'?evaluate(project):null;
+ const details=lastAnalysis;
+ const analysisHTML=details?'<div class="analysis-overview" role="status"><strong>实验性非线性 DC</strong><p>'+escape(details.reason)+'</p>'+
+   (details.warnings.length?'<p class="analysis-warning">'+escape(details.warnings.slice(0,3).join('；'))+'</p>':'')+
+   (details.ok?project.parts.filter(p=>p.kind==='led').slice(0,8).map(p=>{
+     const r=details.leds[p.id];
+     const value=r.status==='overcurrent'?'过流':r.status==='unpowered'?'未供电':r.currentMilliAmps.toFixed(2)+' mA';
+     return '<div class="analysis-line"><span>LED '+escape(p.id)+'</span><strong>'+value+'</strong></div>';
+   }).join('')+project.parts.filter(p=>p.kind==='multimeter').slice(0,6).map(p=>{
+     const r=details.meters[p.id],value=r.status==='measured'&&r.volts!==null?r.volts.toFixed(2)+' V':'未连接';
+     return '<div class="analysis-line"><span>电压表 '+escape(p.id)+'</span><strong>'+value+'</strong></div>';
+   }).join(''):'<p>本电路未生成可信的仿真读数</p>')+
+   '<small>仅作教学近似；不含 MCU、暂态、温升及器件容差。</small></div>':'';
+ const bottomReading=isRunning?(simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':'模型：非线性 DC（实验）')+'</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?(bottomReading??'仿真不可用'):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · Shift 多选 · 框选 · 空格或中键拖动画布')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 基础 DC LED 仿真，尚不支持 Arduino 代码执行</span><span>v0.3.0-alpha.1 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),a=x??300,b=y??300,id=uid();
  project.parts.push({id,kind,x:gridEnabled?snap(a):a,y:gridEnabled?snap(b):b,rotation:0,value:kind==='resistor'?220:kind==='battery'?9:undefined});
@@ -246,6 +269,7 @@ app.addEventListener('click',e=>{
  case 'delete':deleteSelection();break
  case 'code':showCode=!showCode;showProjects=false;render();break;case 'parts':selection=null;selectedIds.clear();showCode=false;showProjects=false;render();break;
  case 'run':isRunning=!isRunning;render();break;
+ case 'solver-mode':simulationMode=simulationMode==='classic'?'nonlinear':'classic';render();break;
  case 'zoom-in':changeZoom(1.15);break;case 'zoom-out':changeZoom(1/1.15);break;case 'fit':zoom=1;panX=0;panY=0;render();break;
  case 'export':download(JSON.stringify(project,null,2),project.name+'.json');break;
  case 'download-code':download(project.code,'circuit.ino');break;

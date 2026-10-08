@@ -162,3 +162,33 @@ test('wheel zoom preserves cursor anchor and Space-drag pans without editing the
  await page.locator('[data-action="fit"]').click();
  await expect(page.locator('#scene')).toHaveAttribute('transform','translate(0 0) scale(1)');
 });
+
+test('experimental nonlinear DC mode displays per-LED computed current', async ({page})=>{
+ await page.goto('/');
+ await expect(page.locator('button[data-action="solver-mode"]')).toContainText('固定 2V');
+ await page.locator('button[data-action="solver-mode"]').click();
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('.analysis-overview')).toContainText('实验性非线性 DC');
+ await expect(page.locator('.analysis-overview')).toContainText('LED l1');
+ await expect(page.locator('.analysis-overview')).toContainText('mA');
+ await page.locator('.item[data-part="l1"]').click();
+ await expect(page.locator('.inspector')).toContainText('非线性 LED');
+ await expect(page.locator('.inspector')).toContainText('mA');
+});
+
+test('experimental DC voltmeter reads 9 volts from battery probes, and disconnected meter shows no invented zero',async({page})=>{
+ await page.goto('/');
+ const circuit=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ circuit.parts.push({id:'m1',kind:'multimeter',x:860,y:430,rotation:0});
+ await page.locator('#file').setInputFiles({name:'meter-open.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(circuit))});
+ await page.locator('button[data-action="solver-mode"]').click();
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('.analysis-overview')).toContainText('未连接');
+ await expect(page.locator('.item[data-part="m1"]')).toContainText('----');
+ // Re-import a connected version through the same public user workflow.
+ circuit.wires.push({id:'wm1',from:{componentId:'m1',pinId:'positive'},to:{componentId:'b1',pinId:'positive'},color:'#4b5563'},
+   {id:'wm2',from:{componentId:'m1',pinId:'negative'},to:{componentId:'b1',pinId:'negative'},color:'#4b5563'});
+ await page.locator('#file').setInputFiles({name:'meter-wired.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(circuit))});
+ await expect(page.locator('.analysis-overview')).toContainText('9.00 V');
+ await expect(page.locator('.item[data-part="m1"]')).toContainText('9.00');
+});

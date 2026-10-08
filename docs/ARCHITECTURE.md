@@ -22,3 +22,6 @@ See `docs/ROADMAP.md` for functionality not yet implemented.
 - `src/core/selection.ts`: immutable rigid group translations, batch rotation/deletion, and full-component marquee hit testing using rotated bounding boxes. Selection is transient UI state; wire endpoints remain identified by stable pins. Group drag reconciles contacts only when released.
 
 - `src/core/viewport.ts`: pointer-anchored zoom and canvas-space panning; viewport navigation changes camera state only, not project positions or netlist.
+
+- `src/core/dc-analysis.ts` is an optional, opt-in nonlinear DC teaching solver. It uses damped Newton nodal analysis, an exponential LED I–V approximation calibrated near 2 V/20 mA, one ideal battery, positive resistors, and ideal switches encoded by the netlist. It reports per-LED current, individual node potentials and ideal, infinite-input-impedance multimeter voltage differences. Voltage probes do **not** affect the circuit. It is not a device-accurate SPICE solver.
+- The classic `evaluate` path remains the default to preserve older examples and expected 21.21 mA readings. The toolbar toggles models without changing persisted circuit wiring; UI reads experimental results only when that mode is active and running. Unsupported connections and unconnected probe pins produce explicit diagnostics rather than misleading numerical readings.

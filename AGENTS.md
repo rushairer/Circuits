@@ -52,3 +52,8 @@
 ## Canvas navigation
 - Camera pan/zoom must never modify circuit world coordinates. `src/core/viewport.ts` preserves the point underneath the cursor on zoom.
 - Space+left-drag or middle-button drag pans. Blank-canvas unmodified left drag remains marquee selection. Never intercept pointer events that start on toolbar/inspector UI.
+
+## Experimental nonlinear DC analysis (v0.3)
+- Keep `src/core/dc-analysis.ts` independent from the legacy `evaluate` path. The exponential LED approximation is *not* a manufacturer-accurate physical model; flag overcurrent and unsupported configurations.
+- The initial experimental model supports one battery, positive resistors, ideal two-terminal switches and multiple LED branches; multimeter probes are ideal open-circuit voltage measurements. No MCU, SPICE transient solver, current meter or high-voltage safety model.
+- When adding a nonlinear element, test normal, reverse, parallel, series, open, shorted and failure-to-converge behavior. Never display a voltage of 0 V for an unconnected or uncomputed meter probe.

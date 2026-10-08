@@ -25,9 +25,11 @@
 - [ ] Visual reference comparison and editor accuracy audits
 
 ## v0.3 — expanded electrical simulation
-- [ ] Nonlinear LED/diode I–V and multiple LED branch models
+- [x] Experimental exponential LED I–V approximation with multiple series/parallel branches, solver convergence protection and per-LED overcurrent diagnostics
+- [x] Experimental DC voltage difference of ideal high-impedance multimeter probes
+- [ ] Calibrated device libraries, diode tolerances and nonlinear model fidelity
 - [ ] Capacitor/inductor transient solver, current/voltage measurement and waveforms
-- [ ] Parameterized switches, instrumentation, validation against reference fixtures
+- [ ] Current probes, parameterized switches, oscilloscopes, and wider numerical reference fixture coverage
 
 ## v0.4 — Arduino-compatible runtime
 - [ ] Safe/deterministic AVR-compatible execution, sketch compilation, GPIO/PWM/ADC
