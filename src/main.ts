@@ -260,6 +260,8 @@ app.addEventListener('dblclick',e=>{
 app.addEventListener('pointerdown',e=>{
  if(e.button!==0)return;
  const svg=app.querySelector<SVGSVGElement>('#board'),target=e.target as Element;
+ // Pointer gestures must start inside the SVG, never on toolbar or inspector controls.
+ if(!target.closest('#board'))return;
  const terminalHandle=target.closest<SVGElement>('[data-wire-end]');
  if(terminalHandle){
    const id=terminalHandle.getAttribute('data-wire')!,side=terminalHandle.getAttribute('data-wire-end');
