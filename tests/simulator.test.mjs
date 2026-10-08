@@ -127,3 +127,48 @@ test('workspace duplicate IDs, excess projects and final delete are rejected',()
  assert.equal(w.slots.length,MAX_PROJECTS);
  assert.throws(()=>createProject(w,'excess',demo(),100),/limit/);
 });
+
+import {nearestTerminal,reconnectEndpoint,appendConnection,validTerminal} from '../.test-dist/core/connections.js';
+test('rewiring a terminal updates the electrical network without changing the wire identity',()=>{
+ const p=demo();
+ const updated=reconnectEndpoint(p,'w1','to',{componentId:'bb1',pinId:'hole-a-1'});
+ assert.ok(updated);
+ assert.equal(updated.wires[0].id,'w1');
+ assert.equal(updated.wires[0].color,p.wires[0].color);
+ assert.equal(evaluate(p).lit,true);
+ assert.equal(evaluate(updated).lit,false);
+});
+test('rewiring retains bendpoints and does not mutate the previous circuit',()=>{
+ const p=demo();p.wires[0].bends=[{x:100,y:100}];
+ const updated=reconnectEndpoint(p,'w1','from',{componentId:'bb1',pinId:'hole-e-1'});
+ assert.ok(updated);assert.deepEqual(updated.wires[0].bends,[{x:100,y:100}]);
+ assert.equal(p.wires[0].from.componentId,'b1');
+});
+test('rewire refuses invalid or duplicate terminal pairs',()=>{
+ const p=demo();
+ assert.equal(reconnectEndpoint(p,'w1','from',{componentId:'missing',pinId:'positive'}),null);
+ assert.equal(reconnectEndpoint(p,'w1','to',{componentId:'b1',pinId:'positive'}),null);
+ p.wires.push(wire('duplicate','b1','positive','bb1','hole-a-0'));
+ assert.equal(reconnectEndpoint(p,'w1','to',{componentId:'bb1',pinId:'hole-a-0'}),null);
+});
+test('adding wires checks terminal existence and rejects repeated connections',()=>{
+ const p=demo();
+ assert.equal(appendConnection(p,wire('new','r1','a','b1','positive')),null);
+ assert.equal(appendConnection(p,wire('new','x','a','r1','a')),null);
+ const added=appendConnection(p,wire('new','bb1','hole-a-1','r1','a'));
+ assert.ok(added);assert.equal(added.wires.length,p.wires.length+1);
+ assert.equal(p.wires.length,3);
+});
+test('nearest terminal uses rotated pin geometry and breadboard hole positions',()=>{
+ const p=demo();p.parts.find(c=>c.id==='r1').rotation=90;
+ const world=pinWorld({componentId:'r1',pinId:'a'},p.parts);
+ assert.ok(world);
+ const hit=nearestTerminal(p,{x:world.x+2,y:world.y-1},4);
+ assert.equal(hit?.endpoint.componentId,'r1');
+ assert.equal(hit?.endpoint.pinId,'a');
+ const hole=pinWorld({componentId:'bb1',pinId:'hole-a-1'},p.parts);
+ assert.ok(hole);
+ assert.equal(nearestTerminal(p,hole,4)?.endpoint.pinId,'hole-a-1');
+ assert.equal(nearestTerminal(p,{x:-5000,y:-5000}),null);
+ assert.equal(validTerminal(p,{componentId:'bb1',pinId:'not-a-hole'}),false);
+});
