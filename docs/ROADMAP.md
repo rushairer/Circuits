@@ -7,7 +7,7 @@
 - [x] Import validation for component and pin references
 - [x] 12 original SVG component illustrations; toggleable ideal switch, wire selection and color editing
 - [x] Typecheck, unit tests, production build, persistent verified artifact, conditional Pages deploy
-- [ ] Enable GitHub Pages via repository Settings and confirm live deployment
+- [x] GitHub Pages enabled with commit-specific public HTTP deployment verification
 - [x] Chromium browser E2E test gate: smoke, local project persistence and endpoint retargeting
 - [x] Chromium, Firefox and WebKit E2E smoke/selection/movement/persistence regression on CI
 - [ ] Real macOS Safari and additional visual + pointer-gesture regression audits

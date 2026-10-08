@@ -59,7 +59,7 @@
 - When adding a nonlinear element, test normal, reverse, parallel, series, open, shorted and failure-to-converge behavior. Never display a voltage of 0 V for an unconnected or uncomputed meter probe.
 
 ## Starter example fixtures
-- `src/core/examples.ts` defines stable sample circuits as versioned valid JSON projects. Each example must pass `validProject` and meaningful nonlinear DC fixtures.
+- `src/core/examples.ts` defines stable sample circuits as versioned valid JSON projects. Each example must pass `validProject` and the appropriate nonlinear DC, analytical RC, or numerical RC reference fixtures.
 - Choosing a sample creates a new workspace slot; do not overwrite an existing user circuit. Sample selection opts into experimental nonlinear DC but still requires the user to start simulation.
 
 ## GitHub Pages release identity
@@ -76,3 +76,5 @@
 - Do not break the existing `analyzeRC` single-capacitor analytical reference fixtures. For 2–6 capacitors, use the separate `src/core/rc-network.ts` backward-Euler solver and keep sampling results bounded and finite.
 - Capacitor initial voltages are signed V(a)-V(b). Conflicting zero-time capacitor/ideal battery constraints must be rejected instead of simulating impulses or silently forcing an arbitrary state. Current at t=0 is deliberately `null`.
 - The timestep/window selector and chosen capacitor trace are UI-only controls; they must not rewrite electrical project JSON. Graphical traces are teaching approximations, not live oscilloscopes.
+
+- Keyboard shortcuts must not hijack native `<input>`, `<textarea>` **or `<select>`** controls; trace/window selectors remain keyboard-operable without moving selected components.

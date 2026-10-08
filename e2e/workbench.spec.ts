@@ -304,6 +304,17 @@ test('series capacitor numerical traces split voltage evenly',async({page})=>{
  expect(Math.abs(one-two)).toBeLessThan(.03);
  await page.locator('.item[data-part="c2"]').click();
  await expect(page.locator('#rc-network-inspector')).toContainText('多电容当前采样');
+ const before=await page.evaluate(()=>{
+   const p=JSON.parse(localStorage.getItem('circuits-project')||'{}');
+   return p.parts.find((part:{id:string})=>part.id==='c2').x;
+ });
+ await page.locator('#rc-window').focus();
+ await page.keyboard.press('ArrowDown');
+ const after=await page.evaluate(()=>{
+   const p=JSON.parse(localStorage.getItem('circuits-project')||'{}');
+   return p.parts.find((part:{id:string})=>part.id==='c2').x;
+ });
+ expect(after).toBe(before);
 });
 
 test('incompatible initial charges display a diagnostic instead of invented waveform',async({page})=>{
