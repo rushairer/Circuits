@@ -385,4 +385,6 @@ window.addEventListener('keydown',e=>{
    e.preventDefault();deleteSelection();
  }
 });
+// Persist the first demo or migrated workspace before browser tests and user edits.
+save();
 render();
