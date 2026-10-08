@@ -4,17 +4,20 @@ import { validProject } from '../.test-dist/model.js';
 import { exampleCatalog,createExample } from '../.test-dist/core/examples.js';
 import { analyzeDC } from '../.test-dist/core/dc-analysis.js';
 import { analyzeRC } from '../.test-dist/core/rc-transient.js';
+import { analyzeRCNetwork } from '../.test-dist/core/rc-network.js';
 
 test('all documented example circuits are valid versioned JSON projects',()=>{
- assert.equal(exampleCatalog.length,6);
+ assert.equal(exampleCatalog.length,8);
  const ids=new Set(exampleCatalog.map(e=>e.id));
- assert.equal(ids.size,6);
+ assert.equal(ids.size,8);
  for(const e of exampleCatalog){
   const p=createExample(e.id);
   assert.ok(p,e.id);
   assert.ok(validProject(p),e.id);
   assert.equal(p.schemaVersion,2);
-  assert.equal(e.id.startsWith('rc-')?analyzeRC(p).ok:analyzeDC(p).ok,true,e.id);
+  const result=e.id==='rc-parallel'||e.id==='rc-series'?analyzeRCNetwork(p):
+    e.id.startsWith('rc-')?analyzeRC(p):analyzeDC(p);
+  assert.equal(result.ok,true,e.id+': '+result.reason);
  }
  assert.equal(createExample('nonexistent'),null);
 });
@@ -48,4 +51,17 @@ test('RC starter examples have correct 0.1s charging/discharging response',()=>{
  assert.ok(Math.abs(discharging.steadyVolts)<1e-8);
  assert.equal(charging.samples[0].voltageVolts,0);
  assert.equal(discharging.samples[0].voltageVolts,9);
+});
+
+test('two-capacitor teaching fixtures exhibit independent parallel and series responses',()=>{
+ const parallel=analyzeRCNetwork(createExample('rc-parallel'),{durationSeconds:.6});
+ const series=analyzeRCNetwork(createExample('rc-series'),{durationSeconds:.5});
+ assert.equal(parallel.ok,true,parallel.reason);
+ assert.equal(series.ok,true,series.reason);
+ const atOneTauParallel=parallel.samples[50];
+ assert.ok(Math.abs(atOneTauParallel.capacitors.c1.voltageVolts-5.689)<.025);
+ assert.ok(Math.abs(atOneTauParallel.capacitors.c2.voltageVolts-5.689)<.025);
+ const atOneTauSeries=series.samples[10];
+ assert.ok(Math.abs(atOneTauSeries.capacitors.c1.voltageVolts-2.8445)<.025);
+ assert.ok(Math.abs(atOneTauSeries.capacitors.c2.voltageVolts-2.8445)<.025);
 });

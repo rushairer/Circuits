@@ -7,7 +7,9 @@ export const exampleCatalog=[
  {id:'series',title:'双 LED 串联',description:'同一个限流电阻串联两只 LED，比较各自压降'},
  {id:'voltmeter',title:'9V 万用表测量',description:'将理想直流电压表的正负表笔接到电池两端'},
  {id:'rc-charge',title:'RC 电容充电',description:'9V 电池 + 1kΩ 电阻 + 100µF 电容，时间常数 0.1 秒'},
- {id:'rc-discharge',title:'RC 电容放电',description:'已充至 9V 的 100µF 电容经 1kΩ 电阻自然放电'}
+ {id:'rc-discharge',title:'RC 电容放电',description:'已充至 9V 的 100µF 电容经 1kΩ 电阻自然放电'},
+ {id:'rc-parallel',title:'双电容并联 RC',description:'100µF 与 200µF 电容并联，合计 300µF，由 9V / 1kΩ 充电'},
+ {id:'rc-series',title:'双电容串联 RC',description:'两只 100µF 电容串联，观察同一支路的电压分配'}
 ] as const;
 export type ExampleId=(typeof exampleCatalog)[number]['id'];
 
@@ -16,6 +18,29 @@ const lead=(id:string,from:string,fromPin:string,to:string,toPin:string,color='#
 });
 export function createExample(id:string):Project|null {
  if(!exampleCatalog.some(e=>e.id===id))return null;
+ if(id==='rc-parallel'||id==='rc-series'){
+   const doc=blankProject();
+   doc.name=id==='rc-parallel'?'双电容并联 · 300µF 等效':'双电容串联 · 50µF 等效';
+   doc.parts=[
+     {id:'b1',kind:'battery',x:90,y:200,rotation:0,value:9},
+     {id:'r1',kind:'resistor',x:380,y:220,rotation:0,value:1000},
+     {id:'c1',kind:'capacitor',x:650,y:160,rotation:0,value:100,initialVolts:0},
+     {id:'c2',kind:'capacitor',x:850,y:300,rotation:0,value:id==='rc-parallel'?200:100,initialVolts:0}
+   ];
+   doc.wires=[
+     lead('w1','b1','positive','r1','a'),
+     lead('w2','r1','b','c1','a'),
+     ...(id==='rc-parallel'?[
+       lead('w3','r1','b','c2','a'),
+       lead('w4','c1','b','b1','negative','#354553'),
+       lead('w5','c2','b','b1','negative','#354553')
+     ]:[
+       lead('w3','c1','b','c2','a'),
+       lead('w4','c2','b','b1','negative','#354553')
+     ])
+   ];
+   return doc;
+ }
  if(id==='rc-charge'){
    const p=blankProject();p.name='RC 充电 · 9V / 1kΩ / 100µF';
    p.parts=[
