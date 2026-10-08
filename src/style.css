@@ -57,3 +57,9 @@
 .scope-dialog input[type=range]{width:100%;accent-color:#109f9b;margin:8px 0}
 .scope-note{font-size:11px;line-height:1.6;color:#6a8790;margin:4px 0 0}
 @media(max-width:700px){.scope-dialog{padding:12px;width:calc(100% - 12px);max-height:98%}.scope-heading h2{font-size:16px}.scope-readings strong{font-size:13px}}
+
+/* Read-only waveform decoration must not block electrical component picking.
+   Only native form controls handle pointer interactions within floating panels. */
+.rc-panel{pointer-events:none}
+.rc-panel .rc-plot{pointer-events:none!important}
+.rc-panel input,.rc-panel select,.rc-panel button{pointer-events:auto}

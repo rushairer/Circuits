@@ -87,3 +87,5 @@
 ## Superseded CI runs and browser provisioning
 - On main pushes, GitHub Actions cancels older runs of the same branch. Only the final HEAD's successful quality gate and public Pages SHA are release evidence; a cancelled intermediate run is not a code regression.
 - Cache Playwright browser binaries by project dependency manifest, while still installing OS/browser dependencies via `--with-deps`. Browser provisioning has a bounded timeout rather than blocking publishing indefinitely.
+
+- Read-only RC graph overlays must allow selecting electrical components beneath them (`pointer-events:none`); only genuine panel controls (ranges/selects/buttons) may intercept pointer input. The RC voltmeter browser regression covers this overlay interaction.
