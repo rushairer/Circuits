@@ -44,3 +44,7 @@
 ## Keyboard accessibility
 - SVG parts carry tabindex, role=button, aria-label, and aria-pressed. Enter/Space and Shift+Enter/Space activate selections.
 - Arrows nudge the whole selected set in world coordinates; Alt+Arrow is precise. Each nudge is one undo entry and reconciles physical breadboard contacts.
+
+## Browser compatibility gate
+- CI runs Playwright in Chromium, Firefox and WebKit; any browser regression blocks Pages deployment. Keep tests portable rather than disabling failing browsers.
+- Linux WebKit covers the engine but not native macOS Safari behavior; retain native Safari QA as an independent later task.

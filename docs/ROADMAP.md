@@ -9,7 +9,8 @@
 - [x] Typecheck, unit tests, production build, persistent verified artifact, conditional Pages deploy
 - [ ] Enable GitHub Pages via repository Settings and confirm live deployment
 - [x] Chromium browser E2E test gate: smoke, local project persistence and endpoint retargeting
-- [ ] Expand Firefox/WebKit interaction tests, drag/rotate regressions and keyboard accessibility
+- [x] Chromium, Firefox and WebKit E2E smoke/selection/movement/persistence regression on CI
+- [ ] Real macOS Safari and additional visual + pointer-gesture regression audits
 
 ## v0.2 — physical editing and project fidelity
 - [x] Resistor/LED lead-to-hole auto-snapping, explicit insertion contacts and automatic disconnect on move/rotation (other parts pending)

@@ -29,8 +29,8 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
-      - name: Install Chromium for browser tests
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium, Firefox and WebKit for browser tests
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Browser end-to-end tests
         run: npm run test:e2e
       - name: Upload browser test report on failure

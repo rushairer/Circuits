@@ -25,7 +25,7 @@ Requires Node.js 22.12+.
 npm install
 npm run typecheck
 npm test
-npm run test:e2e # requires: npx playwright install chromium
+npm run test:e2e # requires: npx playwright install --with-deps chromium firefox webkit
 npm run build
 npm run dev
 ```
@@ -45,3 +45,5 @@ See [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), and [AGENT
 ### Keyboard operation
 
 Tab focuses components; Enter/Space selects a focused component (Shift adds/removes). Ctrl/Cmd+A selects all components. Arrow keys nudge the selected set, Alt+Arrow nudges by one world unit, Delete removes selected parts, and Ctrl/Cmd+Z undoes one batch.
+
+CI runs the browser suite in Chromium, Firefox and Playwright's WebKit on Linux. The WebKit engine check is useful but does not replace native Safari QA on macOS/iOS.

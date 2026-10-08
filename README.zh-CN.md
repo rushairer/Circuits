@@ -25,7 +25,7 @@ Circuits 是独立开源的浏览器电路设计工作台，使用 **TypeScript 
 npm install
 npm run typecheck
 npm test
-npm run test:e2e # 首次执行前运行 npx playwright install chromium
+npm run test:e2e # 首次执行前安装 Chromium、Firefox 和 WebKit 浏览器
 npm run build
 npm run dev
 ```
@@ -46,3 +46,5 @@ npm run dev
 ### 键盘操作
 
 Tab 聚焦元件，Enter / 空格选择当前元件，Shift 组合多选；Ctrl/Cmd+A 全选，方向键移动选中元件，Alt+方向键微移，Delete 删除，Ctrl/Cmd+Z 撤销。
+
+GitHub Actions 同时测试 Chromium、Firefox、WebKit。Linux WebKit 测试不等同于 macOS/iOS 上的真实 Safari 验收。
