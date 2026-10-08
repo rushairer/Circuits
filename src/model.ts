@@ -6,9 +6,19 @@ export interface Project { name:string; parts:Part[]; wires:Wire[]; code:string 
 export const parts:Kind[] = ['battery','resistor','led','breadboard','arduino'];
 export const size:Record<Kind,[number,number]>={battery:[92,135],resistor:[140,60],led:[110,100],breadboard:[440,210],arduino:[205,175]};
 export const labels:Record<Kind,string>={battery:'9V 电池',resistor:'电阻',led:'LED',breadboard:'面包板',arduino:'Arduino Uno'};
+const breadboardPins:Record<string,[number,number]>={plus:[30,26],minus:[30,178]};
+for(let column=0;column<22;column++){
+  const x=28+column*18;
+  for(const [name,y] of [['top-plus',26],['top-minus',48],['bottom-plus',165],['bottom-minus',187]] as const){
+    breadboardPins[`${name}-${column}`]=[x,y];
+  }
+  for(let row=0;row<10;row++){
+    breadboardPins[`hole-${'abcdefghij'[row]}-${column}`]=[x,67+row*9];
+  }
+}
 export const pins:Record<Kind,Record<string,[number,number]>>={
- battery:{positive:[90,38],negative:[90,100]},resistor:{a:[0,30],b:[140,30]},led:{anode:[0,65],cathode:[110,65]},
- breadboard:{'plus':[30,26],'minus':[30,178]},arduino:{d13:[166,8],gnd:[70,165],v5:[105,165]}
+  battery:{positive:[90,38],negative:[90,100]},resistor:{a:[0,30],b:[140,30]},led:{anode:[0,65],cathode:[110,65]},
+  breadboard:breadboardPins,arduino:{d13:[166,8],gnd:[70,165],v5:[105,165]}
 };
 export function demo():Project{return {name:'我的第一个电路',parts:[
  {id:'b1',kind:'battery',x:100,y:170,rotation:0,value:9},
@@ -21,8 +31,22 @@ export function demo():Project{return {name:'我的第一个电路',parts:[
  {id:'w2',from:{componentId:'r1',pinId:'b'},to:{componentId:'l1',pinId:'anode'},color:'#e45454'},
  {id:'w3',from:{componentId:'l1',pinId:'cathode'},to:{componentId:'b1',pinId:'negative'},color:'#273748'}
 ],code:'void setup() { pinMode(13, OUTPUT); }\nvoid loop() { digitalWrite(13, HIGH); delay(1000); digitalWrite(13, LOW); delay(1000); }'} }
+/** Import validation keeps attacker-controlled JSON away from SVG template generation. */
 export function validProject(v:unknown):v is Project {
  if(!v||typeof v!=='object')return false;
  const p=v as Partial<Project>;
- return typeof p.name==='string'&&p.name.length<120&&typeof p.code==='string'&&p.code.length<300000&&Array.isArray(p.parts)&&p.parts.length<301&&Array.isArray(p.wires)&&p.wires.length<2001&&p.parts.every(c=>c&&typeof c.id==='string'&&parts.includes(c.kind)&&Number.isFinite(c.x)&&Number.isFinite(c.y)&&Number.isFinite(c.rotation))&&p.wires.every(w=>w&&typeof w.id==='string'&&w.from&&w.to&&typeof w.from.componentId==='string'&&typeof w.to.componentId==='string'&&/^#[0-9a-fA-F]{6}$/.test(w.color));
+ if(!(typeof p.name==='string'&&p.name.length<=120&&typeof p.code==='string'&&p.code.length<=300000&&Array.isArray(p.parts)&&p.parts.length<=300&&Array.isArray(p.wires)&&p.wires.length<=2000))return false;
+ const ids=new Set<string>();
+ for(const c of p.parts){
+   if(!c||typeof c.id!=='string'||!/^[\w-]{1,80}$/.test(c.id)||ids.has(c.id)||!parts.includes(c.kind)||!Number.isFinite(c.x)||!Number.isFinite(c.y)||!Number.isFinite(c.rotation)||Math.abs(c.x)>100000||Math.abs(c.y)>100000||c.value!==undefined&&(!Number.isFinite(c.value)||Math.abs(c.value)>1e12))return false;
+   ids.add(c.id);
+ }
+ const wireIds=new Set<string>();
+ for(const w of p.wires){
+   if(!w||typeof w.id!=='string'||!/^[\w-]{1,80}$/.test(w.id)||wireIds.has(w.id)||!w.from||!w.to||!/^#[0-9a-fA-F]{6}$/.test(w.color))return false;
+   const from=p.parts.find(c=>c.id===w.from.componentId),to=p.parts.find(c=>c.id===w.to.componentId);
+   if(!from||!to||!(w.from.pinId in pins[from.kind])||!(w.to.pinId in pins[to.kind])||w.from.componentId===w.to.componentId&&w.from.pinId===w.to.pinId)return false;
+   wireIds.add(w.id);
+ }
+ return true;
 }
