@@ -92,11 +92,78 @@ test('probe: disconnected meter is not given a fabricated 0 V value',()=>{
  const reading=readRcVoltageProbe(p,capture,'m1',20);
  assert.equal(reading.status,'unconnected');assert.equal(reading.volts,null);
 });
-test('probe: unsupported resistor measurement and unknown sample stay unavailable',()=>{
+test('probe: resistor voltage drop equals source minus capacitor transient voltage',()=>{
  const p=createExample('rc-charge');
  p.parts.push({id:'m1',kind:'multimeter',x:0,y:0,rotation:0});
  p.wires.push(wire('wm1','m1','positive','r1','a'),wire('wm2','m1','negative','r1','b'));
  const capture=createScopeCapture(analyzeRC(p));
- assert.equal(readRcVoltageProbe(p,capture,'m1',20).status,'unconnected');
+ const initial=readRcVoltageProbe(p,capture,'m1',0);
+ assert.equal(initial.status,'measured',initial.reason);
+ assert.ok(Math.abs(initial.volts-9)<1e-8);
+ const atTau=readRcVoltageProbe(p,capture,'m1',20);
+ assert.equal(atTau.status,'measured',atTau.reason);
+ assert.ok(Math.abs(atTau.volts-9*Math.exp(-1))<.002);
  assert.equal(readRcVoltageProbe(p,capture,'m1',999).status,'unsupported');
+ p.wires[3].to.pinId='b';p.wires[4].to.pinId='a';
+ const reverse=readRcVoltageProbe(p,capture,'m1',20);
+ assert.equal(reverse.status,'measured');
+ assert.ok(Math.abs(reverse.volts+9*Math.exp(-1))<.002);
 });
+test('probe: multi-capacitor resistor node uses solved transient capacitor potentials',()=>{
+ for(const name of ['rc-parallel','rc-series']){
+   const p=createExample(name);
+   p.parts.push({id:'m1',kind:'multimeter',x:0,y:0,rotation:0});
+   p.wires.push(wire('wm1','m1','positive','r1','a'));
+   p.wires.push(wire('wm2','m1','negative','r1','b'));
+   const capture=createScopeCapture(analyzeRCNetwork(p));
+   const result=readRcVoltageProbe(p,capture,'m1',20);
+   const voltage=capture.frames[20].capacitors.c1.voltageVolts+
+     (name==='rc-series'?capture.frames[20].capacitors.c2.voltageVolts:0);
+   assert.equal(result.status,'measured',name+': '+result.reason);
+   assert.ok(Math.abs(result.volts-(9-voltage))<.004);
+ }
+});
+test('probe: battery rail reads 9V across resistor and capacitor networks',()=>{
+ const p=createExample('rc-charge');
+ p.parts.push({id:'m1',kind:'multimeter',x:0,y:0,rotation:0});
+ p.wires.push(wire('wm1','m1','positive','b1','positive'));
+ p.wires.push(wire('wm2','m1','negative','b1','negative'));
+ const capture=createScopeCapture(analyzeRC(p));
+ assert.equal(readRcVoltageProbe(p,capture,'m1',0).volts,9);
+ assert.ok(Math.abs(readRcVoltageProbe(p,capture,'m1',70).volts-9)<1e-5);
+});
+test('probe: same net reads true 0V only after both leads are connected',()=>{
+ const p=createExample('rc-charge');
+ p.parts.push({id:'m1',kind:'multimeter',x:0,y:0,rotation:0});
+ p.wires.push(wire('wm1','m1','positive','r1','a'));
+ const capture=createScopeCapture(analyzeRC(p));
+ assert.equal(readRcVoltageProbe(p,capture,'m1',20).status,'unconnected');
+ p.wires.push(wire('wm2','m1','negative','r1','a'));
+ const same=readRcVoltageProbe(p,capture,'m1',20);
+ assert.equal(same.status,'measured');
+ assert.equal(same.volts,0);
+});
+test('probe: disconnected islands and resistor-only island cannot fabricate voltage',()=>{
+ const p=createExample('rc-charge');
+ p.parts.push({id:'r2',kind:'resistor',x:0,y:0,rotation:0,value:330});
+ p.parts.push({id:'m1',kind:'multimeter',x:0,y:0,rotation:0});
+ p.wires.push(wire('wm1','m1','positive','r2','a'));
+ p.wires.push(wire('wm2','m1','negative','r2','b'));
+ const capture=createScopeCapture(analyzeRC(p));
+ assert.equal(readRcVoltageProbe(p,capture,'m1',20).status,'unsupported');
+ p.wires[4].to.componentId='c1';p.wires[4].to.pinId='a';
+ assert.equal(readRcVoltageProbe(p,capture,'m1',20).status,'unsupported');
+});
+test('probe: inconsistent ideal battery and capacitor constraints reject meter result',()=>{
+ const p=createExample('rc-charge');
+ p.parts.push({id:'m1',kind:'multimeter',x:0,y:0,rotation:0});
+ p.wires.push(wire('wm1','m1','positive','c1','a'),wire('wm2','m1','negative','c1','b'));
+ // A hidden wire here would force 9 V over a capacitor that the existing
+ // previously captured waveform still says is 5.689 V.
+ const cap=createScopeCapture(analyzeRC(p));
+ p.wires.push(wire('short1','c1','a','b1','positive'));
+ const report=readRcVoltageProbe(p,cap,'m1',20);
+ assert.equal(report.status,'unsupported');
+ assert.match(report.reason,/约束/);
+});
+
