@@ -2,6 +2,7 @@ import './style.css';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
 import { compileUnoPreview, sampleUnoPreview, type UnoPreviewResult } from './core/uno-preview.js';
+import { analyzeGpioD13, type GpioD13Analysis } from './core/gpio-d13.js';
 import { analyzeDC, type DcAnalysis } from './core/dc-analysis.js';
 import { analyzeRC, type RcAnalysis, type RcSample } from './core/rc-transient.js';
 import { analyzeRCNetwork, type RcNetworkAnalysis } from './core/rc-network.js';
@@ -35,6 +36,7 @@ let scopeOpen=false;
 let scopeCapacitorId='';
 let unoPreview:UnoPreviewResult|null=null;
 let unoPreviewTimeMs=0;
+let lastGpio:GpioD13Analysis|null=null;
 let persistOK=true;
 let showProjects=false;
 let showExamples=false;
@@ -58,7 +60,7 @@ const save=()=>{
    persistOK=true;
  }catch(error){persistOK=false;console.warn('Circuit project could not be persisted',error)}
 };
-function resetUnoPreview(){unoPreview=null;unoPreviewTimeMs=0;}
+function resetUnoPreview(){unoPreview=null;unoPreviewTimeMs=0;lastGpio=null;}
 function openWorkspace(id:string){
  workspace=switchProject(workspace,id);
  project=reconcileInsertions(activeProject(workspace));
@@ -112,6 +114,26 @@ function updateRcMeterReadouts(){
    }
  }
 }
+function gpioSummaryMarkup():string {
+ if(!lastGpio)return '';
+ if(!lastGpio.ok)return '<p class="gpio-d13-warning">'+escape(lastGpio.reason)+'</p>';
+ const readings=project.parts.filter(p=>p.kind==='led').map(p=>{
+   const sample=lastGpio?.leds[p.id];
+   if(!sample)return '';
+   const label=sample.status==='overcurrent'?'过流 · 未视为正常发光':
+     sample.status==='unpowered'?'未供电':
+     sample.lit?'已点亮':'熄灭';
+   return '<div class="gpio-reading" data-gpio-led-status="'+escape(p.id)+'"><span>LED '+
+     escape(p.id)+'</span><strong>'+sample.currentMilliAmps.toFixed(2)+
+     'mA · '+label+'</strong></div>';
+ }).join('');
+ const current=lastGpio.driverMilliAmps===null?'—':lastGpio.driverMilliAmps.toFixed(3)+'mA';
+ return '<p>'+escape(lastGpio.reason)+'</p>'+
+   '<div class="gpio-reading"><span>D13 驱动电流</span><strong id="gpio-drive-current">'+current+'</strong></div>'+
+   readings+(lastGpio.warnings.length?'<p class="gpio-d13-warning">'+
+      escape(lastGpio.warnings.join('；'))+'</p>':'')+
+   '<small>仅为 5V/25Ω 输出级教学模型，灯亮由真实引脚网络计算；并非实际 AVR 芯片或 GPIO 额定值认证。</small>';
+}
 function unoPreviewMarkup():string {
  if(!unoPreview)return '';
  if(!unoPreview.ok)return '<section id="uno-preview" class="uno-preview-panel" role="status">'+
@@ -127,12 +149,14 @@ function unoPreviewMarkup():string {
    '<label for="uno-time">仿真时间（0–5000ms）</label>'+
    '<input type="range" id="uno-time" min="0" max="5000" step="50" value="'+unoPreviewTimeMs+'" aria-label="D13 时序预览时间光标"/>'+
    '<small>循环周期 '+unoPreview.periodMs+'ms · '+unoPreview.statementCount+
-     ' 条受支持语句。只驱动板载 D13 指示灯，不计算外接电路，不是 AVR 仿真。</small></section>';
+     ' 条受支持语句。外接电路按电气连接计算，非完整 AVR/GPIO 硬件仿真。</small>'+
+   '<section id="gpio-external-status" class="gpio-external-status" aria-label="D13 外接 LED 仿真">'+gpioSummaryMarkup()+'</section></section>';
 }
 function refreshUnoPreview(){
  if(!unoPreview?.ok)return;
  const frame=sampleUnoPreview(unoPreview,unoPreviewTimeMs);
  if(!frame)return;
+ lastGpio=analyzeGpioD13(project,frame.high);
  const label=app.querySelector<HTMLElement>('#uno-level');
  if(label){label.textContent=frame.high?'HIGH':'LOW';label.dataset.level=frame.high?'HIGH':'LOW';}
  const time=app.querySelector<HTMLElement>('#uno-preview-time');
@@ -141,6 +165,18 @@ function refreshUnoPreview(){
  if(cycle)cycle.textContent=String(frame.cycle+1);
  app.querySelectorAll<SVGCircleElement>('[data-uno-d13-led]').forEach(el=>
    el.setAttribute('fill',frame.high?'#ffca36':'#667f8b'));
+ const ext=app.querySelector<HTMLElement>('#gpio-external-status');
+ if(ext)ext.innerHTML=gpioSummaryMarkup();
+ app.querySelectorAll<SVGCircleElement>('[data-gpio-glow]').forEach(el=>{
+   const id=el.getAttribute('data-gpio-glow')!;
+   const lit=lastGpio?.ok&&lastGpio.leds[id]?.lit;
+   el.setAttribute('opacity',lit?'0.28':'0');
+ });
+ const inspector=app.querySelector<HTMLElement>('#gpio-led-inspector');
+ const selected=selection&&lastGpio?.ok?lastGpio.leds[selection]:null;
+ if(inspector&&selected)inspector.textContent=
+   'D13 电流：'+selected.currentMilliAmps.toFixed(3)+'mA · '+
+   (selected.status==='overcurrent'?'过流':selected.lit?'点亮':'熄灭');
 }
 function art(c:Part){
  const [w,h]=size[c.kind];
@@ -187,13 +223,19 @@ function canvas(){
  }).join('');
  const readings=isRunning&&simulationMode==='classic'?evaluate(project):null;
  const insertedPins=new Set((project.insertions??[]).flatMap(x=>[x.componentId+'::'+x.pinId,x.boardId+'::'+x.holeId]));
- const shapes=project.parts.map(c=>{const [w,h]=size[c.kind],glow=c.kind==='led'&&isRunning&&(simulationMode==='classic'?readings?.lit:lastAnalysis?.leds[c.id]?.lit)?'<circle cx="54" cy="49" r="52" fill="#ff7a74" opacity=".2"/>':'';
+ const shapes=project.parts.map(c=>{
+ const [w,h]=size[c.kind];
+ const glow=c.kind==='led'&&isRunning&&(simulationMode==='classic'?readings?.lit:lastAnalysis?.leds[c.id]?.lit)?
+   '<circle cx="54" cy="49" r="52" fill="#ff7a74" opacity=".2"/>':'';
+ const gpioGlow=c.kind==='led'&&unoPreview?.ok?
+   '<circle data-gpio-glow="'+c.id+'" cx="54" cy="49" r="52" fill="#ff7a74" opacity="'+
+   (lastGpio?.ok&&lastGpio.leds[c.id]?.lit?'0.28':'0')+'"/>':'';
  const board=c.kind==='breadboard';
  const pinsSvg=Object.entries(pins[c.kind]).map(([name,p])=>{
    const inserted=insertedPins.has(c.id+'::'+name);
    return '<circle class="pin" data-part="'+c.id+'" data-pin="'+name+'" cx="'+p[0]+'" cy="'+p[1]+'" r="'+(board?4.4:7)+'" fill="'+(inserted?'#19bd89':board?'#44535e':'#e6c08a')+'" stroke="'+(inserted?'#057d62':board?'#b2c4cb':'#a58142')+'" stroke-width="'+(board?1.2:2)+'"><title>'+name+(inserted?' · 已插入':'')+'</title></circle>';
  }).join('');
- return '<g class="item '+(selectedIds.has(c.id)?'selected':'')+'" data-part="'+c.id+'" tabindex="0" role="button" aria-label="'+labels[c.kind]+' '+c.id+'" aria-pressed="'+selectedIds.has(c.id)+'" transform="translate('+c.x+' '+c.y+')"><g transform="rotate('+c.rotation+' '+w/2+' '+h/2+')">'+glow+art(c)+pinsSvg+'</g></g>'}).join('');
+ return '<g class="item '+(selectedIds.has(c.id)?'selected':'')+'" data-part="'+c.id+'" tabindex="0" role="button" aria-label="'+labels[c.kind]+' '+c.id+'" aria-pressed="'+selectedIds.has(c.id)+'" transform="translate('+c.x+' '+c.y+')"><g transform="rotate('+c.rotation+' '+w/2+' '+h/2+')">'+glow+gpioGlow+art(c)+pinsSvg+'</g></g>'}).join('');
  const marqueeMarkup=marquee?.active?'<rect class="marquee-box" x="'+Math.min(marquee.start.x,marquee.end.x)+'" y="'+Math.min(marquee.start.y,marquee.end.y)+'" width="'+Math.abs(marquee.start.x-marquee.end.x)+'" height="'+Math.abs(marquee.start.y-marquee.end.y)+'"/>':'';
  const terminalHandles=project.wires.filter(w=>w.id===selection).map(w=>{
    const coords=wirePoints(w,project.parts);
@@ -251,18 +293,19 @@ function side(){
  if(selectedIds.size>1&&!showCode)return '<h2>已选中 '+selectedIds.size+' 个元件</h2><div class="field"><p>拖动任意已选中元件可整体移动，所有引脚接线会自动跟随。</p><p>按住 Shift 单击添加或移除选中；在空白画布拖动可框选。</p><button data-action="rotate">分别旋转 90°</button><button data-action="delete">删除所选元件</button><button data-action="parts">取消选择</button></div>';
  const chosenWire=project.wires.find(w=>w.id===selection);
  if(chosenWire&&!showCode)return '<h2>导线属性</h2><div class="field"><p>起点：'+escape(chosenWire.from.componentId)+' / '+escape(chosenWire.from.pinId)+'</p><p>终点：'+escape(chosenWire.to.componentId)+' / '+escape(chosenWire.to.pinId)+'</p><label for="wire-color">导线颜色</label><input id="wire-color" type="color" value="'+chosenWire.color+'"/><p>折点 '+(chosenWire.bends?.length??0)+' 个。拖动空心端点到其他元件或面包板插孔即可重新接线；折点圆形手柄可拖动，双击导线添加折点。</p><button data-action="wire-add-bend">＋ 添加折点</button><button data-action="wire-reset-bends">恢复自动走线</button><p>编辑颜色和折点均不改变电气连接。</p><button data-action="delete">删除导线</button><button data-action="parts">返回元件库</button></div>';
- if(showCode)return '<h2>Arduino 代码 · 实验预览</h2><div class="field"><p>代码可继续编辑和导出。仅支持单块 Uno 的 D13 Blink 语句预览，不编译/运行通用 C++ 或控制外接线路。</p><textarea id="code" maxlength="300000">'+escape(project.code)+'</textarea><button data-action="uno-preview-run">▶ 解析并预览 D13</button><button data-action="uno-preview-stop" '+(!unoPreview?'disabled':'')+'>关闭预览</button><button data-action="download-code">下载 .ino</button>'+unoPreviewMarkup()+'<button data-action="code">返回元件库</button></div>';
+ if(showCode)return '<h2>Arduino 代码 · 实验预览</h2><div class="field"><p>代码可继续编辑和导出。受限 D13 Blink 可按接线驱动外部 LED/电阻网络；不编译通用 C++ 或模拟完整 AVR。</p><textarea id="code" maxlength="300000">'+escape(project.code)+'</textarea><button data-action="uno-preview-run">▶ 解析并预览 D13</button><button data-action="uno-preview-stop" '+(!unoPreview?'disabled':'')+'>关闭预览</button><button data-action="download-code">下载 .ino</button>'+unoPreviewMarkup()+'<button data-action="code">返回元件库</button></div>';
  const c=project.parts.find(p=>p.id===selection);
  const ledReading=c?.kind==='led'?lastAnalysis?.leds[c.id]:null;
  const meterReading=c?.kind==='multimeter'?lastAnalysis?.meters[c.id]:null;
  const rcMeter=c?.kind==='multimeter'?rcMeterReading(c.id):null;
  const rcAmp=c?.kind==='ammeter'?rcAmmeterReading(c.id):null;
  const dcAmp=c?.kind==='ammeter'?lastAnalysis?.ammeters[c.id]:null;
+ const gpioLed=c?.kind==='led'&&lastGpio?.ok?lastGpio.leds[c.id]:null;
  const rcValue=c?.kind==='capacitor'&&lastTransient?.ok&&lastTransient.capacitorId===c.id?
    lastTransient.samples[rcTimeIndex]:null;
  const networkValue=c?.kind==='capacitor'&&lastNetwork?.ok?
    lastNetwork.samples[rcTimeIndex]?.capacitors[c.id]:null;
- if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+(c.kind==='resistor'||c.kind==='battery'||c.kind==='capacitor'?'<label>数值 ('+(c.kind==='resistor'?'Ω':c.kind==='capacitor'?'µF':'V')+')</label><input id="value" type="number" min="'+(c.kind==='capacitor'?'0.001':'1')+'" step="any" value="'+(c.value??(c.kind==='capacitor'?100:1))+'"/>':'')+(c.kind==='capacitor'?'<label>初始电压（V）</label><input id="rc-initial" type="number" min="-1000" max="1000" step="any" value="'+(c.initialVolts??0)+'"/><small>按 t=0 初始状态计算，不模拟电路的历史充电过程。</small>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(rcMeter?'<p id="rc-meter-inspector">RC 采样电压：'+(rcMeter.status==='measured'&&rcMeter.volts!==null?rcMeter.volts.toFixed(3)+' V · 理想高阻表笔':'—（'+rcMeter.reason+'）')+'</p>':'')+(rcValue?'<p>RC 当前采样：'+rcValue.voltageVolts.toFixed(3)+' V · '+rcValue.currentMilliAmps.toFixed(3)+' mA</p>':'')+(networkValue?'<p id="rc-network-inspector">多电容当前采样：'+networkValue.voltageVolts.toFixed(3)+' V · '+(networkValue.currentMilliAmps===null?'未估算':networkValue.currentMilliAmps.toFixed(3)+' mA')+'</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<label for="switch-contact">闭合接触电阻（Ω）</label><input id="switch-contact" type="number" min="0" max="1000000" step="any" value="'+(c.contactOhms??0)+'"/><small>0Ω 为原来的理想闭合开关；可设置 0.1–1,000,000Ω。开路仍不导通。状态改变从 t=0 重新计算。</small><button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+
+ if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+(c.kind==='resistor'||c.kind==='battery'||c.kind==='capacitor'?'<label>数值 ('+(c.kind==='resistor'?'Ω':c.kind==='capacitor'?'µF':'V')+')</label><input id="value" type="number" min="'+(c.kind==='capacitor'?'0.001':'1')+'" step="any" value="'+(c.value??(c.kind==='capacitor'?100:1))+'"/>':'')+(c.kind==='capacitor'?'<label>初始电压（V）</label><input id="rc-initial" type="number" min="-1000" max="1000" step="any" value="'+(c.initialVolts??0)+'"/><small>按 t=0 初始状态计算，不模拟电路的历史充电过程。</small>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(gpioLed?'<p id="gpio-led-inspector">D13 电流：'+gpioLed.currentMilliAmps.toFixed(3)+'mA · '+(gpioLed.status==='overcurrent'?'过流':gpioLed.lit?'点亮':'熄灭')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(rcMeter?'<p id="rc-meter-inspector">RC 采样电压：'+(rcMeter.status==='measured'&&rcMeter.volts!==null?rcMeter.volts.toFixed(3)+' V · 理想高阻表笔':'—（'+rcMeter.reason+'）')+'</p>':'')+(rcValue?'<p>RC 当前采样：'+rcValue.voltageVolts.toFixed(3)+' V · '+rcValue.currentMilliAmps.toFixed(3)+' mA</p>':'')+(networkValue?'<p id="rc-network-inspector">多电容当前采样：'+networkValue.voltageVolts.toFixed(3)+' V · '+(networkValue.currentMilliAmps===null?'未估算':networkValue.currentMilliAmps.toFixed(3)+' mA')+'</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<label for="switch-contact">闭合接触电阻（Ω）</label><input id="switch-contact" type="number" min="0" max="1000000" step="any" value="'+(c.contactOhms??0)+'"/><small>0Ω 为原来的理想闭合开关；可设置 0.1–1,000,000Ω。开路仍不导通。状态改变从 t=0 重新计算。</small><button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+
    (c.kind==='ammeter'?'<p id="ammeter-inspector">'+
      (simulationMode==='rc'?(rcAmp?.milliAmps!==null&&rcAmp?
        'RC 串联电流：'+rcAmp.milliAmps.toFixed(3)+' mA · '+rcAmp.reason:
@@ -349,6 +392,8 @@ function rcNetworkPanel(analysis:RcNetworkAnalysis):string {
   '<small>固定步长向后欧拉积分，仅作教学近似。t=0 电流不估算；并非真实示波器或 SPICE。</small></section>';
 }
 function render(){
+ const gpioFrame=unoPreview?.ok?sampleUnoPreview(unoPreview,unoPreviewTimeMs):null;
+ lastGpio=gpioFrame?analyzeGpioD13(project,gpioFrame.high):null;
  lastAnalysis=isRunning&&simulationMode==='nonlinear'?analyzeDC(project):null;
  const numberOfCapacitors=project.parts.filter(p=>p.kind==='capacitor').length;
  lastTransient=isRunning&&simulationMode==='rc'&&numberOfCapacitors<=1?analyzeRC(project):null;
@@ -373,7 +418,7 @@ function render(){
    }).join(''):'<p>本电路未生成可信的仿真读数</p>')+
    '<small>仅作教学近似；不含 MCU、暂态、温升及器件容差。</small></div>':'';
  const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastNetwork?.reason??lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
- app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?(bottomReading??'仿真不可用'):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · Shift 多选 · 框选 · 空格或中键拖动画布')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源实验项目 · 直流及 RC 教学仿真，尚不运行 Arduino 代码</span><span>v0.4.0-alpha.1 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':connectionNotice?escape(connectionNotice):wiring?'正在接线：点选第二个引脚':isRunning?(bottomReading??'仿真不可用'):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · Shift 多选 · 框选 · 空格或中键拖动画布')+'</span><button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.2 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),a=x??300,b=y??300,id=uid();
  project.parts.push({id,kind,x:gridEnabled?snap(a):a,y:gridEnabled?snap(b):b,rotation:0,value:kind==='resistor'?220:kind==='battery'?9:kind==='capacitor'?100:undefined,initialVolts:kind==='capacitor'?0:undefined});
@@ -435,13 +480,15 @@ app.addEventListener('click',e=>{
  const example=t.closest<HTMLElement>('[data-load-example]');
  if(example){
    if(workspace.slots.length>=MAX_PROJECTS){alert('本地工程已达到数量上限，请先导出并清理部分旧工程');return;}
-   const doc=createExample(example.dataset.loadExample??'');
+   const exampleId=example.dataset.loadExample??'';
+   const doc=createExample(exampleId);
    if(!doc)return;
    save();
    const id='example-'+uid();
    workspace=createProject(workspace,id,doc,Date.now());
    openWorkspace(id);
-   simulationMode=example.dataset.loadExample?.startsWith('rc-')?'rc':'nonlinear';
+   simulationMode=exampleId.startsWith('rc-')?'rc':exampleId==='gpio-d13-led'?'classic':'nonlinear';
+   showCode=exampleId==='gpio-d13-led';
    rcTimeIndex=0;rcTraceId='';rcWindowSeconds=0.5;rcConvergence=null;
    render();return;
  }
@@ -494,6 +541,7 @@ app.addEventListener('click',e=>{
  case 'delete':deleteSelection();break
  case 'code':showCode=!showCode;showProjects=false;showExamples=false;render();break;
  case 'uno-preview-run':{
+   isRunning=false;
    const boards=project.parts.filter(p=>p.kind==='arduino').length;
    unoPreview=boards===1?compileUnoPreview(project.code):
      {ok:false,reason:'当前仅支持一块 Arduino Uno 的 D13 预览；请先保留恰好一块板卡'};
@@ -501,7 +549,7 @@ app.addEventListener('click',e=>{
  }
  case 'uno-preview-stop':resetUnoPreview();render();break;
  case 'parts':selection=null;selectedIds.clear();showCode=false;showProjects=false;showExamples=false;render();break;
- case 'run':isRunning=!isRunning;if(!isRunning)rcConvergence=null;render();break;
+ case 'run':if(!isRunning)resetUnoPreview();isRunning=!isRunning;if(!isRunning)rcConvergence=null;render();break;
  case 'solver-mode':simulationMode=simulationMode==='classic'?'nonlinear':simulationMode==='nonlinear'?'rc':'classic';rcTimeIndex=0;rcTraceId='';scopeOpen=false;rcConvergence=null;render();break;
  case 'rc-accuracy':if(lastNetwork?.ok&&isRunning){rcConvergence=assessRcConvergence(project,{durationSeconds:rcWindowSeconds});render()}break;
  case 'scope-open':if(lastScopeCapture){scopeOpen=true;render();app.querySelector<HTMLElement>('.scope-dialog [data-action="scope-close"]')?.focus()}break;
@@ -566,6 +614,7 @@ app.addEventListener('input',e=>{
    project.code=t.value;
    resetUnoPreview();
    app.querySelector('#uno-preview')?.remove();
+   app.querySelectorAll<SVGCircleElement>('[data-gpio-glow]').forEach(el=>el.setAttribute('opacity','0'));
    const stop=app.querySelector<HTMLButtonElement>('[data-action="uno-preview-stop"]');
    if(stop)stop.disabled=true;
    app.querySelectorAll<SVGCircleElement>('[data-uno-d13-led]').forEach(el=>el.setAttribute('fill','#667f8b'));

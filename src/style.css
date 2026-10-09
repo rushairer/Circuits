@@ -82,3 +82,11 @@
 .uno-readouts b{font-variant-numeric:tabular-nums;color:#0a5868}
 .uno-readouts [data-level=HIGH]{color:#ac6900}
 .uno-readouts [data-level=LOW]{color:#486575}
+
+/* Explicitly limited D13-driven external LED status. No geometry-based conduction. */
+.gpio-external-status{margin-top:12px;padding:10px;background:#f8fcfd;border:1px solid #cce0e7;border-radius:8px;display:flex;flex-direction:column;gap:6px;font-size:12px}
+.gpio-external-status p{margin:2px 0;line-height:1.5}
+.gpio-external-status small{color:#6b818b}
+.gpio-external-status .gpio-d13-warning{color:#a34c25;font-weight:600}
+.gpio-reading{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #e3eded;font-size:12px}
+.gpio-reading strong{color:#235f6d;font-size:12px;font-variant-numeric:tabular-nums}
