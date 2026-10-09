@@ -116,7 +116,7 @@ test('serial: standalone Arduino sketch displays bounded deterministic log by ti
  assert.equal(sampleUnoPreview(r,500).high,false);
 });
 test('serial: string literals preserve //, ;, comma and escaped quotation marks',()=>{
- const code=String.raw`void setup(){Serial.begin(115200);Serial.println("http://example.com/a;b,c");}void loop(){Serial.println("say \\"hello\\"");delay(100);}`;
+ const code=String.raw`void setup(){Serial.begin(115200);Serial.println("http://example.com/a;b,c");}void loop(){Serial.println("say \"hello\"");delay(100);}`;
  const result=compileUnoPreview(code);
  assert.equal(result.ok,true,result.reason);
  assert.deepEqual(sampleUnoSerial(result,0).lines.map(x=>x.text),
