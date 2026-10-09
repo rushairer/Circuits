@@ -1,5 +1,6 @@
 import type { Project } from '../model.js';
 import { buildNetlist } from './netlist.js';
+import { resistiveBranches, AMMETER_SHUNT_OHMS, AMMETER_WARNING_MILLIAMPS } from './resistive-branches.js';
 import type { ScopeCapture } from './scope.js';
 
 export interface RcVoltageReading {
@@ -8,6 +9,11 @@ export interface RcVoltageReading {
   reason:string;
 }
 
+export interface RcCurrentReading {
+  status:'measured'|'unconnected'|'unsupported'|'overrange';
+  milliAmps:number|null;
+  reason:string;
+}
 interface ResistorEdge {a:string;b:string;conductance:number}
 interface VoltageEdge {a:string;b:string;voltage:number}
 type Adjacent={to:string;difference:number};
@@ -55,10 +61,45 @@ function solveLinear(matrix:number[][],rhs:number[]):number[]|null {
 export function readRcVoltageProbe(
   project:Project,capture:ScopeCapture,meterId:string,index:number
 ):RcVoltageReading {
+  if(!project.parts.some(p=>p.id===meterId&&p.kind==='multimeter'))
+    return {status:'unconnected',volts:null,reason:'找不到所选万用表'};
+  return potentialDifference(project,capture,meterId,index);
+}
+
+/**
+ * A circuit-breaking virtual ammeter has a fixed, finite 0.1Ω shunt.
+ * Both pins MUST be explicitly wired; the instrument is not a passive
+ * observational probe that can measure current without closing a circuit.
+ */
+export function readRcCurrentProbe(
+  project:Project,capture:ScopeCapture,meterId:string,index:number
+):RcCurrentReading {
+  const instrument=project.parts.find(p=>p.id===meterId&&p.kind==='ammeter');
+  if(!instrument)return {status:'unconnected',milliAmps:null,reason:'找不到串联电流表'};
+  const wired=(pinId:string)=>project.wires.some(w=>
+    (w.from.componentId===meterId&&w.from.pinId===pinId)||
+    (w.to.componentId===meterId&&w.to.pinId===pinId)
+  );
+  if(!wired('positive')||!wired('negative'))
+    return {status:'unconnected',milliAmps:null,reason:'电流表必须串接，正负两端均需接线'};
+  const v=potentialDifference(project,capture,meterId,index);
+  if(v.status!=='measured'||v.volts===null)
+    return {status:v.status,milliAmps:null,reason:v.reason};
+  const milliAmps=v.volts/AMMETER_SHUNT_OHMS*1000;
+  if(!Number.isFinite(milliAmps))
+    return {status:'unsupported',milliAmps:null,reason:'电流读数超出数值支持范围'};
+  const over=Math.abs(milliAmps)>AMMETER_WARNING_MILLIAMPS;
+  return {
+    status:over?'overrange':'measured',milliAmps,
+    reason:over?'超过 200mA 教学量程；不模拟真实保险丝':'电流由 0.1Ω 串联分流电阻压降计算'
+  };
+}
+
+function potentialDifference(
+  project:Project,capture:ScopeCapture,meterId:string,index:number
+):RcVoltageReading {
   const unavailable=(status:'unconnected'|'unsupported',reason:string):RcVoltageReading=>
     ({status,volts:null,reason});
-  if(!project.parts.some(p=>p.id===meterId&&p.kind==='multimeter'))
-    return unavailable('unconnected','找不到所选万用表');
   if(!Number.isInteger(index)||index<0||index>=capture.frames.length)
     return unavailable('unsupported','采样时刻无效');
   const graph=buildNetlist(project);
@@ -95,16 +136,17 @@ export function readRcVoltageProbe(
     activeNodes.add(a);activeNodes.add(b);
   }
   const resistors:ResistorEdge[]=[];
-  for(const part of project.parts.filter(p=>p.kind==='resistor')){
-    const a=net(part.id,'a'),b=net(part.id,'b'),ohms=part.value??220;
-    if(!a||!b||!Number.isFinite(ohms)||ohms<=0||ohms>1e9)
-      return unavailable('unsupported','电阻端子或阻值无效');
+  for(const branch of resistiveBranches(project)){
+    const a=net(branch.id,branch.fromPin),b=net(branch.id,branch.toPin);
+    const ohms=branch.ohms;
+    if(!a||!b||!Number.isFinite(ohms)||ohms<0.1||ohms>1e9)
+      return unavailable('unsupported','被动元件端子或阻值无效');
     if(a!==b)resistors.push({a,b,conductance:1/ohms});
   }
   if(resistors.length>MAX_RESISTORS)
     return unavailable('unsupported','电阻数量超出仪表支持范围');
 
-  // A high-impedance meter itself contributes no new electrical edge.
+  // Voltmeter is high-impedance; modeled series ammeter contributes a real shunt edge.
   const graphNodes=new Set<string>();
   const topology=new Map<string,Set<string>>();
   const link=(a:string,b:string)=>{

@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { createExample } from '../.test-dist/core/examples.js';
 import { analyzeRC } from '../.test-dist/core/rc-transient.js';
 import { analyzeRCNetwork } from '../.test-dist/core/rc-network.js';
+import { analyzeDC } from '../.test-dist/core/dc-analysis.js';
 import { createScopeCapture, scopeFrame, exportScopeCSV } from '../.test-dist/core/scope.js';
-import { readRcVoltageProbe } from '../.test-dist/core/rc-probes.js';
+import { readRcVoltageProbe, readRcCurrentProbe } from '../.test-dist/core/rc-probes.js';
 const wire=(id,from,fromPin,to,toPin)=>({
   id,from:{componentId:from,pinId:fromPin},
   to:{componentId:to,pinId:toPin},color:'#4b5563'
@@ -167,3 +168,56 @@ test('probe: inconsistent ideal battery and capacitor constraints reject meter r
  assert.match(report.reason,/约束/);
 });
 
+
+test('RC shunt ammeter reads signed series charging current with physical burden',()=>{
+ const p=createExample('rc-charge');
+ p.parts.push({id:'m1',kind:'ammeter',x:800,y:250,rotation:0});
+ p.wires[1]=wire('w2','r1','b','m1','positive');
+ p.wires.push(wire('wa2','m1','negative','c1','a'));
+ const analysis=analyzeRC(p);
+ assert.equal(analysis.ok,true,analysis.reason);
+ const capture=createScopeCapture(analysis);
+ const atZero=readRcCurrentProbe(p,capture,'m1',0);
+ assert.equal(atZero.status,'measured',atZero.reason);
+ assert.ok(Math.abs(atZero.milliAmps-9*1000/1000.1)<.005);
+ const atTau=readRcCurrentProbe(p,capture,'m1',20);
+ assert.equal(atTau.status,'measured',atTau.reason);
+ assert.ok(Math.abs(atTau.milliAmps-9*Math.exp(-1)*1000/1000.1)<.006);
+ p.wires[1]=wire('w2','r1','b','m1','negative');
+ p.wires[p.wires.length-1]=wire('wa2','m1','positive','c1','a');
+ const reverse=readRcCurrentProbe(p,capture,'m1',20);
+ assert.equal(reverse.status,'measured');
+ assert.ok(reverse.milliAmps<0);
+});
+test('RC ammeter without both series terminals connected is not a 0mA reading',()=>{
+ const p=createExample('rc-charge');
+ p.parts.push({id:'m1',kind:'ammeter',x:0,y:0,rotation:0});
+ p.wires.push(wire('w4','m1','positive','r1','a'));
+ const capture=createScopeCapture(analyzeRC(p));
+ const value=readRcCurrentProbe(p,capture,'m1',20);
+ assert.equal(value.status,'unconnected');assert.equal(value.milliAmps,null);
+});
+test('RC ammeter inserted into discharge branch measures negative current',()=>{
+ const p=createExample('rc-discharge');
+ p.parts.push({id:'m1',kind:'ammeter',x:300,y:430,rotation:0});
+ p.wires[0]=wire('w1','r1','a','m1','positive');
+ p.wires.push(wire('w3','m1','negative','c1','a'));
+ const capture=createScopeCapture(analyzeRC(p));
+ const atZero=readRcCurrentProbe(p,capture,'m1',0);
+ assert.equal(atZero.status,'measured',atZero.reason);
+ assert.ok(atZero.milliAmps>8.9);
+});
+test('DC analysis: shunt ammeter participates as 0.1Ω resistor not ideal infinite conductance',()=>{
+ const p=createExample('basic');
+ p.parts.push({id:'m1',kind:'ammeter',x:800,y:430,rotation:0});
+ p.wires[0]=wire('w1','b1','positive','m1','positive');
+ p.wires.push(wire('wa','m1','negative','r1','a'));
+ const result=analyzeDC(p);
+ assert.equal(result.ok,true,result.reason);
+ const current=result.ammeters.m1;
+ assert.ok(current);
+ assert.equal(current.status,'measured');
+ assert.ok(current.milliAmps>0);
+ assert.ok(current.milliAmps<30);
+ assert.ok(Math.abs(current.milliAmps-result.leds.l1.currentMilliAmps)<.02);
+});
