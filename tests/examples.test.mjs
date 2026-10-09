@@ -5,19 +5,21 @@ import { exampleCatalog,createExample } from '../.test-dist/core/examples.js';
 import { analyzeDC } from '../.test-dist/core/dc-analysis.js';
 import { analyzeRC } from '../.test-dist/core/rc-transient.js';
 import { analyzeRCNetwork } from '../.test-dist/core/rc-network.js';
+import { analyzeGpioD13 } from '../.test-dist/core/gpio-d13.js';
 import { createScopeCapture } from '../.test-dist/core/scope.js';
 import { readRcVoltageProbe, readRcCurrentProbe } from '../.test-dist/core/rc-probes.js';
 
 test('all documented example circuits are valid versioned JSON projects',()=>{
- assert.equal(exampleCatalog.length,12);
+ assert.equal(exampleCatalog.length,13);
  const ids=new Set(exampleCatalog.map(e=>e.id));
- assert.equal(ids.size,12);
+ assert.equal(ids.size,13);
  for(const e of exampleCatalog){
   const p=createExample(e.id);
   assert.ok(p,e.id);
   assert.ok(validProject(p),e.id);
   assert.equal(p.schemaVersion,2);
-  const result=e.id==='rc-parallel'||e.id==='rc-series'?analyzeRCNetwork(p):
+  const result=e.id==='gpio-d13-led'?analyzeGpioD13(p,true):
+    e.id==='rc-parallel'||e.id==='rc-series'?analyzeRCNetwork(p):
     e.id.startsWith('rc-')?analyzeRC(p):analyzeDC(p);
   assert.equal(result.ok,true,e.id+': '+result.reason);
  }
@@ -92,4 +94,18 @@ test('series ammeter and lossy-switch examples have meaningful computed results'
  const switched=analyzeRC(createExample('rc-contact-switch'));
  assert.equal(switched.ok,true,switched.reason);
  assert.ok(Math.abs(switched.tauSeconds-.110)<1e-7);
+});
+
+test('Arduino D13 external LED fixture lights only at HIGH and preserves user sketch',()=>{
+ const p=createExample('gpio-d13-led');
+ assert.equal(validProject(p),true);
+ assert.ok(p.code.includes('digitalWrite(13, HIGH)'));
+ assert.equal(p.parts.filter(x=>x.kind==='arduino').length,1);
+ assert.equal(p.parts.filter(x=>x.kind==='battery').length,0);
+ const on=analyzeGpioD13(p,true),off=analyzeGpioD13(p,false);
+ assert.equal(on.ok,true,on.reason);
+ assert.equal(off.ok,true,off.reason);
+ assert.equal(on.leds.l1.status,'normal');
+ assert.ok(on.leds.l1.currentMilliAmps>7&&on.leds.l1.currentMilliAmps<11);
+ assert.equal(off.leds.l1.lit,false);
 });
