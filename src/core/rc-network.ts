@@ -1,5 +1,6 @@
 import type { Project } from '../model.js';
 import { buildNetlist } from './netlist.js';
+import { resistiveBranches } from './resistive-branches.js';
 
 /**
  * Educational, fixed-step backward-Euler integration of LINEAR RC networks.
@@ -146,7 +147,7 @@ export function analyzeRCNetwork(
     return reject('电池电压必须大于 0 且不超过 1000 V');
   const used=new Set(project.wires.flatMap(w=>[w.from.componentId,w.to.componentId]));
   for(const insertion of project.insertions??[])used.add(insertion.componentId);
-  const supported=new Set(['battery','resistor','capacitor','switch','breadboard','multimeter']);
+  const supported=new Set(['battery','resistor','capacitor','switch','breadboard','multimeter','ammeter']);
   if(project.parts.some(p=>used.has(p.id)&&!supported.has(p.kind)))
     return reject('数值 RC 不支持已接线的 LED、Arduino、蜂鸣器等非线性或未知器件');
 
@@ -166,12 +167,12 @@ export function analyzeRCNetwork(
     capacitors.push({id:part.id,a,b,farads:microfarads*1e-6,initial});
   }
   const resistors:Edge[]=[];
-  for(const part of project.parts.filter(p=>p.kind==='resistor')){
-    const a=net(part.id,'a'),b=net(part.id,'b');
-    const ohms=part.value??220;
-    if(!a||!b)return reject('电阻引脚无效');
+  for(const branch of resistiveBranches(project)){
+    const a=net(branch.id,branch.fromPin),b=net(branch.id,branch.toPin);
+    const ohms=branch.ohms;
+    if(!a||!b)return reject('被动元件引脚无效');
     if(!Number.isFinite(ohms)||ohms<0.1||ohms>1e9)
-      return reject('数值 RC 电阻需要 0.1 Ω–1 GΩ');
+      return reject('数值 RC 电阻/电流表/接触电阻需要 0.1Ω–1GΩ');
     if(a!==b)resistors.push({a,b,conductance:1/ohms});
   }
   if(!resistors.length||resistors.length>MAX_RESISTORS)

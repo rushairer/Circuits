@@ -1,5 +1,6 @@
 import type { Part, Project } from '../model.js';
 import { buildNetlist } from './netlist.js';
+import { resistiveBranches, AMMETER_SHUNT_OHMS, AMMETER_WARNING_MILLIAMPS } from './resistive-branches.js';
 
 /**
  * Experimental, steady-state *educational* DC analysis.
@@ -23,6 +24,7 @@ export interface DcAnalysis {
   reason: string;
   leds: Record<string, LedMeasurement>;
   meters: Record<string, MeterMeasurement>;
+  ammeters: Record<string, { milliAmps:number|null; status:'measured'|'unconnected'|'overrange' }>;
   resistorsMilliAmps: Record<string, number>;
   netVoltages: ReadonlyMap<string, number>;
   warnings: string[];
@@ -82,15 +84,17 @@ function solveLinear(source:number[][],right:number[]):number[]|null {
 
 export function analyzeDC(project:Project):DcAnalysis {
   const leds=blank<LedMeasurement>(),meters=blank<MeterMeasurement>();
+  const ammeters=blank<{ milliAmps:number|null; status:'measured'|'unconnected'|'overrange' }>();
   const resistorsMilliAmps=blank<number>();
   const warnings:string[]=[];
   const netVoltages=new Map<string,number>();
   const result=(ok:boolean,reason:string):DcAnalysis=>
-    ({ok,reason,leds,meters,resistorsMilliAmps,netVoltages,warnings});
+    ({ok,reason,leds,meters,ammeters,resistorsMilliAmps,netVoltages,warnings});
   const ledParts=project.parts.filter(p=>p.kind==='led');
   const meterParts=project.parts.filter(p=>p.kind==='multimeter');
   for(const p of ledParts)leds[p.id]={currentMilliAmps:0,forwardVolts:null,lit:false,status:'unpowered'};
   for(const p of meterParts)meters[p.id]={volts:null,status:'unconnected'};
+  for(const p of project.parts.filter(p=>p.kind==='ammeter'))ammeters[p.id]={milliAmps:null,status:'unconnected'};
   for(const p of project.parts.filter(p=>p.kind==='resistor'))resistorsMilliAmps[p.id]=0;
 
   const batteries=project.parts.filter(p=>p.kind==='battery');
@@ -108,16 +112,19 @@ export function analyzeDC(project:Project):DcAnalysis {
   // A voltmeter is ideal open circuit; simply attaching it never closes a loop.
   const wired=new Set(project.wires.flatMap(w=>[w.from.componentId,w.to.componentId]));
   for(const insertion of project.insertions??[])wired.add(insertion.componentId);
-  const supported=new Set(['battery','resistor','led','breadboard','switch','multimeter']);
+  const supported=new Set(['battery','resistor','led','breadboard','switch','multimeter','ammeter']);
   if(project.parts.some(p=>wired.has(p.id)&&!supported.has(p.kind)))
     return result(false,'电路连接了尚未建模的元件（例如 Arduino、蜂鸣器或电容）');
 
   const resistors:Resistor[]=[],diodes:Diode[]=[];
-  for(const p of project.parts.filter(p=>p.kind==='resistor')){
-    const ohms=p.value??220,a=pin(p,'a'),b=pin(p,'b');
-    if(!Number.isFinite(ohms)||ohms<=0)return result(false,'电阻参数必须大于零');
-    if(!a||!b)return result(false,'电阻端子无效');
-    if(a!==b)resistors.push({id:p.id,a,b,ohms});
+  for(const branch of resistiveBranches(project)){
+    const {ohms}=branch;
+    const owner=project.parts.find(p=>p.id===branch.id)!;
+    const a=pin(owner,branch.fromPin),b=pin(owner,branch.toPin);
+    if(!Number.isFinite(ohms)||ohms<0.1||ohms>1e9)
+      return result(false,'电阻/电流表/接触电阻需介于 0.1Ω 与 1GΩ');
+    if(!a||!b)return result(false,'被动元件端子无效');
+    if(a!==b)resistors.push({id:branch.id,a,b,ohms});
   }
   for(const p of ledParts){
     const a=pin(p,'anode'),b=pin(p,'cathode');
@@ -210,6 +217,15 @@ export function analyzeDC(project:Project):DcAnalysis {
   for(const r of resistors){
     if(netVoltages.has(r.a)&&netVoltages.has(r.b)){
       resistorsMilliAmps[r.id]=round((netVoltages.get(r.a)!-netVoltages.get(r.b)!)/r.ohms*1000,4);
+    }
+  }
+  for(const m of project.parts.filter(p=>p.kind==='ammeter')){
+    const a=pin(m,'positive'),b=pin(m,'negative');
+    if(a&&b&&netVoltages.has(a)&&netVoltages.has(b)){
+      const milliamps=round((netVoltages.get(a)!-netVoltages.get(b)!)/AMMETER_SHUNT_OHMS*1000,4);
+      const overrange=Math.abs(milliamps)>AMMETER_WARNING_MILLIAMPS;
+      ammeters[m.id]={milliAmps:milliamps,status:overrange?'overrange':'measured'};
+      if(overrange)warnings.push('电流表 '+m.id+' 超出 200mA 教学量程；不模拟真实保险丝');
     }
   }
   for(const m of meterParts){

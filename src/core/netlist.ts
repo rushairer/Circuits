@@ -27,7 +27,7 @@ export function buildNetlist(doc:Project):Netlist {
       const group=c.kind==='breadboard'?groupForBreadboard(pinId):null;
       if(group){const x=first.get(group);if(x)uf.union(key,x);else first.set(group,key)}
     }
-    if(c.kind==='switch'&&c.closed)uf.union(terminalKey({componentId:c.id,pinId:'a'}),terminalKey({componentId:c.id,pinId:'b'}));
+    if(c.kind==='switch'&&c.closed&&(c.contactOhms??0)===0)uf.union(terminalKey({componentId:c.id,pinId:'a'}),terminalKey({componentId:c.id,pinId:'b'}));
     /* pins are deliberately stable across toggles */
   }
   const warnings:string[]=[];

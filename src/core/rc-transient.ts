@@ -1,5 +1,6 @@
 import type { Project } from '../model.js';
 import { buildNetlist } from './netlist.js';
+import { resistiveBranches } from './resistive-branches.js';
 
 /**
  * Exact first-order response of one ideal capacitor in a purely resistive
@@ -181,7 +182,7 @@ export function analyzeRC(project:Project):RcAnalysis {
     return fail('电池电压应大于 0 且不超过 1000 V');
   const wired=new Set(project.wires.flatMap(w=>[w.from.componentId,w.to.componentId]));
   for(const insertion of project.insertions??[])wired.add(insertion.componentId);
-  const types=new Set(['capacitor','battery','resistor','switch','breadboard','multimeter']);
+  const types=new Set(['capacitor','battery','resistor','switch','breadboard','multimeter','ammeter']);
   if(project.parts.some(p=>wired.has(p.id)&&!types.has(p.kind)))
     return fail('暂态电路包含不支持的连接器件（例如 LED、Arduino 或蜂鸣器）');
   const graph=buildNetlist(project);
@@ -194,11 +195,11 @@ export function analyzeRC(project:Project):RcAnalysis {
   if(b&&(!positive||!negative||positive===negative))
     return fail('电池正负极短路或引脚无效');
   const resistors:Resistor[]=[];
-  for(const r of project.parts.filter(p=>p.kind==='resistor')){
-    const ohms=r.value??220,n1=net(r.id,'a'),n2=net(r.id,'b');
-    if(!Number.isFinite(ohms)||ohms<=0||ohms>1e9)
-      return fail('RC 电阻应大于 0 且不超过 1 GΩ');
-    if(!n1||!n2)return fail('电阻引脚无效');
+  for(const branch of resistiveBranches(project)){
+    const ohms=branch.ohms,n1=net(branch.id,branch.fromPin),n2=net(branch.id,branch.toPin);
+    if(!Number.isFinite(ohms)||ohms<0.1||ohms>1e9)
+      return fail('RC 电阻/电流表/接触电阻应介于 0.1Ω 和 1GΩ');
+    if(!n1||!n2)return fail('被动元件引脚无效');
     if(n1!==n2)resistors.push({a:n1,b:n2,ohms});
   }
   if(resistors.length===0)return fail('需要至少一只有效电阻形成 RC 回路');
