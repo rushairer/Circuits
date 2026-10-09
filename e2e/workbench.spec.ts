@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-test('workbench loads 12 parts and the sample LED circuit lights', async ({page})=>{
+test('workbench loads 13 parts and the sample LED circuit lights', async ({page})=>{
   await page.goto('/');
   await expect(page).toHaveTitle(/Circuits/);
-  await expect(page.locator('.part[data-kind]')).toHaveCount(12);
+  await expect(page.locator('.part[data-kind]')).toHaveCount(13);
   await expect(page.locator('.item[data-part]')).toHaveCount(5);
   await page.locator('button[data-action="run"]').click();
   await expect(page.locator('.bottom')).toContainText('LED 正常发光');
