@@ -82,7 +82,7 @@ function solveLinear(source:number[][],right:number[]):number[]|null {
   return result;
 }
 
-export function analyzeDC(project:Project):DcAnalysis {
+export function analyzeDC(project:Project,options:{allowZeroVoltageSource?:boolean}={}):DcAnalysis {
   const leds=blank<LedMeasurement>(),meters=blank<MeterMeasurement>();
   const ammeters=blank<{ milliAmps:number|null; status:'measured'|'unconnected'|'overrange' }>();
   const resistorsMilliAmps=blank<number>();
@@ -100,7 +100,7 @@ export function analyzeDC(project:Project):DcAnalysis {
   const batteries=project.parts.filter(p=>p.kind==='battery');
   if(batteries.length!==1)return result(false,'实验直流分析需要且仅支持一节独立电池');
   const battery=batteries[0],volts=battery.value??9;
-  if(!Number.isFinite(volts)||volts<=0||volts>1000)
+  if(!Number.isFinite(volts)||volts<0||(volts===0&&!options.allowZeroVoltageSource)||volts>1000)
     return result(false,'电池电压无效或超出实验分析范围');
   const graph=buildNetlist(project);
   if(graph.warnings.length)return result(false,graph.warnings.join('；'));
