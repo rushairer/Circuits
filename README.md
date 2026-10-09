@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.4.0-alpha.1 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.4.0-alpha.2 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -96,4 +96,10 @@ The toggle switch has optional closed-contact resistance: 0 ohms (original ideal
 
 ### Arduino Uno D13 restricted Blink preview (v0.4.0-alpha.1)
 
-Open **〈/〉 代码**, keep exactly one Arduino Uno on the canvas, and click **▶ 解析并预览 D13**. The original default Blink sketch now generates a **deterministic 2000ms D13 HIGH/LOW timeline**; scrub 0–5000ms to update the Uno's built-in LED indicator. This is purely a statically interpreted subset: `void setup()`, `void loop()`, `pinMode(13, OUTPUT)`, `digitalWrite(13, HIGH/LOW)` and bounded integer `delay(ms)`, including `LED_BUILTIN` or a simple integer pin alias. Unsafe/unsupported C++ is explicitly rejected; no `eval`, arbitrary code execution, AVR compilation, clock scheduling or external LED/connection propagation takes place. Code editing and project/workspace changes invalidate stale previews. All `.ino` export and existing circuit solvers remain separate.
+Open **〈/〉 代码**, keep exactly one Arduino Uno on the canvas, and click **▶ 解析并预览 D13**. The original default Blink sketch generates a **deterministic 2000ms D13 HIGH/LOW timeline**; scrub 0–5000ms to update the Uno's built-in LED indicator. This is purely a statically interpreted subset: `void setup()`, `void loop()`, `pinMode(13, OUTPUT)`, `digitalWrite(13, HIGH/LOW)` and bounded integer `delay(ms)`, including `LED_BUILTIN` or a simple integer pin alias. Unsafe/unsupported C++ is explicitly rejected; no `eval`, arbitrary code execution, AVR compilation or real-time clock scheduling takes place; external LED topology support is separately scoped below. Code editing and project/workspace changes invalidate stale previews. All `.ino` export and existing circuit solvers remain separate.
+
+### D13 drives external resistor + LED circuits (v0.4.0-alpha.2)
+
+Use the new **Arduino D13 外接 LED 闪烁** example (13 total). It opens the code panel with an Uno, a 330-ohm resistor and a correctly oriented LED wired from D13 to GND. Click **解析并预览 D13** and scrub time: the external LED lights at HIGH and turns off at LOW. LED current and polarity are calculated from **actual pin, wire and breadboard-net connections**, not SVG distance or simulated timers. A separate virtual output-stage model uses **5V HIGH / 0V LOW behind 25Ω** plus the existing experimental exponential LED and resistor models. The driver warns above **±20mA**; too much LED current is marked overcurrent, never treated as a healthy glow. Unsupported mixing with an independent battery, 5V rail, other active peripherals, disconnected D13/GND, or a direct D13/GND short receives explicit diagnostics. Neither the synthetic source nor sampled output is persisted in the user's project.
+
+This is still **not** AVR/Arduino C++ execution, verified MCU output impedance, live timer scheduling, PWM, ADC or arbitrary GPIO. Ordinary DC/RC analysis remains independent; the sketch preview is selected explicitly from the code editor.

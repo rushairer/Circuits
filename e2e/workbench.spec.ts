@@ -560,3 +560,71 @@ test('Arduino D13 preview is explicitly unavailable with no Uno on the canvas',a
  await expect(page.locator('#uno-preview')).toContainText('仅支持一块 Arduino Uno');
  await expect(page.locator('#uno-level')).toHaveCount(0);
 });
+
+test('external D13 example drives a physically wired LED HIGH/LOW without changing saved project',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await expect(page.locator('.example-card')).toHaveCount(13);
+ await page.locator('[data-load-example="gpio-d13-led"]').click();
+ await expect(page.locator('input#name')).toHaveValue('Arduino D13 · 外接 LED + 330Ω');
+ await expect(page.locator('#code')).toBeVisible();
+ const before=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-level')).toHaveText('HIGH');
+ await expect(page.locator('#gpio-external-status')).toContainText('5V / 25Ω');
+ await expect(page.locator('[data-gpio-led-status="l1"]')).toContainText('已点亮');
+ const milliAmps=Number((await page.locator('#gpio-drive-current').textContent())?.replace('mA',''));
+ expect(milliAmps).toBeGreaterThan(7);expect(milliAmps).toBeLessThan(11);
+ await expect(page.locator('.item[data-part="l1"] [data-gpio-glow]')).toHaveAttribute('opacity','0.28');
+ await page.locator('#uno-time').evaluate((el:HTMLInputElement)=>{
+   el.value='1000';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('#uno-level')).toHaveText('LOW');
+ await expect(page.locator('[data-gpio-led-status="l1"]')).toContainText('熄灭');
+ await expect(page.locator('.item[data-part="l1"] [data-gpio-glow]')).toHaveAttribute('opacity','0');
+ await page.locator('#uno-time').evaluate((el:HTMLInputElement)=>{
+   el.value='2000';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('#uno-level')).toHaveText('HIGH');
+ await expect(page.locator('[data-gpio-led-status="l1"]')).toContainText('已点亮');
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(before);
+ await page.locator('[data-action="uno-preview-stop"]').click();
+ await expect(page.locator('[data-gpio-glow]')).toHaveCount(0);
+});
+test('D13 wiring faults are visible and never falsely glow under missing resistor',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="gpio-d13-led"]').click();
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ p.parts=p.parts.filter((part:{id:string})=>part.id!=='r1');
+ p.wires=[
+   {id:'w1',from:{componentId:'a1',pinId:'d13'},to:{componentId:'l1',pinId:'anode'},color:'#e45454'},
+   {id:'w2',from:{componentId:'l1',pinId:'cathode'},to:{componentId:'a1',pinId:'gnd'},color:'#354553'}
+ ];
+ await page.locator('#file').setInputFiles({name:'unsafe-led.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#gpio-external-status')).toContainText('过流');
+ await expect(page.locator('#gpio-external-status')).toContainText('20mA');
+ await expect(page.locator('.item[data-part="l1"] [data-gpio-glow]')).toHaveAttribute('opacity','0');
+ p.wires.pop();
+ await page.locator('#file').setInputFiles({name:'disconnected-led.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#gpio-external-status')).toContainText('D13 和 GND');
+ await expect(page.locator('[data-gpio-led-status="l1"]')).toHaveCount(0);
+});
+test('editing Arduino source clears previous external GPIO emissions and saved code is preserved',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="gpio-d13-led"]').click();
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('.item[data-part="l1"] [data-gpio-glow]')).toHaveAttribute('opacity','0.28');
+ await page.locator('#code').fill('void setup(){pinMode(13,OUTPUT);}void loop(){Serial.begin(9600);delay(1000);}');
+ await expect(page.locator('#gpio-external-status')).toHaveCount(0);
+ await expect(page.locator('.item[data-part="l1"] [data-gpio-glow]')).toHaveAttribute('opacity','0');
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-preview')).toContainText('不支持');
+ await expect(page.locator('.item[data-part="l1"] [data-gpio-glow]')).toHaveCount(0);
+ await page.reload();
+ await page.locator('button[data-action="code"]').click();
+ await expect(page.locator('#code')).toContainText('Serial.begin(9600)');
+});

@@ -41,8 +41,6 @@ export function analyzeGpioD13(project:Project,high:boolean):GpioD13Analysis {
   if(!validProject(project))return unsupported(high,'电路工程不符合合法模型格式');
   const unos=project.parts.filter(p=>p.kind==='arduino');
   if(unos.length!==1)return unsupported(high,'D13 外接电路分析需要且仅支持一块 Arduino Uno');
-  if(project.parts.some(p=>p.kind==='battery'))
-    return unsupported(high,'暂不支持 Arduino GPIO 与独立电池混合供电');
   const uno=unos[0];
   const touches=(pinId:string)=>project.wires.some(w=>
     (w.from.componentId===uno.id&&w.from.pinId===pinId)||
@@ -52,6 +50,8 @@ export function analyzeGpioD13(project:Project,high:boolean):GpioD13Analysis {
     return unsupported(high,'Arduino 5V 引脚尚未实现电气模型，请仅连接 D13 与 GND');
   if(!touches('d13')||!touches('gnd'))
     return unsupported(high,'D13 和 GND 必须分别连接外部负载，不能推断未接线时的电流');
+  if(project.parts.some(p=>p.kind==='battery'))
+    return unsupported(high,'暂不支持 Arduino GPIO 与独立电池混合供电');
   const netlist=buildNetlist(project);
   if(netlist.warnings.length)return unsupported(high,netlist.warnings.join('；'));
   if(netlist.netOf({componentId:uno.id,pinId:'d13'})===

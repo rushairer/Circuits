@@ -42,7 +42,8 @@
 
 ## v0.4 — Arduino-compatible runtime
 - [x] Limited, safe, deterministic source interpreter for single Uno built-in D13 Blink (pinMode/digitalWrite/delay) with visual timeline and explicit unsupported-syntax diagnostics
-- [ ] Full AVR-compatible compilation and execution, external GPIO-connected circuit propagation, PWM/ADC and peripheral accuracy
+- [x] D13 HIGH/LOW wired external LED + resistor educational model via netlist, 5V/25Ω output source, polarity/overcurrent and unsupported-topology diagnostics
+- [ ] Full AVR-compatible compilation and execution, general GPIO output/input pin propagation, PWM/ADC and peripheral accuracy
 - [ ] Serial monitor and curated peripherals/libraries
 
 ## v0.5 — workflow parity
