@@ -5,7 +5,7 @@
 - [x] Battery/resistors/one LED experimental DC modified nodal analysis, including parallel resistance
 - [x] Breadboard five-hole strip groups, two separate power rails with midpoint splits
 - [x] Import validation for component and pin references
-- [x] 12 original SVG component illustrations; toggleable ideal switch, wire selection and color editing
+- [x] 13 original SVG component illustrations; toggleable ideal switch, wire selection and color editing
 - [x] Typecheck, unit tests, production build, persistent verified artifact, conditional Pages deploy
 - [x] GitHub Pages enabled with commit-specific public HTTP deployment verification
 - [x] Chromium browser E2E test gate: smoke, local project persistence and endpoint retargeting
@@ -27,7 +27,7 @@
 ## v0.3 — expanded electrical simulation
 - [x] Experimental exponential LED I–V approximation with multiple series/parallel branches, solver convergence protection and per-LED overcurrent diagnostics
 - [x] Experimental DC voltage difference of ideal high-impedance multimeter probes
-- [x] Nine ready-to-run sample circuits (single LED, parallel LED, series LED, voltmeter, RC charging/discharging, RC resistor-voltage measurement, dual capacitors in series/parallel), created as separate local projects
+- [x] Twelve ready-to-run sample circuits (single LED, parallel LED, series LED, voltmeter, RC charging/discharging, RC resistor-voltage and current measurement, static lossy switch, LED series ammeter, dual capacitors in series/parallel), created as separate local projects
 - [ ] Calibrated device libraries, diode tolerances and nonlinear model fidelity
 - [x] Analytical single-capacitor RC charge/discharge waveform, equivalent-resistance calculation for resistor networks, initial-voltage input and time-sample slider
 - [x] Bounded 2–6 capacitor linear RC backward-Euler numerical solver with source-free discharge, signed branch currents and selectable waveform traces
@@ -35,7 +35,10 @@
 - [x] Virtual two-channel RC waveform viewer (capacitor voltage and computed branch current), movable time cursor, CSV export and bounded high-impedance voltage probing over capacitor-only paths
 - [x] Resistor-node RC voltage readings reconstructed from KCL, source and capacitor voltage constraints, with disjoint floating-island safety checks
 - [x] Optional RC coarse/fine timestep consistency check with fast-transient sampling warnings and analytical reference tests
-- [ ] Physical series current probes, parameterized switches and broad external numerical reference fixtures
+- [x] In-circuit virtual shunt ammeter (0.1Ω) for nonlinear DC and RC, signed current and overrange diagnostics
+- [x] Editable static switch closed-contact resistance with schema-v2 validation and ideal 0Ω compatibility
+- [x] Analytical RC reference fixtures for contact resistance, shunt burden and multi-capacitor numerical convergence
+- [ ] Real physical current-probe effects/fuses, timed switching events and wider external numerical benchmarks
 
 ## v0.4 — Arduino-compatible runtime
 - [ ] Safe/deterministic AVR-compatible execution, sketch compilation, GPIO/PWM/ADC

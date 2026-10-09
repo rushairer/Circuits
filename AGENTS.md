@@ -55,7 +55,7 @@
 
 ## Experimental nonlinear DC analysis (v0.3)
 - Keep `src/core/dc-analysis.ts` independent from the legacy `evaluate` path. The exponential LED approximation is *not* a manufacturer-accurate physical model; flag overcurrent and unsupported configurations.
-- The initial experimental model supports one battery, positive resistors, ideal two-terminal switches and multiple LED branches; multimeter probes are ideal open-circuit voltage measurements. No MCU, SPICE transient solver, current meter or high-voltage safety model.
+- The initial experimental model supports one battery, positive resistors, ideal two-terminal switches and multiple LED branches; multimeter probes are ideal open-circuit voltage measurements. No MCU, general SPICE transient solver, physical current meter/fuse or high-voltage safety model; the virtual current meter is a finite shunt.
 - When adding a nonlinear element, test normal, reverse, parallel, series, open, shorted and failure-to-converge behavior. Never display a voltage of 0 V for an unconnected or uncomputed meter probe.
 
 ## Starter example fixtures
@@ -94,3 +94,9 @@
 - The high-Z RC meter can now measure resistor-node voltage **only** when the two probes are in the same connected modeled island. `src/core/rc-probes.ts` uses sampled capacitor and source voltage constraints plus passive resistor KCL; do not infer potentials between distinct floating networks. Preserve old signed-capacitor-path tests.
 - `assessRcConvergence` compares 10 vs 20 implicit-Euler substeps and detects grossly under-resolved first-sample changes; never describe its percentage as a physical accuracy bound. A pass indicates internal consistency at those two step sizes only.
 - The optional diagnostic is UI-only and must be invalidated when the electrical project, solver mode or time window changes. It must not rewrite project JSON or alter the existing default integration.
+
+## v0.3.0-alpha.7 current meter and switch-contact contract
+- Model current-measuring ammeter as a fixed 0.1Ω resistive shunt with positive/negative terminals; both ends must be wired before a trusted current is shown. Do not allow overriding its resistance using the generic part value. Positive direction is from positive to negative, and ±200mA is an educational overrange only.
+- Centralize resistor, ammeter and non-ideal closed-switch stamping in `src/core/resistive-branches.ts`. Only closed switches with 0Ω contact are unioned as conductors. An open switch never participates in conductance stamping.
+- contactOhms is optional, switch-only, validated as 0Ω or 0.1–1,000,000Ω. Preserve old schema-v2 projects with missing contactOhms. Switch toggling re-solves RC from t=0; no mid-waveform switch-time simulation.
+- RC/LED reference tests must verify shunt burden, switch resistance, polarity, open terminals, overrange and capacitor series/parallel analytical comparisons. Keep historical modes independent.

@@ -4,11 +4,11 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.3.0-alpha.6 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.3.0-alpha.7 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
-- SVG editor with a 12-kind component palette: battery, resistor, LED, breadboard, Arduino Uno, switch, pushbutton, potentiometer, capacitor, buzzer, multimeter, servo
+- SVG editor with a 13-kind component palette: battery, resistor, LED, breadboard, Arduino Uno, switch, pushbutton, potentiometer, capacitor, buzzer, multimeter, series ammeter, servo
 - Add, drag, rotate, select, Shift-select, marquee-select, group-move, batch-rotate/delete and wire components by pin; wire selection, color editing and deletion
 - Undo/redo, multi-project browser library, duplicate/open/delete projects, versioned JSON import/export, zoom, grid snapping, editable wire bends, drag-to-reconnect wire endpoints, resistor/LED breadboard lead insertion with auto-snap, and text-only Arduino sketch editor
 - Breadboard connectivity: five-hole strips, separated sides, independent power rails split into two segments
@@ -54,7 +54,7 @@ Mouse wheel zooms around the pointer. Hold Space while left-dragging, or use mid
 
 ### Experimental nonlinear DC model (opt-in)
 
-Toggle **模型：固定 2V** to **模型：非线性 DC（实验）**, then start simulation. This mode supports one DC source, resistor networks, multiple LED branches, ideal switches and **voltage only** readings from ideal open-circuit multimeter probes. The UI displays per-LED current and signed meter volts, or an explicit unsupported/unconnected message.
+Toggle **模型：固定 2V** to **模型：非线性 DC（实验）**, then start simulation. This mode supports one DC source, resistor networks, multiple LED branches, ideal switches and ideal high-Z voltage sensing alongside finite-shunt in-series current measurement. The UI displays per-LED current and signed meter volts, or an explicit unsupported/unconnected message.
 
 The red LED curve is an intentionally simplified exponential approximation near 2 V at 20 mA. Overcurrent numbers, thermal performance, breakdown and device tolerances are *not* physically predictive. The default fixed 2V mode is retained for legacy projects.
 
@@ -72,7 +72,7 @@ The solver handles **one ideal capacitor**, linear resistors, static ideal switc
 
 ### Multiple capacitor RC numerical analysis
 
-Two new starter examples compare 100µF/200µF **parallel** capacitors and two 100µF **series** capacitors, charged by a 9V source through 1kΩ. The existing RC toolbar mode automatically chooses the analytical model for one capacitor or a bounded backward-Euler linear network model for 2–6 capacitors. Start simulation, choose a capacitor trace, select a 0.1–10 second display window and scrub its 101 voltage/current readings. All 9 examples create separate local projects.
+Two new starter examples compare 100µF/200µF **parallel** capacitors and two 100µF **series** capacitors, charged by a 9V source through 1kΩ. The existing RC toolbar mode automatically chooses the analytical model for one capacitor or a bounded backward-Euler linear network model for 2–6 capacitors. Start simulation, choose a capacitor trace, select a 0.1–10 second display window and scrub its 101 voltage/current readings. All 12 examples create separate local projects.
 
 The numerical model excludes inductors, nonlinear devices, live switch events and multiple independent voltage sources. It detects incompatible initial charges and hard source/connection conflicts; the first sampled current is intentionally unavailable, rather than fabricated as 0 mA. This waveform viewer is not a physical oscilloscope.
 
@@ -86,4 +86,10 @@ An existing wired multimeter shows signed RC sample voltage **within the same co
 
 The RC voltmeter now measures signed drops **across resistors and other resistor-network nodes** as well as capacitor paths. Its virtual high-impedance probes use sampled capacitor voltages, the ideal battery and passive resistor KCL (actual connected terminal IDs). Disconnected floating islands and inconsistent voltage constraints remain unavailable rather than being treated as zero.
 
-There are now **9 starter examples**, including **RC 电阻压降测量**: a 9V RC charging circuit with the meter across 1kΩ, falling from 9V to about 3.31V at one time constant. In the multi-capacitor numerical RC panel, choose **检查数值一致性** to compare a standard backward-Euler trace with a halved internal step; the display warns if the first output interval hides most of a fast transient. The comparison is **not an independent physical accuracy guarantee or SPICE calibration**.
+There are now **12 starter examples**, including **RC 电阻压降测量**: a 9V RC charging circuit with the meter across 1kΩ, falling from 9V to about 3.31V at one time constant. In the multi-capacitor numerical RC panel, choose **检查数值一致性** to compare a standard backward-Euler trace with a halved internal step; the display warns if the first output interval hides most of a fast transient. The comparison is **not an independent physical accuracy guarantee or SPICE calibration**.
+
+### Series ammeter and static switch contact resistance (v0.3.0-alpha.7)
+
+Use the new **串联电流表** to place a fixed 0.1-ohm shunt *in series*, connecting both terminals. Experimental nonlinear DC and linear RC modes report signed milliampere values; an unconnected lead is not a valid 0mA reading. Beyond +/-200mA the display reports OL (educational overrange, without physical fuse simulation). The classic fixed-2V mode does not calculate this instrument.
+
+The toggle switch has optional closed-contact resistance: 0 ohms (original ideal default) or 0.1-1,000,000 ohms. Open means nonconductive. Toggling re-solves from the specified RC initial state at t=0: no mid-trace switching is simulated. New independent projects include **LED 串联电流表**, **RC 串联电流测量**, and **RC 有损接触开关**. Reference fixtures compare first-order RC time constants and multi-capacitor numerical results with the ammeter's real shunt burden and contact resistance included.
