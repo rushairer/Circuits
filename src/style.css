@@ -69,3 +69,16 @@
 .rc-accuracy-button:hover,.rc-accuracy-button:focus-visible{border-color:#158f88;background:#e5f8f4}
 .rc-convergence{margin-top:8px;background:#f5f9fa;border:1px solid #dce8e9;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.4}
 .rc-convergence strong{color:#256c70}.rc-convergence p{margin:5px 0}
+
+/* Read-only, deterministic GPIO13 teaching preview; never an AVR emulator. */
+.uno-preview-panel{margin:12px 0 14px;padding:12px;background:#eef6f9;border:1px solid #bdd7e2;border-radius:9px;line-height:1.5;display:flex;flex-direction:column;gap:9px}
+.uno-preview-panel>strong{font-size:13px;color:#174858}
+.uno-preview-panel p{margin:0;color:#815b3d;font-size:12px}
+.uno-preview-panel small{font-size:11px;line-height:1.5;color:#556f7a}
+.uno-preview-panel label{font-size:12px;color:#425e68}
+.uno-preview-panel input[type=range]{width:100%;accent-color:#247f9b}
+.uno-readouts{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.uno-readouts span{border:1px solid #d0e2e7;padding:7px 9px;background:white;border-radius:7px;font-size:12px}
+.uno-readouts b{font-variant-numeric:tabular-nums;color:#0a5868}
+.uno-readouts [data-level=HIGH]{color:#ac6900}
+.uno-readouts [data-level=LOW]{color:#486575}
