@@ -119,3 +119,8 @@
 - Monitor output is a pure function of source and UI time cursor, not live serial transport. Cap baud rates, literal lengths, event count, visible log rows and elapsed time. Preserve truncation warnings, and export only the currently visible simulated log.
 - Serial text is escaped before insertion into HTML and written via textContent on scrub; tests must include HTML-like payloads and reject unsupported expressions.
 - Serial-only sketches may omit D13 pinMode; in that case do not inject a virtual GPIO driver. Old sketch/D13 tests must remain valid; UI state must never pollute schema-v2 project JSON.
+
+## v0.4.0-alpha.4 bounded static for loops
+- Only permit `for(int counter=0; counter<N; counter++) { ... }` with integer literal `0 <= N <= 16`. The body contains whitelisted calls only; nested loops, branches, counter reads, variable expressions, other increments and arbitrary C++ must fail closed.
+- Statically unroll into at most 128 operations total and reuse existing delay, cycle, serial-output and GPIO bounds. Never add executable C++/JS runtime or persist preview events to JSON.
+- Extract only truly top-level integer aliases; loop initializers must not be removed. Test quoted braces/semicolons, invalid loops and time scrubbing across Chromium, Firefox and WebKit.

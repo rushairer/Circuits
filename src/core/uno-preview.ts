@@ -1,7 +1,7 @@
 /**
  * Sandboxed, deterministic Arduino teaching preview (no AVR/C++ execution).
- * Static grammar only: D13 pinMode/digitalWrite, delay and bounded literal
- * Serial.begin/print/println. No eval, variable expressions, user I/O, timers,
+ * Static grammar only: D13 pinMode/digitalWrite, delay, bounded literal
+ * Serial.begin/print/println and simple static for loops. No eval, variable expressions, user I/O, timers,
  * dynamic imports, control flow, additional GPIO pins or external libraries.
  */
 export interface UnoLevelEvent {offsetMs:number;high:boolean}
@@ -21,6 +21,7 @@ export interface UnoSerialSnapshot {
 type Operation={name:'pinMode'|'digitalWrite'|'delay'|'Serial.begin'|'Serial.print'|'Serial.println';args:string};
 const MAX_SOURCE_BYTES=12000;
 const MAX_OPERATIONS=128;
+const MAX_REPEAT_COUNT=16;
 const MAX_CYCLE_MS=120000;
 const MAX_DELAY_MS=60000;
 const MAX_TEXT_LENGTH=120;
@@ -55,24 +56,59 @@ function stripComments(source:string):string|null {
 }
 
 /** Find semicolons only outside JSON-style double-quoted literal strings. */
-function statements(body:string,label:string):{items:Operation[];reason:string|null} {
- const parts:string[]=[];
- let from=0,quoted=false;
- for(let i=0;i<body.length;i++){
-   const ch=body[i];
-   if(quoted&&ch==='\\'){i++;continue;}
-   if(ch==='"'){quoted=!quoted;continue;}
-   if(ch===';'&&!quoted){parts.push(body.slice(from,i).trim());from=i+1;}
- }
- if(quoted)return {items:[],reason:label+' 中包含未闭合的字符串'};
- if(body.slice(from).trim())return {items:[],reason:label+' 中有未以分号结束的语句'};
+/**
+ * Statically expand only simple fixed-count loops. This is not C++ execution.
+ * Nested loops and arbitrary expressions remain invalid.
+ */
+function statements(body:string,label:string,allowRepeat=true):{items:Operation[];reason:string|null} {
  const items:Operation[]=[];
- for(const text of parts){
-   if(!text)continue;
-   const match=/^(pinMode|digitalWrite|delay|Serial\.begin|Serial\.print|Serial\.println)\s*\(\s*([\s\S]*?)\s*\)$/.exec(text);
-   if(!match)return {items:[],reason:label+' 包含不支持的语句：'+text.slice(0,70)};
-   items.push({name:match[1] as Operation['name'],args:match[2].trim()});
-   if(items.length>MAX_OPERATIONS)return {items:[],reason:'指令数量超过 '+MAX_OPERATIONS+' 条'};
+ let position=0;
+ while(position<body.length){
+   while(position<body.length&&/\s/.test(body[position]))position++;
+   if(position===body.length)break;
+   const remaining=body.slice(position);
+   if(/^for\b/.test(remaining)){
+     if(!allowRepeat)return {items:[],reason:label+' 不支持嵌套 for 循环'};
+     const header=/^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*=\s*0\s*;\s*\1\s*<\s*(\d{1,2})\s*;\s*\1\+\+\s*\)\s*\{/.exec(remaining);
+     if(!header)return {items:[],reason:label+' 仅支持 for(int i=0; i<N; i++) 的固定次数循环'};
+     const repeat=Number(header[2]);
+     if(repeat>MAX_REPEAT_COUNT)return {items:[],reason:label+' 的 for 循环超过 16 次静态展开上限'};
+     const begin=position+header[0].length;
+     let end=-1,quoted=false;
+     for(let i=begin;i<body.length;i++){
+       const ch=body[i];
+       if(quoted&&ch==='\\'){i++;continue;}
+       if(ch==='"'){quoted=!quoted;continue;}
+       if(!quoted&&ch==='{')return {items:[],reason:label+' 不支持嵌套代码块'};
+       if(!quoted&&ch==='}'){end=i;break;}
+     }
+     if(end<0||quoted)return {items:[],reason:label+' 的 for 循环未正确闭合'};
+     const inner=statements(body.slice(begin,end),label+' 的 for 循环',false);
+     if(inner.reason)return inner;
+     if(items.length+repeat*inner.items.length>MAX_OPERATIONS)
+       return {items:[],reason:'展开后指令数量超过 '+MAX_OPERATIONS+' 条'};
+     for(let i=0;i<repeat;i++)items.push(...inner.items);
+     position=end+1;
+     continue;
+   }
+   let end=-1,quoted=false;
+   for(let i=position;i<body.length;i++){
+     const ch=body[i];
+     if(quoted&&ch==='\\'){i++;continue;}
+     if(ch==='"'){quoted=!quoted;continue;}
+     if(!quoted&&(ch==='{'||ch==='}'))return {items:[],reason:label+' 包含不支持的代码块'};
+     if(!quoted&&ch===';'){end=i;break;}
+   }
+   if(quoted)return {items:[],reason:label+' 中包含未闭合的字符串'};
+   if(end<0)return {items:[],reason:label+' 中有未以分号结束的语句'};
+   const text=body.slice(position,end).trim();
+   if(text){
+     const match=/^(pinMode|digitalWrite|delay|Serial\.begin|Serial\.print|Serial\.println)\s*\(\s*([\s\S]*?)\s*\)$/.exec(text);
+     if(!match)return {items:[],reason:label+' 包含不支持的语句：'+text.slice(0,70)};
+     items.push({name:match[1] as Operation['name'],args:match[2].trim()});
+     if(items.length>MAX_OPERATIONS)return {items:[],reason:'指令数量超过 '+MAX_OPERATIONS+' 条'};
+   }
+   position=end+1;
  }
  return {items,reason:null};
 }
@@ -99,13 +135,14 @@ function extractBodies(text:string):Map<'setup'|'loop',string>|null {
    const name=m[1] as 'setup'|'loop';
    if(bodies.has(name))return null;
    const start=declarations.lastIndex;
-   let quote=false,close=-1;
+   let quote=false,close=-1,depth=1;
    for(let i=start;i<text.length;i++){
      const ch=text[i];
      if(quote&&ch==='\\'){i++;continue;}
      if(ch==='"'){quote=!quote;continue;}
-     if(!quote&&ch==='{')return null; // arbitrary nested C++ flow is forbidden
-     if(!quote&&ch==='}'){close=i;break;}
+     if(quote)continue;
+     if(ch==='{'){if(++depth>2)return null;}
+     else if(ch==='}'&&--depth===0){close=i;break;}
    }
    if(close===-1||quote)return null;
    bodies.set(name,text.slice(start,close));
@@ -133,8 +170,23 @@ export function compileUnoPreview(source:string):UnoPreviewResult {
      else aliases.set(name,Number(value));
      return '\n';
    });
+ // Only global declarations may become aliases. An initializer in the
+ // for(int i=0; ...) header must not disappear during alias extraction.
+ const globalOffsets=new Set<number>();
+ let scopeDepth=0,inString=false;
+ for(let i=0;i<clean.length;i++){
+   const ch=clean[i];
+   if(!inString&&scopeDepth===0)globalOffsets.add(i);
+   if(inString&&ch==='\\'){i++;continue;}
+   if(ch==='"'){inString=!inString;continue;}
+   if(!inString){
+     if(ch==='{')scopeDepth++;
+     else if(ch==='}')scopeDepth--;
+   }
+ }
  clean=clean.replace(/\b(?:const\s+)?int\s+([A-Za-z_]\w*)\s*=\s*(\d+)\s*;/g,
-   (_whole,name:string,value:string)=>{
+   (_whole,name:string,value:string,offset:number)=>{
+     if(!globalOffsets.has(offset))return _whole;
      if(aliases.has(name)||aliases.size>=16)aliasError='重复或过多的引脚常量';
      else aliases.set(name,Number(value));
      return ' ';

@@ -170,3 +170,52 @@ test('serial: lines escaping is a UI concern; parser never executes markup',()=>
  assert.equal(r.ok,true,r.reason);
  assert.equal(sampleUnoSerial(r,0).lines[0].text,'<img src=x onerror=alert(1)>');
 });
+
+test('for: fixed-count pulses expand into deterministic D13 and serial timeline',()=>{
+ const code='const int ledPin = 13;void setup(){pinMode(ledPin,OUTPUT);Serial.begin(9600);}' +
+  'void loop(){for(int i=0;i<3;i++){digitalWrite(ledPin,HIGH);Serial.println("pulse");delay(100);' +
+  'digitalWrite(ledPin,LOW);delay(100);}delay(400);}';
+ const r=compileUnoPreview(code);
+ assert.equal(r.ok,true,r.reason);
+ assert.equal(r.periodMs,1000);
+ assert.equal(r.events.length,6);
+ assert.equal(r.statementCount,18);
+ for(const [ms,high] of [[0,true],[100,false],[200,true],[300,false],[400,true],
+  [500,false],[950,false],[1000,true],[1100,false]]){
+   assert.equal(sampleUnoPreview(r,ms).high,high,'at '+ms+'ms');
+ }
+ assert.deepEqual(sampleUnoSerial(r,400).lines.map(x=>x.text),['pulse','pulse','pulse']);
+ assert.deepEqual(sampleUnoSerial(r,1000).lines.map(x=>x.timeMs),[0,200,400,1000]);
+});
+test('for: bounded grammar rejects dynamic, nested and excessive loops',()=>{
+ const wrap=body=>'void setup(){pinMode(13,OUTPUT);}void loop(){'+body+'delay(10);}';
+ const cases=[
+  'for(;;){delay(1);}',
+  'for(int i=0;i<17;i++){delay(1);}',
+  'for(int i=0;i<4;i+=2){delay(1);}',
+  'for(int i=0;i<=4;i++){delay(1);}',
+  'for(int i=0;i<4;j++){delay(1);}',
+  'for(int i=0;i<analogRead(A0);i++){delay(1);}',
+  'for(int i=0;i<2;i++){for(int j=0;j<2;j++){delay(1);}}',
+  'for(int i=0;i<2;i++){if(true){delay(1);}}',
+  'for(int i=0;i<16;i++){'+ 'digitalWrite(13,HIGH);'.repeat(9)+'}',
+  'for(int i=0;i<3;i++){delay(i);}'
+ ];
+ for(const body of cases)assert.equal(compileUnoPreview(wrap(body)).ok,false,body);
+});
+test('for: setup expansion handles braces in serial strings',()=>{
+ const code='void setup(){Serial.begin(9600);for (int n=0;n<2;n++){Serial.println("} /* literal */");}}'+
+   'void loop(){Serial.println("tick");delay(100);}';
+ const r=compileUnoPreview(code);
+ assert.equal(r.ok,true,r.reason);
+ assert.deepEqual(sampleUnoSerial(r,0).lines.map(x=>x.text),
+  ['} /* literal */','} /* literal */','tick']);
+});
+test('for: global integer aliases never erase a loop initializer',()=>{
+ const code='const int led=13;void setup(){pinMode(led,OUTPUT);}'+
+  'void loop(){for(int i=0;i<2;i++){digitalWrite(led,HIGH);delay(25);digitalWrite(led,LOW);delay(25);}}';
+ const r=compileUnoPreview(code);
+ assert.equal(r.ok,true,r.reason);
+ assert.equal(r.periodMs,100);
+ assert.equal(r.events.length,4);
+});
