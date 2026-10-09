@@ -50,9 +50,9 @@ test('breadboard power bus can bridge an LED series route',()=>{
  assert.equal(evaluate(p).lit,true);
 });
 
-test('component catalogue has 12 distinct visual models with pin definitions',async()=>{
+test('component catalogue has 13 distinct visual models with pin definitions',async()=>{
  const {parts,pins}=await import('../.test-dist/model.js');
- assert.equal(parts.length,12);assert.equal(new Set(parts).size,12);
+ assert.equal(parts.length,13);assert.equal(new Set(parts).size,13);
  for(const kind of parts)assert.ok(Object.keys(pins[kind]).length>=2);
 });
 test('a switched series circuit toggles LED only when closed',()=>{

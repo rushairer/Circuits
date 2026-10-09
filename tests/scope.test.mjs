@@ -205,7 +205,7 @@ test('RC ammeter inserted into discharge branch measures negative current',()=>{
  const capture=createScopeCapture(analyzeRC(p));
  const atZero=readRcCurrentProbe(p,capture,'m1',0);
  assert.equal(atZero.status,'measured',atZero.reason);
- assert.ok(atZero.milliAmps>8.9);
+ assert.ok(atZero.milliAmps< -8.9);
 });
 test('DC analysis: shunt ammeter participates as 0.1Ω resistor not ideal infinite conductance',()=>{
  const p=createExample('basic');

@@ -6,9 +6,12 @@ export const exampleCatalog=[
  {id:'parallel',title:'双 LED 并联',description:'两只 LED 各自配有独立限流电阻，比较不同支路电流'},
  {id:'series',title:'双 LED 串联',description:'同一个限流电阻串联两只 LED，比较各自压降'},
  {id:'voltmeter',title:'9V 万用表测量',description:'将理想直流电压表的正负表笔接到电池两端'},
+ {id:'dc-ammeter',title:'LED 串联电流表',description:'把 0.1Ω 虚拟电流表串入 LED 电路，读取正向电流'},
  {id:'rc-charge',title:'RC 电容充电',description:'9V 电池 + 1kΩ 电阻 + 100µF 电容，时间常数 0.1 秒'},
  {id:'rc-discharge',title:'RC 电容放电',description:'已充至 9V 的 100µF 电容经 1kΩ 电阻自然放电'},
  {id:'rc-resistor-meter',title:'RC 电阻压降测量',description:'9V RC 充电时测量 1kΩ 电阻压降，观察 9V 逐渐下降至 0V'},
+ {id:'rc-ammeter',title:'RC 串联电流测量',description:'100µF 电容通过 1kΩ 电阻与 0.1Ω 电流表充电，观察电流衰减'},
+ {id:'rc-contact-switch',title:'RC 有损接触开关',description:'拨动开关可设置 100Ω 闭合接触电阻；对比断路和充电时间常数'},
  {id:'rc-parallel',title:'双电容并联 RC',description:'100µF 与 200µF 电容并联，合计 300µF，由 9V / 1kΩ 充电'},
  {id:'rc-series',title:'双电容串联 RC',description:'两只 100µF 电容串联，观察同一支路的电压分配'}
 ] as const;
@@ -41,6 +44,29 @@ export function createExample(id:string):Project|null {
      ])
    ];
    return doc;
+ }
+ if(id==='rc-ammeter'){
+   const p=createExample('rc-charge')!;
+   p.name='RC 充电 · 串联电流表';
+   p.parts.push({id:'i1',kind:'ammeter',x:600,y:355,rotation:0});
+   p.wires[1]=lead('w2','r1','b','i1','positive');
+   p.wires.push(lead('wa','i1','negative','c1','a'));
+   return p;
+ }
+ if(id==='rc-contact-switch'){
+   const p=createExample('rc-charge')!;
+   p.name='RC 充电 · 100Ω 接触开关';
+   p.parts.push({id:'s1',kind:'switch',x:260,y:390,rotation:0,closed:true,contactOhms:100});
+   p.wires[0]=lead('w1','b1','positive','s1','a');
+   p.wires.push(lead('ws','s1','b','r1','a'));
+   return p;
+ }
+ if(id==='dc-ammeter'){
+   const p=demo();p.name='LED 串联电流表 · 0.1Ω';
+   p.parts.push({id:'i1',kind:'ammeter',x:425,y:75,rotation:0});
+   p.wires[0]=lead('w1','b1','positive','i1','positive');
+   p.wires.push(lead('wa','i1','negative','r1','a'));
+   return p;
  }
  if(id==='rc-resistor-meter'){
    const p=createExample('rc-charge')!;

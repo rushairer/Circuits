@@ -6,12 +6,12 @@ import { analyzeDC } from '../.test-dist/core/dc-analysis.js';
 import { analyzeRC } from '../.test-dist/core/rc-transient.js';
 import { analyzeRCNetwork } from '../.test-dist/core/rc-network.js';
 import { createScopeCapture } from '../.test-dist/core/scope.js';
-import { readRcVoltageProbe } from '../.test-dist/core/rc-probes.js';
+import { readRcVoltageProbe, readRcCurrentProbe } from '../.test-dist/core/rc-probes.js';
 
 test('all documented example circuits are valid versioned JSON projects',()=>{
- assert.equal(exampleCatalog.length,9);
+ assert.equal(exampleCatalog.length,12);
  const ids=new Set(exampleCatalog.map(e=>e.id));
- assert.equal(ids.size,9);
+ assert.equal(ids.size,12);
  for(const e of exampleCatalog){
   const p=createExample(e.id);
   assert.ok(p,e.id);
@@ -77,4 +77,19 @@ test('resistor-voltage example measures 9V initially, then 3.31V at one time con
  const result=readRcVoltageProbe(p,capture,'m1',20);
  assert.equal(result.status,'measured');
  assert.ok(Math.abs(result.volts-9*Math.exp(-1))<.002);
+});
+
+test('series ammeter and lossy-switch examples have meaningful computed results',()=>{
+ const dc=analyzeDC(createExample('dc-ammeter'));
+ assert.equal(dc.ok,true,dc.reason);
+ assert.equal(dc.ammeters.i1.status,'measured');
+ assert.ok(dc.ammeters.i1.milliAmps>0);
+ const rcDoc=createExample('rc-ammeter'),rc=analyzeRC(rcDoc);
+ assert.equal(rc.ok,true,rc.reason);
+ const current=readRcCurrentProbe(rcDoc,createScopeCapture(rc),'i1',0);
+ assert.equal(current.status,'measured',current.reason);
+ assert.ok(current.milliAmps>8.9&&current.milliAmps<9.01);
+ const switched=analyzeRC(createExample('rc-contact-switch'));
+ assert.equal(switched.ok,true,switched.reason);
+ assert.ok(Math.abs(switched.tauSeconds-.110)<1e-7);
 });
