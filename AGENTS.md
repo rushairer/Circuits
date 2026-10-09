@@ -113,3 +113,9 @@
 - Use existing `buildNetlist` and nonlinear `analyzeDC` for resistor and LED current, with explicit opt-in for 0V virtual source under LOW. Reject actual 9V battery mixing, V5 pin use, multiple Uno boards, unsupported connected peripherals, D13/GND direct shorts and disconnected output/ground. Warn above ±20mA modeled drive; overcurrent LED must not glow normally.
 - Keep `unoPreview` and normal `isRunning` simulation mutually exclusive. Time-scrubbing updates external LED glow, current measurements and warnings without modifying saved JSON. Editing source or changing project invalidates all preview state.
 - Assert HIGH/LOW, reversed/unconnected/shorted/no-limit cases, netlist breadboard topology, source immutability and Chromium/Firefox/WebKit UI behavior before Pages deployment.
+
+## v0.4.0-alpha.3 deterministic virtual Serial monitor
+- The strict Arduino whitelist now includes literal-only `Serial.begin`, `Serial.print` and `Serial.println` alongside D13 GPIO and integer delays. Never run eval, C++ compilation, arbitrary expressions or real serial I/O.
+- Monitor output is a pure function of source and UI time cursor, not live serial transport. Cap baud rates, literal lengths, event count, visible log rows and elapsed time. Preserve truncation warnings, and export only the currently visible simulated log.
+- Serial text is escaped before insertion into HTML and written via textContent on scrub; tests must include HTML-like payloads and reject unsupported expressions.
+- Serial-only sketches may omit D13 pinMode; in that case do not inject a virtual GPIO driver. Old sketch/D13 tests must remain valid; UI state must never pollute schema-v2 project JSON.

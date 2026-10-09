@@ -6,19 +6,20 @@ import { analyzeDC } from '../.test-dist/core/dc-analysis.js';
 import { analyzeRC } from '../.test-dist/core/rc-transient.js';
 import { analyzeRCNetwork } from '../.test-dist/core/rc-network.js';
 import { analyzeGpioD13 } from '../.test-dist/core/gpio-d13.js';
+import { compileUnoPreview, sampleUnoSerial } from '../.test-dist/core/uno-preview.js';
 import { createScopeCapture } from '../.test-dist/core/scope.js';
 import { readRcVoltageProbe, readRcCurrentProbe } from '../.test-dist/core/rc-probes.js';
 
 test('all documented example circuits are valid versioned JSON projects',()=>{
- assert.equal(exampleCatalog.length,13);
+ assert.equal(exampleCatalog.length,14);
  const ids=new Set(exampleCatalog.map(e=>e.id));
- assert.equal(ids.size,13);
+ assert.equal(ids.size,14);
  for(const e of exampleCatalog){
   const p=createExample(e.id);
   assert.ok(p,e.id);
   assert.ok(validProject(p),e.id);
   assert.equal(p.schemaVersion,2);
-  const result=e.id==='gpio-d13-led'?analyzeGpioD13(p,true):
+  const result=e.id==='uno-serial'?compileUnoPreview(p.code):e.id==='gpio-d13-led'?analyzeGpioD13(p,true):
     e.id==='rc-parallel'||e.id==='rc-series'?analyzeRCNetwork(p):
     e.id.startsWith('rc-')?analyzeRC(p):analyzeDC(p);
   assert.equal(result.ok,true,e.id+': '+result.reason);
@@ -108,4 +109,15 @@ test('Arduino D13 external LED fixture lights only at HIGH and preserves user sk
  assert.equal(on.leds.l1.status,'normal');
  assert.ok(on.leds.l1.currentMilliAmps>7&&on.leds.l1.currentMilliAmps<11);
  assert.equal(off.leds.l1.lit,false);
+});
+
+test('serial-only teaching sample uses deterministic logs with no GPIO D13 requirement',()=>{
+ const p=createExample('uno-serial'),parsed=compileUnoPreview(p.code);
+ assert.equal(p.parts.length,1);
+ assert.equal(p.parts[0].kind,'arduino');
+ assert.equal(parsed.ok,true,parsed.reason);
+ assert.equal(parsed.d13Configured,false);
+ assert.equal(parsed.serialBaud,9600);
+ assert.deepEqual(sampleUnoSerial(parsed,0).lines.map(x=>x.text),['Serial ready','tick,42']);
+ assert.deepEqual(sampleUnoSerial(parsed,500).lines.map(x=>x.text),['Serial ready','tick,42','tick,42']);
 });

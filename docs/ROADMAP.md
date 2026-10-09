@@ -44,7 +44,8 @@
 - [x] Limited, safe, deterministic source interpreter for single Uno built-in D13 Blink (pinMode/digitalWrite/delay) with visual timeline and explicit unsupported-syntax diagnostics
 - [x] D13 HIGH/LOW wired external LED + resistor educational model via netlist, 5V/25Ω output source, polarity/overcurrent and unsupported-topology diagnostics
 - [ ] Full AVR-compatible compilation and execution, general GPIO output/input pin propagation, PWM/ADC and peripheral accuracy
-- [ ] Serial monitor and curated peripherals/libraries
+- [x] Bounded virtual Serial.begin/print/println monitor for literal output, time cursor and TXT export (not physical UART)
+- [ ] General serial expressions, Serial.available/read, interrupts and curated peripheral libraries
 
 ## v0.5 — workflow parity
 - [ ] Block ↔ text coding, synchronized schematic, shared projects and parity audit

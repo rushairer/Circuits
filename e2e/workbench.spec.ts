@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('workbench loads 13 parts and the sample LED circuit lights', async ({page})=>{
   await page.goto('/');
   await expect(page).toHaveTitle(/Circuits/);
-  await expect(page.locator('.part[data-kind]')).toHaveCount(13);
+  await expect(page.locator('.part[data-kind]')).toHaveCount(14);
   await expect(page.locator('.item[data-part]')).toHaveCount(5);
   await page.locator('button[data-action="run"]').click();
   await expect(page.locator('.bottom')).toContainText('LED 正常发光');
@@ -196,7 +196,7 @@ test('experimental DC voltmeter reads 9 volts from battery probes, and disconnec
 test('sample gallery creates separate dual-LED project without overwriting existing work',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(13);
+ await expect(page.locator('.example-card')).toHaveCount(14);
  await page.locator('[data-load-example="parallel"]').click();
  await expect(page.locator('input#name')).toHaveValue('双 LED 并联 · 独立限流');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -218,7 +218,7 @@ test('development index includes explicit build-revision provenance metadata',as
 test('RC example charges capacitor with time scrubber and preserved user projects',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(13);
+ await expect(page.locator('.example-card')).toHaveCount(14);
  await page.locator('[data-load-example="rc-charge"]').click();
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
  await expect(page.locator('button[data-action="solver-mode"]')).toContainText('RC 暂态');
@@ -259,7 +259,7 @@ test('RC source-free discharge shows negative capacitor current and editable ini
 test('parallel capacitor example plots selectable numerical traces and preserves project',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(13);
+ await expect(page.locator('.example-card')).toHaveCount(14);
  await page.locator('[data-load-example="rc-parallel"]').click();
  await expect(page.locator('input#name')).toHaveValue('双电容并联 · 300µF 等效');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -416,7 +416,7 @@ test('virtual scope controls do not mutate JSON circuits and the Escape key clos
 test('one-click RC resistor-voltage sample tracks charge and keeps prior project',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(13);
+ await expect(page.locator('.example-card')).toHaveCount(14);
  await page.locator('[data-load-example="rc-resistor-meter"]').click();
  await expect(page.locator('#name')).toHaveValue('RC 充电 · 万用表测量电阻压降');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -467,7 +467,7 @@ test('a severely under-resolved RC window is flagged rather than marked reliable
 test('series current meter is inserted in LED branch with measurable current',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(13);
+ await expect(page.locator('.example-card')).toHaveCount(14);
  await page.locator('[data-load-example="dc-ammeter"]').click();
  await expect(page.locator('button[data-action="solver-mode"]')).toContainText('非线性 DC');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -564,7 +564,7 @@ test('Arduino D13 preview is explicitly unavailable with no Uno on the canvas',a
 test('external D13 example drives a physically wired LED HIGH/LOW without changing saved project',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(13);
+ await expect(page.locator('.example-card')).toHaveCount(14);
  await page.locator('[data-load-example="gpio-d13-led"]').click();
  await expect(page.locator('input#name')).toHaveValue('Arduino D13 · 外接 LED + 330Ω');
  await expect(page.locator('#code')).toBeVisible();
@@ -627,4 +627,73 @@ test('editing Arduino source clears previous external GPIO emissions and saved c
  await page.reload();
  await page.locator('button[data-action="code"]').click();
  await expect(page.locator('#code')).toContainText('Serial.begin(9600)');
+});
+
+test('Arduino serial monitor shows deterministic output and supports text export',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await expect(page.locator('.example-card')).toHaveCount(14);
+ await page.locator('[data-load-example="uno-serial"]').click();
+ await expect(page.locator('#code')).toBeVisible();
+ await expect(page.locator('#code')).toContainText('Serial.begin(9600)');
+ const before=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-preview')).toContainText('串口受限时序预览');
+ await expect(page.locator('#uno-level')).toHaveText('未配置');
+ await expect(page.locator('#uno-serial-monitor')).toContainText('9600 baud');
+ await expect(page.locator('#uno-serial-lines')).toContainText('[0 ms] Serial ready');
+ await expect(page.locator('#uno-serial-lines')).toContainText('[0 ms] tick,42');
+ await page.locator('#uno-time').evaluate((el:HTMLInputElement)=>{
+   el.value='500';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('#uno-serial-lines')).toContainText('[500 ms] tick,42');
+ const [file]=await Promise.all([
+   page.waitForEvent('download'),
+   page.locator('[data-action="uno-serial-export"]').click()
+ ]);
+ expect(file.suggestedFilename()).toBe('circuits-serial-monitor.txt');
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(before);
+ await page.locator('[data-action="uno-preview-stop"]').click();
+ await expect(page.locator('#uno-serial-monitor')).toHaveCount(0);
+});
+test('D13 preview and serial output coexist with preserved saved JSON',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="gpio-d13-led"]').click();
+ const code=await page.locator('#code').inputValue();
+ await page.locator('#code').fill(
+   code.replace('pinMode(13, OUTPUT);','pinMode(13, OUTPUT); Serial.begin(9600); Serial.println("boot");')
+       .replace('digitalWrite(13, HIGH); delay(1000);',
+                'digitalWrite(13, HIGH); Serial.println("HIGH"); delay(1000);')
+ );
+ const before=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-level')).toHaveText('HIGH');
+ await expect(page.locator('#uno-serial-lines')).toContainText('boot');
+ await expect(page.locator('#uno-serial-lines')).toContainText('HIGH');
+ await expect(page.locator('[data-gpio-led-status="l1"]')).toContainText('已点亮');
+ await page.locator('#uno-time').evaluate((el:HTMLInputElement)=>{
+   el.value='1000';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('#uno-level')).toHaveText('LOW');
+ await expect(page.locator('[data-gpio-led-status="l1"]')).toContainText('熄灭');
+ await expect(page.locator('#uno-serial-lines')).toContainText('boot');
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(before);
+});
+test('virtual Serial escapes HTML and never executes unsupported expressions',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await page.locator('[data-load-example="uno-serial"]').click();
+ const safe='void setup(){Serial.begin(9600);}'+
+   'void loop(){Serial.println("<img src=x onerror=alert(1)>");delay(1000);}';
+ await page.locator('#code').fill(safe);
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-serial-lines')).toContainText('<img src=x onerror=alert(1)>');
+ await expect(page.locator('#uno-serial-lines img')).toHaveCount(0);
+ await page.locator('#code').fill(
+   'void setup(){Serial.begin(9600);}void loop(){Serial.println(analogRead(A0));delay(1000);}'
+ );
+ await expect(page.locator('#uno-serial-monitor')).toHaveCount(0);
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-preview')).toContainText('不支持');
 });
