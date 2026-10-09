@@ -6,7 +6,7 @@ import { analyzeRC, type RcAnalysis, type RcSample } from './core/rc-transient.j
 import { analyzeRCNetwork, type RcNetworkAnalysis } from './core/rc-network.js';
 import { assessRcConvergence, type RcConvergenceReport } from './core/rc-accuracy.js';
 import { createScopeCapture, exportScopeCSV, type ScopeCapture } from './core/scope.js';
-import { readRcVoltageProbe } from './core/rc-probes.js';
+import { readRcVoltageProbe, readRcCurrentProbe } from './core/rc-probes.js';
 import { renderScopePanel, updateScopePanel } from './ui/scope-panel.js';
 import { snap, pinWorld, wirePoints, wirePath, nearestSegment, type Point } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
@@ -70,6 +70,28 @@ const pos=(e:Endpoint):[number,number]|null=>{
 function rcMeterReading(id:string){
  return lastScopeCapture?readRcVoltageProbe(project,lastScopeCapture,id,rcTimeIndex):null;
 }
+function rcAmmeterReading(id:string){
+ return lastScopeCapture?readRcCurrentProbe(project,lastScopeCapture,id,rcTimeIndex):null;
+}
+function currentText(reading:{status:string;milliAmps:number|null}|null):string {
+ if(!reading||reading.milliAmps===null)return '----';
+ return reading.status==='overrange'?'OL':reading.milliAmps.toFixed(2);
+}
+function updateRcAmmeterReadouts(){
+ if(!lastScopeCapture)return;
+ for(const part of project.parts.filter(x=>x.kind==='ammeter')){
+   const sample=rcAmmeterReading(part.id);
+   const element=Array.from(app.querySelectorAll<SVGTextElement>('text[data-ammeter-id]'))
+     .find(node=>node.getAttribute('data-ammeter-id')===part.id);
+   if(element)element.textContent=currentText(sample);
+   if(selection===part.id){
+     const inspector=app.querySelector<HTMLElement>('#ammeter-inspector');
+     if(inspector)inspector.textContent=sample?.milliAmps!==null&&sample?
+       'RC 串联电流：'+sample.milliAmps.toFixed(3)+' mA · '+sample.reason:
+       'RC 串联电流：—（'+(sample?.reason??'暂不可用')+'）';
+   }
+ }
+}
 function updateRcMeterReadouts(){
  if(!lastScopeCapture)return;
  for(const part of project.parts.filter(x=>x.kind==='multimeter')){
@@ -92,6 +114,9 @@ function art(c:Part){
  const rcProbe=c.kind==='multimeter'?rcMeterReading(c.id):null;
  const probeText=rcProbe?(rcProbe.status==='measured'&&rcProbe.volts!==null?rcProbe.volts.toFixed(2):'----'):
    (probe?.status==='measured'&&probe.volts!==null?probe.volts.toFixed(2):'----');
+ const ampReading=c.kind==='ammeter'?
+   (simulationMode==='rc'?rcAmmeterReading(c.id):simulationMode==='nonlinear'?lastAnalysis?.ammeters[c.id]:null):null;
+ const ampText=currentText(ampReading??null);
  if(c.kind==='battery')return '<rect x="8" y="10" width="76" height="119" rx="12" fill="#303b43"/><rect x="8" y="10" width="76" height="32" rx="9" fill="#eca738"/><text x="46" y="86" font-size="25" text-anchor="middle" fill="white">9V</text><text x="70" y="42" fill="white">+</text><text x="70" y="108" fill="white">−</text>';
  if(c.kind==='resistor')return '<path d="M0 30H140" stroke="#b7a17d" stroke-width="5"/><rect x="36" y="13" width="68" height="35" rx="16" fill="#d7b68c" stroke="#bc936c"/><path d="M54 13v35m12-35v35m12-35v35" stroke="#9c542e" stroke-width="6"/><text x="70" y="9" font-size="13" text-anchor="middle" fill="#667988">'+(c.value??220)+'Ω</text>';
  if(c.kind==='led')return '<path d="M0 65H110" stroke="#b6c1c7" stroke-width="5"/><path d="M34 64V42a21 21 0 0 1 42 0v22z" fill="#ee525c"/><rect x="32" y="61" width="46" height="12" rx="4" fill="#d73b4a"/><path d="M45 42a11 11 0 0 1 12-12" stroke="#fff8" fill="none" stroke-width="4"/>';
@@ -101,6 +126,11 @@ function art(c:Part){
  if(c.kind==='capacitor')return '<path d="M0 79H30M64 79H95" stroke="#b2bbc1" stroke-width="5"/><rect x="29" y="23" width="37" height="75" rx="12" fill="#278ac1"/><path d="M40 31v56" stroke="#c6ebfd" stroke-width="6"/><text x="47" y="111" fill="#466775" font-size="11" text-anchor="middle">'+(c.value??100)+'µF</text>';
  if(c.kind==='buzzer')return '<path d="M0 90H29M81 90H110" stroke="#bac3ca" stroke-width="5"/><rect x="21" y="20" width="70" height="79" rx="12" fill="#323b46"/><circle cx="55" cy="56" r="31" fill="#151f29" stroke="#68717d" stroke-width="5"/><circle cx="55" cy="56" r="9" fill="#46515f"/>';
  if(c.kind==='multimeter')return '<rect x="8" y="4" width="129" height="152" rx="13" fill="#e1ac34" stroke="#be8427" stroke-width="3"/><rect x="25" y="23" width="95" height="48" rx="5" fill="#a7bfba"/><text data-meter-id="'+c.id+'" x="116" y="57" font-size="22" text-anchor="end" font-family="monospace" fill="#27493e">'+probeText+'</text><circle cx="73" cy="112" r="27" fill="#323940"/><path d="M73 112v-18" stroke="white" stroke-width="4"/>';
+ if(c.kind==='ammeter')return '<rect x="8" y="4" width="129" height="152" rx="13" fill="#437e92" stroke="#295c70" stroke-width="3"/>'+
+   '<rect x="25" y="23" width="95" height="48" rx="5" fill="#bcd8d8"/>'+
+   '<text data-ammeter-id="'+c.id+'" x="115" y="56" font-size="21" text-anchor="end" font-family="monospace" fill="#173c46">'+ampText+'</text>'+
+   '<text x="115" y="86" text-anchor="end" font-size="12" fill="#f3fbfc">mA · SHUNT 0.1Ω</text>'+
+   '<circle cx="73" cy="115" r="27" fill="#203f4d"/><text x="73" y="124" text-anchor="middle" font-size="26" font-weight="bold" fill="#f9f8ec">A</text>';
  if(c.kind==='servo')return '<path d="M0 75H25M0 95H25M0 115H25" stroke="#bda373" stroke-width="4"/><rect x="23" y="37" width="123" height="77" rx="9" fill="#2b74aa"/><circle cx="98" cy="37" r="23" fill="#d7dde1"/><path d="M98 37V5" stroke="#f3f4f4" stroke-width="11"/>';
  if(c.kind==='arduino')return '<rect x="4" y="4" width="196" height="164" rx="12" fill="#2276aa" stroke="#125983" stroke-width="3"/><rect x="25" y="55" width="78" height="45" rx="4" fill="#263e51"/><rect x="4" y="45" width="35" height="34" rx="4" fill="#c1cfd5"/><rect x="40" y="126" width="33" height="39" rx="4" fill="#26313a"/><text x="103" y="38" fill="white" font-size="24" font-weight="bold">UNO</text><text x="90" y="122" fill="#e4f5ff" font-size="14">ARDUINO</text>'+Array.from({length:13},(_,i)=>'<rect x="'+(30+i*13)+'" y="2" width="8" height="9" fill="#243745"/>').join('');
  return '<rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="9" fill="#f6f7f6" stroke="#bdc9cc" stroke-width="3"/><path d="M18 35h404 M18 167h404" stroke="#e06a6a" stroke-width="2"/><path d="M18 48h404 M18 180h404" stroke="#5d9fd4" stroke-width="2"/>'+Array.from({length:22},(_,x)=>Array.from({length:10},(_,y)=>'<circle cx="'+(28+x*18)+'" cy="'+(67+y*9)+'" r="2.8" fill="#89959b"/>').join('')).join('') }
@@ -430,7 +460,7 @@ app.addEventListener('input',e=>{
  if(t.id==='scope-time'&&scopeOpen&&lastScopeCapture){
    rcTimeIndex=Math.max(0,Math.min(100,Math.round(Number(t.value)||0)));
    updateScopePanel(app,lastScopeCapture,scopeCapacitorId,rcTimeIndex);
-   updateRcMeterReadouts();return;
+   updateRcMeterReadouts();updateRcAmmeterReadouts();return;
  }
  if(t.id==='rc-network-time'&&lastNetwork?.ok){
    rcTimeIndex=Math.max(0,Math.min(100,Math.round(Number(t.value)||0)));
@@ -446,7 +476,7 @@ app.addEventListener('input',e=>{
    write('rc-network-time-value',sample.timeSeconds.toFixed(3));
    write('rc-network-voltage',item.voltageVolts.toFixed(2)+' V');
    write('rc-network-current',current);
-   updateRcMeterReadouts();
+   updateRcMeterReadouts();updateRcAmmeterReadouts();
    if(selection&&sample.capacitors[selection]){
      const selected=sample.capacitors[selection];
      write('rc-network-inspector','多电容当前采样：'+selected.voltageVolts.toFixed(3)+' V · '+
@@ -464,7 +494,7 @@ app.addEventListener('input',e=>{
    show('rc-time-value',sample.timeSeconds.toFixed(3));
    show('rc-voltage-value',sample.voltageVolts.toFixed(2)+' V');
    show('rc-current-value',sample.currentMilliAmps.toFixed(3)+' mA');
-   updateRcMeterReadouts();
+   updateRcMeterReadouts();updateRcAmmeterReadouts();
    return;
  }
  if(t.id==='search'){search=t.value;render();app.querySelector<HTMLInputElement>('#search')?.focus()}if(t.id==='code'){project.code=t.value;save()}});
