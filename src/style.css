@@ -90,3 +90,11 @@
 .gpio-external-status .gpio-d13-warning{color:#a34c25;font-weight:600}
 .gpio-reading{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #e3eded;font-size:12px}
 .gpio-reading strong{color:#235f6d;font-size:12px;font-variant-numeric:tabular-nums}
+
+/* Static virtual serial monitor: bounded, escaped text never becomes executable markup. */
+.uno-serial-monitor{margin-top:5px;display:flex;flex-direction:column;gap:8px;padding:10px;background:#f8fbfd;border:1px solid #d2e3e9;border-radius:8px;min-width:0}
+.uno-serial-header{display:flex;align-items:center;gap:7px;justify-content:space-between;flex-wrap:wrap}
+.uno-serial-header strong{color:#225766;font-size:12px}
+.uno-serial-header button{background:#edf7fa;border:1px solid #accdd7;border-radius:5px;font-size:11px;padding:5px 8px;cursor:pointer}
+#uno-serial-lines{padding:11px;margin:0;border-radius:6px;background:#182b35;color:#b9f4d4;font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;min-height:56px;max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+#uno-serial-status{font-size:11px;color:#637b86}

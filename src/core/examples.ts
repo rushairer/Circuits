@@ -7,6 +7,7 @@ export const exampleCatalog=[
  {id:'series',title:'双 LED 串联',description:'同一个限流电阻串联两只 LED，比较各自压降'},
  {id:'voltmeter',title:'9V 万用表测量',description:'将理想直流电压表的正负表笔接到电池两端'},
  {id:'gpio-d13-led',title:'Arduino D13 外接 LED 闪烁',description:'Uno D13 → 330Ω 限流电阻 → LED → GND；打开代码预览控制外接 LED'},
+ {id:'uno-serial',title:'Arduino 虚拟串口日志',description:'静态预览 Serial.begin / print / println 的输出，按时间光标查看消息'},
  {id:'dc-ammeter',title:'LED 串联电流表',description:'把 0.1Ω 虚拟电流表串入 LED 电路，读取正向电流'},
  {id:'rc-charge',title:'RC 电容充电',description:'9V 电池 + 1kΩ 电阻 + 100µF 电容，时间常数 0.1 秒'},
  {id:'rc-discharge',title:'RC 电容放电',description:'已充至 9V 的 100µF 电容经 1kΩ 电阻自然放电'},
@@ -23,6 +24,13 @@ const lead=(id:string,from:string,fromPin:string,to:string,toPin:string,color='#
 });
 export function createExample(id:string):Project|null {
  if(!exampleCatalog.some(e=>e.id===id))return null;
+ if(id==='uno-serial'){
+   const p=blankProject();p.name='Arduino Uno · 虚拟串口监视器';
+   p.parts=[{id:'a1',kind:'arduino',x:300,y:220,rotation:0}];
+   p.code='void setup() {\n  Serial.begin(9600);\n  Serial.println("Serial ready");\n}\n'+
+     'void loop() {\n  Serial.print("tick,");\n  Serial.println(42);\n  delay(500);\n}';
+   return p;
+ }
  if(id==='gpio-d13-led'){
    const p=blankProject();
    p.name='Arduino D13 · 外接 LED + 330Ω';
