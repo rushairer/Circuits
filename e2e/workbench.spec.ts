@@ -511,3 +511,52 @@ test('switch contact resistance is editable and opening it interrupts RC path',a
  await page.locator('[data-action="toggle-switch"]').click();
  await expect(page.locator('.rc-panel')).toContainText('τ 0.1000 s');
 });
+
+test('Arduino Blink preview drives only the Uno built-in D13 indicator with time scrubbing',async({page})=>{
+ await page.goto('/');
+ const previous=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ await page.locator('button[data-action="code"]').click();
+ await expect(page.locator('h2')).toContainText('Arduino 代码');
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-preview')).toContainText('循环周期 2000ms');
+ await expect(page.locator('#uno-level')).toHaveText('HIGH');
+ await expect(page.locator('.item[data-part="a1"] [data-uno-d13-led]')).toHaveAttribute('fill','#ffca36');
+ await page.locator('#uno-time').evaluate((el:HTMLInputElement)=>{
+   el.value='1000';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('#uno-level')).toHaveText('LOW');
+ await expect(page.locator('#uno-preview-time')).toHaveText('1000 ms');
+ await expect(page.locator('.item[data-part="a1"] [data-uno-d13-led]')).toHaveAttribute('fill','#667f8b');
+ await page.locator('#uno-time').evaluate((el:HTMLInputElement)=>{
+   el.value='2000';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('#uno-level')).toHaveText('HIGH');
+ await expect(page.locator('#uno-cycle')).toHaveText('2');
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(previous);
+ await page.locator('[data-action="uno-preview-stop"]').click();
+ await expect(page.locator('#uno-preview')).toHaveCount(0);
+ await expect(page.locator('.item[data-part="a1"] [data-uno-d13-led]')).toHaveAttribute('fill','#667f8b');
+});
+test('unsupported sketch rejects unsafe instructions and editing invalidates old GPIO preview',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="code"]').click();
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-level')).toHaveText('HIGH');
+ await page.locator('#code').fill('void setup(){pinMode(13,OUTPUT);}void loop(){Serial.begin(9600);delay(1000);}');
+ await expect(page.locator('#uno-preview')).toHaveCount(0);
+ await expect(page.locator('.item[data-part="a1"] [data-uno-d13-led]')).toHaveAttribute('fill','#667f8b');
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-preview')).toContainText('不支持');
+ await expect(page.locator('#uno-time')).toHaveCount(0);
+ await page.reload();
+ await page.locator('button[data-action="code"]').click();
+ await expect(page.locator('#code')).toContainText('Serial.begin(9600)');
+});
+test('Arduino D13 preview is explicitly unavailable with no Uno on the canvas',async({page})=>{
+ await page.goto('/');
+ await page.locator('[data-action="new"]').click();
+ await page.locator('button[data-action="code"]').click();
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-preview')).toContainText('仅支持一块 Arduino Uno');
+ await expect(page.locator('#uno-level')).toHaveCount(0);
+});

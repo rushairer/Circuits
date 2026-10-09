@@ -5,7 +5,7 @@
 - `src/core/netlist.ts`: disjoint-set connectivity from explicit wires and internally connected breadboard rows/rails, including rail splits.
 - `src/core/dc.ts`: experimental modified nodal analysis for one ideal DC battery and one approximated LED with resistive networks (parallel resistors allowed). The diode is a fixed 2 V drop, **not** SPICE.
 - `src/core/simulator.ts`: compatibility entrypoint for the browser.
-- The 13 original illustrated parts include a toggleable switch; the remaining advanced parts are display/connection only. Wire inspector edits color without changing electrical connectivity. Arduino visuals and code text editor do not execute firmware. No generalized sensor, transient, MCU or instrument simulation.
+- The 13 original illustrated parts include a toggleable switch; the remaining advanced parts are display/connection only. Wire inspector edits color without changing electrical connectivity. Arduino firmware is not compiled/executed; only a statically interpreted, bounded built-in D13 Blink preview is supported. No generalized sensor, transient, MCU or instrument simulation.
 - `validProject` rejects invalid IDs, pins, malformed wires and unbounded numeric data.
 - UI and SVG coordinates are not part of electrical connectivity; moving a part does not break attached wires.
 
@@ -39,3 +39,5 @@ See `docs/ROADMAP.md` for functionality not yet implemented.
 
 - `src/core/resistive-branches.ts` is the canonical DC/RC passive-edge list. Resistors, the fixed 0.1Ω ammeter shunt and finite closed-switch contact resistance share this stamping path; an ideal closed 0Ω switch is merged by `buildNetlist`, and an open switch is absent. RC probe KCL uses these same passive edges.
 - Signed ammeter currents use shunt-node potentials; both terminals must be wired. DC reports overrange above 200mA, while the RC viewport reports time-indexed shunt current. Neither overrange nor static switch toggling models a real meter fuse or live mid-trace switch event. Analytic RC and two-capacitor numerical fixtures are reference tests, not external SPICE validation.
+
+- `src/core/uno-preview.ts` contains a pure, statically bounded D13-only teaching sketch interpreter. It accepts only simple `void setup` / `void loop`, D13 `pinMode`, `digitalWrite`, `delay`, plus simple numeric aliases. It never executes user-supplied JavaScript or C++, compiles no AVR binary and does no external I/O. The generated finite loop events are sampled by timestamp without timers; the view renders a separate GPIO13 on-board LED indicator. Project code edits and workspace changes invalidate UI-only preview state. This preview is intentionally separate from the DC/RC electrical solvers and does not drive external wires.

@@ -4,13 +4,13 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.3.0-alpha.7 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.4.0-alpha.1 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
 - SVG editor with a 13-kind component palette: battery, resistor, LED, breadboard, Arduino Uno, switch, pushbutton, potentiometer, capacitor, buzzer, multimeter, series ammeter, servo
 - Add, drag, rotate, select, Shift-select, marquee-select, group-move, batch-rotate/delete and wire components by pin; wire selection, color editing and deletion
-- Undo/redo, multi-project browser library, duplicate/open/delete projects, versioned JSON import/export, zoom, grid snapping, editable wire bends, drag-to-reconnect wire endpoints, resistor/LED breadboard lead insertion with auto-snap, and text-only Arduino sketch editor
+- Undo/redo, multi-project browser library, duplicate/open/delete projects, versioned JSON import/export, zoom, grid snapping, editable wire bends, drag-to-reconnect wire endpoints, resistor/LED breadboard lead insertion with auto-snap, and Arduino text editor with a strictly limited deterministic D13 Blink preview
 - Breadboard connectivity: five-hole strips, separated sides, independent power rails split into two segments
 - Experimental DC modified nodal analysis for **one battery + one LED** with resistor networks (including parallel paths), plus a toggleable ideal two-terminal switch
 - Import schema validation and Node unit tests
@@ -93,3 +93,7 @@ There are now **12 starter examples**, including **RC 电阻压降测量**: a 9V
 Use the new **串联电流表** to place a fixed 0.1-ohm shunt *in series*, connecting both terminals. Experimental nonlinear DC and linear RC modes report signed milliampere values; an unconnected lead is not a valid 0mA reading. Beyond +/-200mA the display reports OL (educational overrange, without physical fuse simulation). The classic fixed-2V mode does not calculate this instrument.
 
 The toggle switch has optional closed-contact resistance: 0 ohms (original ideal default) or 0.1-1,000,000 ohms. Open means nonconductive. Toggling re-solves from the specified RC initial state at t=0: no mid-trace switching is simulated. New independent projects include **LED 串联电流表**, **RC 串联电流测量**, and **RC 有损接触开关**. Reference fixtures compare first-order RC time constants and multi-capacitor numerical results with the ammeter's real shunt burden and contact resistance included.
+
+### Arduino Uno D13 restricted Blink preview (v0.4.0-alpha.1)
+
+Open **〈/〉 代码**, keep exactly one Arduino Uno on the canvas, and click **▶ 解析并预览 D13**. The original default Blink sketch now generates a **deterministic 2000ms D13 HIGH/LOW timeline**; scrub 0–5000ms to update the Uno's built-in LED indicator. This is purely a statically interpreted subset: `void setup()`, `void loop()`, `pinMode(13, OUTPUT)`, `digitalWrite(13, HIGH/LOW)` and bounded integer `delay(ms)`, including `LED_BUILTIN` or a simple integer pin alias. Unsafe/unsupported C++ is explicitly rejected; no `eval`, arbitrary code execution, AVR compilation, clock scheduling or external LED/connection propagation takes place. Code editing and project/workspace changes invalidate stale previews. All `.ino` export and existing circuit solvers remain separate.

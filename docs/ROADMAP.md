@@ -41,7 +41,8 @@
 - [ ] Real physical current-probe effects/fuses, timed switching events and wider external numerical benchmarks
 
 ## v0.4 — Arduino-compatible runtime
-- [ ] Safe/deterministic AVR-compatible execution, sketch compilation, GPIO/PWM/ADC
+- [x] Limited, safe, deterministic source interpreter for single Uno built-in D13 Blink (pinMode/digitalWrite/delay) with visual timeline and explicit unsupported-syntax diagnostics
+- [ ] Full AVR-compatible compilation and execution, external GPIO-connected circuit propagation, PWM/ADC and peripheral accuracy
 - [ ] Serial monitor and curated peripherals/libraries
 
 ## v0.5 — workflow parity

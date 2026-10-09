@@ -100,3 +100,9 @@
 - Centralize resistor, ammeter and non-ideal closed-switch stamping in `src/core/resistive-branches.ts`. Only closed switches with 0Ω contact are unioned as conductors. An open switch never participates in conductance stamping.
 - contactOhms is optional, switch-only, validated as 0Ω or 0.1–1,000,000Ω. Preserve old schema-v2 projects with missing contactOhms. Switch toggling re-solves RC from t=0; no mid-waveform switch-time simulation.
 - RC/LED reference tests must verify shunt burden, switch resistance, polarity, open terminals, overrange and capacitor series/parallel analytical comparisons. Keep historical modes independent.
+
+## v0.4.0-alpha.1 deterministic D13 preview contract
+- `src/core/uno-preview.ts` is a strict **whitelist parser**, not a C++ interpreter or AVR virtual machine. Never use `eval`, `Function`, dynamic imports, browser script injection or execution of arbitrary project code. Cap input size, statement count and delay/cycle duration; reject unsupported loops/conditionals/peripherals and unknown pins.
+- Only one Arduino Uno on the active project may enable the D13-only built-in LED preview. Preserve exported `.ino` as user-authored source; preview data (compiled events, time, GPIO state) must remain ephemeral and must NOT be stored in schema-v2 project JSON.
+- Time cursor is deterministic, not real-time scheduling, and must not flip external LED visuals or influence DC/RC solver results. Code edits, undo, import and workspace changes invalidate old preview state. Keep explicit unsupported diagnostics in the editor.
+- Passing parser tests plus Chromium/Firefox/WebKit browser interactions is necessary before Pages publishing. This is a milestone toward, but not completion of, real Arduino-compatible runtime.
