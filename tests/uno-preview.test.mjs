@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { demo } from '../.test-dist/model.js';
-import { compileUnoPreview, sampleUnoPreview } from '../.test-dist/core/uno-preview.js';
+import { compileUnoPreview, sampleUnoPreview, sampleUnoSerial } from '../.test-dist/core/uno-preview.js';
 
 test('default demo Blink compiles into deterministic 2000ms D13 waveform',()=>{
   const p=demo(),r=compileUnoPreview(p.code);
@@ -99,4 +99,74 @@ test('duplicate aliases, invalid type and unsupported preprocessors fail closed'
     'int x = 13; int x = 13;'+base
   ])assert.equal(compileUnoPreview(code).ok,false);
   assert.equal(compileUnoPreview(null).ok,false);
+});
+
+test('serial: standalone Arduino sketch displays bounded deterministic log by time',()=>{
+ const code='void setup(){Serial.begin(9600);Serial.println("boot");}'+
+   'void loop(){Serial.print("tick,");Serial.println(42);delay(500);}';
+ const r=compileUnoPreview(code);
+ assert.equal(r.ok,true,r.reason);
+ assert.equal(r.d13Configured,false);
+ assert.equal(r.serialBaud,9600);
+ assert.equal(sampleUnoSerial(r,0).lines.length,2);
+ assert.deepEqual(sampleUnoSerial(r,0).lines.map(x=>x.text),['boot','tick,42']);
+ assert.deepEqual(sampleUnoSerial(r,499).lines.map(x=>x.text),['boot','tick,42']);
+ assert.deepEqual(sampleUnoSerial(r,500).lines.map(x=>x.text),['boot','tick,42','tick,42']);
+ assert.equal(sampleUnoSerial(r,1000).lines.at(-1).timeMs,1000);
+ assert.equal(sampleUnoPreview(r,500).high,false);
+});
+test('serial: string literals preserve //, ;, comma and escaped quotation marks',()=>{
+ const code=String.raw`void setup(){Serial.begin(115200);Serial.println("http://example.com/a;b,c");}void loop(){Serial.println("say \\"hello\\"");delay(100);}`;
+ const result=compileUnoPreview(code);
+ assert.equal(result.ok,true,result.reason);
+ assert.deepEqual(sampleUnoSerial(result,0).lines.map(x=>x.text),
+  ['http://example.com/a;b,c','say "hello"']);
+});
+test('serial: GPIO D13 and Serial can coexist without changing D13 events',()=>{
+ const original=compileUnoPreview(demo().code);
+ const sample=demo().code.replace('pinMode(13, OUTPUT);',
+  'pinMode(13, OUTPUT); Serial.begin(9600); Serial.println("start");')
+  .replace('digitalWrite(13, HIGH); delay(1000);',
+    'digitalWrite(13, HIGH); Serial.println("HIGH"); delay(1000);');
+ const next=compileUnoPreview(sample);
+ assert.equal(next.ok,true,next.reason);
+ assert.equal(next.periodMs,original.periodMs);
+ assert.deepEqual(next.events,original.events);
+ assert.equal(sampleUnoSerial(next,0).lines.at(-1).text,'HIGH');
+ assert.equal(sampleUnoSerial(next,1000).lines.at(-1).text,'HIGH');
+ assert.equal(sampleUnoPreview(next,1000).high,false);
+});
+test('serial: invalid baud, uninitialized serial, unsupported C++, and unsafe expressions reject',()=>{
+ const bad=[
+  'void setup(){Serial.println("no begin");}void loop(){delay(100);}',
+  'void setup(){Serial.begin(0);}void loop(){Serial.println("bad");delay(100);}',
+  'void setup(){Serial.begin(9600);}void loop(){Serial.println(analogRead(A0));delay(100);}',
+  'void setup(){Serial.begin(9600);}void loop(){Serial.println(document.cookie);delay(100);}',
+  'void setup(){Serial.begin(9600);}void loop(){if(true){Serial.println("unsafe");}delay(100);}',
+  'void setup(){Serial.begin(9600);}void loop(){Serial.println("x");}',
+  'void setup(){Serial.begin(9600);}void loop(){while(1){};}'
+ ];
+ for(const source of bad){
+  const result=compileUnoPreview(source);
+  assert.equal(result.ok,false,source);
+  assert.equal(sampleUnoSerial(result,0),null);
+ }
+});
+test('serial: huge repeat count computes bounded tail, not millions of iterations',()=>{
+ const r=compileUnoPreview(
+ 'void setup(){Serial.begin(9600);}void loop(){Serial.println("line");delay(1);}'
+ );
+ assert.equal(r.ok,true,r.reason);
+ const snapshot=sampleUnoSerial(r,3600000);
+ assert.equal(snapshot.truncated,true);
+ assert.ok(snapshot.lines.length<=40);
+ assert.equal(snapshot.lines.at(-1).timeMs,3600000);
+ assert.ok(snapshot.emittedEvents>100000);
+ assert.equal(sampleUnoSerial(r,Infinity),null);
+});
+test('serial: lines escaping is a UI concern; parser never executes markup',()=>{
+ const p='void setup(){Serial.begin(9600);}void loop(){Serial.println("<img src=x onerror=alert(1)>");delay(1000);}';
+ const r=compileUnoPreview(p);
+ assert.equal(r.ok,true,r.reason);
+ assert.equal(sampleUnoSerial(r,0).lines[0].text,'<img src=x onerror=alert(1)>');
 });
