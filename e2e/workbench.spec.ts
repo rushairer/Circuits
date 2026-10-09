@@ -196,7 +196,7 @@ test('experimental DC voltmeter reads 9 volts from battery probes, and disconnec
 test('sample gallery creates separate dual-LED project without overwriting existing work',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(14);
+ await expect(page.locator('.example-card')).toHaveCount(15);
  await page.locator('[data-load-example="parallel"]').click();
  await expect(page.locator('input#name')).toHaveValue('双 LED 并联 · 独立限流');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -218,7 +218,7 @@ test('development index includes explicit build-revision provenance metadata',as
 test('RC example charges capacitor with time scrubber and preserved user projects',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(14);
+ await expect(page.locator('.example-card')).toHaveCount(15);
  await page.locator('[data-load-example="rc-charge"]').click();
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
  await expect(page.locator('button[data-action="solver-mode"]')).toContainText('RC 暂态');
@@ -259,7 +259,7 @@ test('RC source-free discharge shows negative capacitor current and editable ini
 test('parallel capacitor example plots selectable numerical traces and preserves project',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(14);
+ await expect(page.locator('.example-card')).toHaveCount(15);
  await page.locator('[data-load-example="rc-parallel"]').click();
  await expect(page.locator('input#name')).toHaveValue('双电容并联 · 300µF 等效');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -416,7 +416,7 @@ test('virtual scope controls do not mutate JSON circuits and the Escape key clos
 test('one-click RC resistor-voltage sample tracks charge and keeps prior project',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(14);
+ await expect(page.locator('.example-card')).toHaveCount(15);
  await page.locator('[data-load-example="rc-resistor-meter"]').click();
  await expect(page.locator('#name')).toHaveValue('RC 充电 · 万用表测量电阻压降');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -467,7 +467,7 @@ test('a severely under-resolved RC window is flagged rather than marked reliable
 test('series current meter is inserted in LED branch with measurable current',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(14);
+ await expect(page.locator('.example-card')).toHaveCount(15);
  await page.locator('[data-load-example="dc-ammeter"]').click();
  await expect(page.locator('button[data-action="solver-mode"]')).toContainText('非线性 DC');
  await expect(page.locator('button.project-switcher')).toContainText('(2)');
@@ -564,7 +564,7 @@ test('Arduino D13 preview is explicitly unavailable with no Uno on the canvas',a
 test('external D13 example drives a physically wired LED HIGH/LOW without changing saved project',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(14);
+ await expect(page.locator('.example-card')).toHaveCount(15);
  await page.locator('[data-load-example="gpio-d13-led"]').click();
  await expect(page.locator('input#name')).toHaveValue('Arduino D13 · 外接 LED + 330Ω');
  await expect(page.locator('#code')).toBeVisible();
@@ -632,7 +632,7 @@ test('editing Arduino source clears previous external GPIO emissions and saved c
 test('Arduino serial monitor shows deterministic output and supports text export',async({page})=>{
  await page.goto('/');
  await page.locator('button[data-action="sample"]').click();
- await expect(page.locator('.example-card')).toHaveCount(14);
+ await expect(page.locator('.example-card')).toHaveCount(15);
  await page.locator('[data-load-example="uno-serial"]').click();
  await expect(page.locator('#code')).toBeVisible();
  await expect(page.locator('#code')).toContainText('Serial.begin(9600)');
@@ -694,6 +694,31 @@ test('virtual Serial escapes HTML and never executes unsupported expressions',as
    'void setup(){Serial.begin(9600);}void loop(){Serial.println(analogRead(A0));delay(1000);}'
  );
  await expect(page.locator('#uno-serial-monitor')).toHaveCount(0);
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-preview')).toContainText('不支持');
+});
+
+test('static Arduino for loop previews D13 and serial while retaining project JSON',async({page})=>{
+ await page.goto('/');
+ await page.locator('button[data-action="sample"]').click();
+ await expect(page.locator('.example-card')).toHaveCount(15);
+ await page.locator('[data-load-example="uno-for-pulse"]').click();
+ await expect(page.locator('#code')).toContainText('for (int i = 0; i < 3; i++)');
+ const saved=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ await page.locator('[data-action="uno-preview-run"]').click();
+ await expect(page.locator('#uno-preview')).toContainText('循环周期 1000ms');
+ await expect(page.locator('#uno-level')).toHaveText('HIGH');
+ await page.locator('#uno-time').evaluate((el:HTMLInputElement)=>{
+   el.value='100';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('#uno-level')).toHaveText('LOW');
+ await page.locator('#uno-time').evaluate((el:HTMLInputElement)=>{
+   el.value='400';el.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ await expect(page.locator('#uno-level')).toHaveText('HIGH');
+ await expect(page.locator('#uno-serial-lines')).toContainText('[400 ms] pulse');
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(saved);
+ await page.locator('#code').fill('void setup(){pinMode(13,OUTPUT);}void loop(){for(;;){delay(1);}}');
  await page.locator('[data-action="uno-preview-run"]').click();
  await expect(page.locator('#uno-preview')).toContainText('不支持');
 });

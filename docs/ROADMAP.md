@@ -45,6 +45,7 @@
 - [x] D13 HIGH/LOW wired external LED + resistor educational model via netlist, 5V/25Ω output source, polarity/overcurrent and unsupported-topology diagnostics
 - [ ] Full AVR-compatible compilation and execution, general GPIO output/input pin propagation, PWM/ADC and peripheral accuracy
 - [x] Bounded virtual Serial.begin/print/println monitor for literal output, time cursor and TXT export (not physical UART)
+- [x] Bounded compile-time static for-loop unrolling (0–16 repeats), original D13/Serial whitelist and 128 expanded operation cap
 - [ ] General serial expressions, Serial.available/read, interrupts and curated peripheral libraries
 
 ## v0.5 — workflow parity

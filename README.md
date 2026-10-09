@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.4.0-alpha.2 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.4.0-alpha.4 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -108,3 +108,7 @@ This is still **not** AVR/Arduino C++ execution, verified MCU output impedance, 
 ### Arduino virtual Serial monitor (v0.4.0-alpha.3)
 
 Use the new **Arduino 虚拟串口日志** example and select **解析并预览 Arduino**. The static parser supports `Serial.begin(9600)`, literal-only `Serial.print("text")`, `Serial.println("text")` and bounded integer constants. Drag the 0–5000ms preview cursor to see simulated setup/loop output, which has a bounded retained history and can be exported as TXT. Serial-only sketches show D13 as unconfigured; mixed D13/Serial examples still drive the wired LED through the explicit circuit model. No real serial connection, C++ execution, interrupts, variable expressions, Serial.read, timing hardware or arbitrary GPIO is implemented. There are 14 independent example projects.
+
+### Static bounded Arduino for loops (v0.4.0-alpha.4)
+
+Open **Arduino D13 有界循环脉冲** to sample a repeated three-pulse D13 and virtual Serial timeline. The whitelist parser accepts only literal-bound `for(int i=0; i<N; i++) { ... }` loops (N from 0 to 16), with pre-existing supported statements in the body. It expands at most 128 total operations. Nested or dynamic loops, conditionals, variable expressions and actual AVR/C++ execution remain unsupported. Preview history is not persisted in JSON. **15 examples** are available.

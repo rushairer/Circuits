@@ -46,3 +46,5 @@ See `docs/ROADMAP.md` for functionality not yet implemented.
 
 
 - `src/core/uno-preview.ts` statically interprets bounded literal Serial.begin/print/println alongside D13 operations. The pure `sampleUnoSerial` returns a recent deterministic output tail for a requested cursor position. The code inspector escapes monitor text, bounds visible history, and exports only the visible TXT snapshot. Serial-only sketches omit the D13 GPIO electrical source. Nothing executes as C++ or AVR.
+
+- The Arduino parser statically expands literal-bound `for(int i=0; i<N; i++)` loops (N <= 16) while rejecting nested blocks, dynamic counter expressions and unsupported calls. This is not execution of C++ control flow. Expanded events remain UI-only and are never saved as project state.

@@ -11,15 +11,15 @@ import { createScopeCapture } from '../.test-dist/core/scope.js';
 import { readRcVoltageProbe, readRcCurrentProbe } from '../.test-dist/core/rc-probes.js';
 
 test('all documented example circuits are valid versioned JSON projects',()=>{
- assert.equal(exampleCatalog.length,14);
+ assert.equal(exampleCatalog.length,15);
  const ids=new Set(exampleCatalog.map(e=>e.id));
- assert.equal(ids.size,14);
+ assert.equal(ids.size,15);
  for(const e of exampleCatalog){
   const p=createExample(e.id);
   assert.ok(p,e.id);
   assert.ok(validProject(p),e.id);
   assert.equal(p.schemaVersion,2);
-  const result=e.id==='uno-serial'?compileUnoPreview(p.code):e.id==='gpio-d13-led'?analyzeGpioD13(p,true):
+  const result=(e.id==='uno-serial'||e.id==='uno-for-pulse')?compileUnoPreview(p.code):e.id==='gpio-d13-led'?analyzeGpioD13(p,true):
     e.id==='rc-parallel'||e.id==='rc-series'?analyzeRCNetwork(p):
     e.id.startsWith('rc-')?analyzeRC(p):analyzeDC(p);
   assert.equal(result.ok,true,e.id+': '+result.reason);
@@ -120,4 +120,14 @@ test('serial-only teaching sample uses deterministic logs with no GPIO D13 requi
  assert.equal(parsed.serialBaud,9600);
  assert.deepEqual(sampleUnoSerial(parsed,0).lines.map(x=>x.text),['Serial ready','tick,42']);
  assert.deepEqual(sampleUnoSerial(parsed,500).lines.map(x=>x.text),['Serial ready','tick,42','tick,42']);
+});
+
+test('bounded for sample previews three D13 pulses with a valid stored project',()=>{
+ const p=createExample('uno-for-pulse'),r=compileUnoPreview(p.code);
+ assert.equal(validProject(p),true);
+ assert.equal(p.parts.length,1);
+ assert.equal(r.ok,true,r.reason);
+ assert.equal(r.periodMs,1000);
+ assert.equal(r.events.length,6);
+ assert.deepEqual(sampleUnoSerial(r,400).lines.map(x=>x.text),['pulse','pulse','pulse']);
 });
