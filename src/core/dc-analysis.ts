@@ -220,6 +220,13 @@ export function analyzeDC(project:Project):DcAnalysis {
     }
   }
   for(const m of project.parts.filter(p=>p.kind==='ammeter')){
+    // The finite shunt may itself connect an otherwise dangling terminal to
+    // the powered island. That does NOT mean the user wired both leads.
+    const wired=(pinId:string)=>project.wires.some(w=>
+      (w.from.componentId===m.id&&w.from.pinId===pinId)||
+      (w.to.componentId===m.id&&w.to.pinId===pinId)
+    );
+    if(!wired('positive')||!wired('negative'))continue;
     const a=pin(m,'positive'),b=pin(m,'negative');
     if(a&&b&&netVoltages.has(a)&&netVoltages.has(b)){
       const milliamps=round((netVoltages.get(a)!-netVoltages.get(b)!)/AMMETER_SHUNT_OHMS*1000,4);
