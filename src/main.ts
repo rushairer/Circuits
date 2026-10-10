@@ -1,6 +1,7 @@
 import './style.css';
 import { DEFAULT_WIRE_COLOR, WIRE_COLOR_PRESETS, wireColorForDigit, wireColorOptions } from './core/wire-colors.js';
 import { insertWireWaypoint, moveWireWaypoint, removeWireWaypoint } from './core/wire-edit.js';
+import { nearestOrthogonalSegment, slideOrthogonalSegment } from './core/wire-segments.js';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
 import { compileUnoPreview, sampleUnoPreview, sampleUnoSerial, type UnoPreviewResult, type UnoSerialSnapshot } from './core/uno-preview.js';
@@ -59,7 +60,7 @@ let panDrag:{x:number;y:number;panX:number;panY:number}|null=null;
 let bendDrag:{id:string;index:number;before:Project}|null=null;
 let selectedBend:{id:string;index:number}|null=null;
 let segmentDrag:{id:string;start:Point;screenX:number;screenY:number;pointerId:number;
- before:Project;active:boolean;index:number}|null=null;
+ before:Project;active:boolean;index:number;routeIndex:number|null;changed:boolean}|null=null;
 let endpointDrag:{id:string;side:'from'|'to';preview:Point}|null=null;
 let ignoredClick:{x:number;y:number;until:number}|null=null;
 let connectionNotice='';
@@ -479,7 +480,7 @@ function side(){
  }
  if(selectedIds.size>1&&!showCode)return '<h2>已选中 '+selectedIds.size+' 个元件</h2><div class="field"><p>拖动任意已选中元件可整体移动，所有引脚接线会自动跟随。</p><p>按住 Shift 单击添加或移除选中；在空白画布拖动可框选。</p><button data-action="rotate">分别旋转 90°</button><button data-action="delete">删除所选元件</button><button data-action="parts">取消选择</button></div>';
  const chosenWire=project.wires.find(w=>w.id===selection);
- if(chosenWire&&!showCode)return '<h2>导线属性</h2><div class="field"><p>起点：'+escape(chosenWire.from.componentId)+' / '+escape(chosenWire.from.pinId)+'</p><p>终点：'+escape(chosenWire.to.componentId)+' / '+escape(chosenWire.to.pinId)+'</p><label for="wire-color">导线颜色</label><input id="wire-color" type="color" value="'+chosenWire.color+'"/><p>折点 '+(chosenWire.bends?.length??0)+' 个。拖动空心端点到其他元件或面包板插孔即可重新接线；折点圆形手柄可拖动，双击导线添加折点。</p><button data-action="wire-flip-direction" aria-label="切换已选导线的正交走线方向">↳ '+(chosenWire.routing?('走线：'+(chosenWire.routing==='horizontal'?'横向优先':'纵向优先')+' · 点击切换'):'改为直角走线 · 横向优先')+'</button><button data-action="wire-add-bend">＋ 添加折点</button><button data-action="wire-reset-bends">清除手动折点</button><p>编辑颜色和折点均不改变电气连接。</p><button data-action="delete">删除导线</button><button data-action="parts">返回元件库</button></div>';
+ if(chosenWire&&!showCode)return '<h2>导线属性</h2><div class="field"><p>起点：'+escape(chosenWire.from.componentId)+' / '+escape(chosenWire.from.pinId)+'</p><p>终点：'+escape(chosenWire.to.componentId)+' / '+escape(chosenWire.to.pinId)+'</p><label for="wire-color">导线颜色</label><input id="wire-color" type="color" value="'+chosenWire.color+'"/><p>折点 '+(chosenWire.bends?.length??0)+' 个。拖横线可上下平移，拖竖线可左右平移，线段两端仍接在真实引脚上；双击导线添加折点，圆形折点手柄可拖动。</p><button data-action="wire-flip-direction" aria-label="切换已选导线的正交走线方向">↳ '+(chosenWire.routing?('走线：'+(chosenWire.routing==='horizontal'?'横向优先':'纵向优先')+' · 点击切换'):'改为直角走线 · 横向优先')+'</button><button data-action="wire-add-bend">＋ 添加折点</button><button data-action="wire-reset-bends">清除手动折点</button><p>编辑颜色和折点均不改变电气连接。</p><button data-action="delete">删除导线</button><button data-action="parts">返回元件库</button></div>';
  if(showCode)return '<h2>Arduino 代码 · 实验预览</h2><div class="field"><p>代码可继续编辑和导出。受限 D13 Blink 可按接线驱动外部 LED，串口白名单支持字面量输出及最多 16 次的静态 for 循环；不编译通用 C++ 或模拟完整 AVR。</p><textarea id="code" maxlength="300000">'+escape(project.code)+'</textarea><button data-action="uno-preview-run">▶ 解析并预览 Arduino</button><button data-action="uno-preview-stop" '+(!unoPreview?'disabled':'')+'>关闭预览</button><button data-action="download-code">下载 .ino</button>'+unoPreviewMarkup()+'<button data-action="code">返回元件库</button></div>';
  const c=project.parts.find(p=>p.id===selection);
  const ledReading=c?.kind==='led'?lastAnalysis?.leds[c.id]:null;
@@ -502,7 +503,7 @@ function side(){
        '尚未获得有效电流读数'):
        '请切换到非线性 DC 或 RC 暂态模式')+
      '</p><p>本电流表通过 0.1Ω 分流电阻串入回路，正端流向负端为正电流；超过 ±200mA 会提示超量程，不模拟保险丝损坏。不可并接替代电压表。</p>':'') +(c.kind==='capacitor'?'<p>RC 暂态支持单电容解析及 2–6 只电容线性数值积分；非线性/电感未模拟。</p>':'')+(!['battery','resistor','led','breadboard','switch','capacitor','multimeter','ammeter'].includes(c.kind)?'<p>该元件仅支持可视化与接线，暂未接入电气仿真。</p>':'')+'<button data-action="rotate">旋转 90°</button><button data-action="delete">删除元件</button><button data-action="parts">返回元件库</button></div>';
- return '<h2>▦ 组件库</h2><div class="search"><input id="search" placeholder="搜索组件..." value="'+escape(search)+'"/></div><div class="parts">'+parts.filter(k=>labels[k].toLowerCase().includes(search.toLowerCase())).map(kind=>'<button class="part" draggable="true" data-kind="'+kind+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg>'+labels[kind]+'</button>').join('')+'</div><div class="field"><p>从引脚拖线到目标引脚；点击空白位置增加转折点。默认绿色导线；顶部颜色菜单或数字键 0–9 可改色，R 旋转元件。</p></div>'}
+ return '<h2>▦ 组件库</h2><div class="search"><input id="search" placeholder="搜索组件..." value="'+escape(search)+'"/></div><div class="parts">'+parts.filter(k=>labels[k].toLowerCase().includes(search.toLowerCase())).map(kind=>'<button class="part" draggable="true" data-kind="'+kind+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg>'+labels[kind]+'</button>').join('')+'</div><div class="field"><p>从引脚拖线到目标引脚；单击空白增加转角，拖动已有线段可垂直于该线段调整走线。默认绿色；数字键 0–9 改色，R 旋转元件。</p></div>'}
 function rcBounds(samples:readonly RcSample[]){
  const values=samples.map(p=>p.voltageVolts),minimum=Math.min(...values),maximum=Math.max(...values);
  const pad=Math.max(0.25,(maximum-minimum)*0.1);
