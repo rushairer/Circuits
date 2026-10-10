@@ -279,7 +279,7 @@ test('marquee contains whole rotated component bounds, independent of drag direc
  assert.deepEqual(componentsWithinRect(p,{x:460,y:160},{x:550,y:330}),['r1']);
 });
 
-import {zoomAt,panBy,viewportToWorld,MIN_ZOOM,MAX_ZOOM} from '../.test-dist/core/viewport.js';
+import {zoomAt,panBy,viewportToWorld,fitCircuit,MIN_ZOOM,MAX_ZOOM} from '../.test-dist/core/viewport.js';
 test('pointer-centered zoom keeps the same electrical world coordinate beneath pointer',()=>{
  const old={zoom:1,panX:40,panY:-20},mouse={x:360,y:270};
  const before=viewportToWorld(old,mouse),after=zoomAt(old,mouse,1.8);
@@ -389,4 +389,16 @@ test('palette placement respects a rotated part and does not mutate project geom
  assert.deepEqual(p,before);
  assert.ok(pos.x>=0&&pos.y>=0);
  assert.equal(saved.parts.find(c=>c.id==='r1').rotation,0);
+});
+
+test('F zoom-to-fit centers all components and manual bends within viewport',()=>{
+ const p=demo();
+ p.wires[0].bends=[{x:950,y:720}];
+ const view=fitCircuit(p.parts,p.wires);
+ assert.ok(view.zoom>=MIN_ZOOM&&view.zoom<=MAX_ZOOM);
+ const p1={x:950*view.zoom+view.panX,y:720*view.zoom+view.panY};
+ assert.ok(p1.x>=0&&p1.x<=1100&&p1.y>=0&&p1.y<=800);
+ assert.deepEqual(fitCircuit([]),{zoom:1,panX:0,panY:0});
+ const shifted=structuredClone(p);shifted.parts[0].x-=400;
+ assert.notDeepEqual(fitCircuit(shifted.parts,shifted.wires),view);
 });

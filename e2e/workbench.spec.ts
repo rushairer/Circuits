@@ -88,10 +88,12 @@ test('marquee selection contains a component but does not include an adjacent co
     };
     return {start:screen(415,190),end:screen(582,293)};
   });
+  await page.keyboard.down('Shift');
   await page.mouse.move(points.start.x,points.start.y);
   await page.mouse.down();
   await page.mouse.move(points.end.x,points.end.y,{steps:12});
   await page.mouse.up();
+  await page.keyboard.up('Shift');
   await expect(page.locator('.item.selected')).toHaveCount(1);
   await expect(page.locator('.item[data-part="r1"]')).toHaveClass(/selected/);
 });
@@ -160,7 +162,10 @@ test('wheel zoom preserves cursor anchor and Space-drag pans without editing the
  expect(await page.locator('#scene').getAttribute('transform')).not.toBe(transform);
  expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(initial);
  await page.locator('[data-action="fit"]').click();
- await expect(page.locator('#scene')).toHaveAttribute('transform','translate(0 0) scale(1)');
+ const fitted=await page.locator('#scene').getAttribute('transform');
+ expect(fitted).toMatch(/translate\(-?[\\d.]+ -?[\\d.]+\) scale\([\\d.]+\)/);
+ await page.keyboard.press('f');
+ expect(await page.locator('#scene').getAttribute('transform')).toBe(fitted);
 });
 
 test('experimental nonlinear DC mode displays per-LED computed current', async ({page})=>{

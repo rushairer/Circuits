@@ -16,7 +16,7 @@ import { snap, pinWorld, wirePoints, wirePath, type Point, type WireDirection } 
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
 import { blankProject } from './model.js';
 import { createExample, exampleCatalog } from './core/examples.js';
-import { zoomAt, panBy } from './core/viewport.js';
+import { zoomAt, panBy, fitCircuit } from './core/viewport.js';
 import { translateComponents, removeComponents, rotateComponents, componentsWithinRect } from './core/selection.js';
 import { appendConnection, reconnectEndpoint, nearestTerminal, identicalConnection, type TerminalHit } from './core/connections.js';
 import { reconcileInsertions, snapPartToBreadboard, suggestPalettePosition } from './core/placement.js';
@@ -318,6 +318,11 @@ function refreshScene(){
  const latest=wrapper.querySelector('#scene');
  if(latest)original.innerHTML=latest.innerHTML;
 }
+function fitView(){
+ const next=fitCircuit(project.parts,project.wires);
+ zoom=next.zoom;panX=next.panX;panY=next.panY;
+ render();
+}
 function changeZoom(factor:number){
  const view=zoomAt({zoom,panX,panY},{x:550,y:400},zoom*factor);
  zoom=view.zoom;panX=view.panX;panY=view.panY;render();
@@ -573,7 +578,7 @@ function render(){
  const toolbarPalette='<label class="wire-palette"><span class="wire-palette-swatch" style="background:'+toolbarWireColor+'"></span>'+
    '<span>导线颜色</span><select id="wire-palette" aria-label="导线颜色" title="选中导线后改变其颜色；数字键 0–9">'+wireColorOptions(toolbarWireColor)+'</select></label>';
  const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastNetwork?.reason??lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
- app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate" title="R · 旋转">⟳ 旋转</button><button data-action="delete">删除</button>'+toolbarPalette+'<button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击方向按钮切换 · 点空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.6 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate" title="R · 旋转">⟳ 旋转</button><button data-action="delete">删除</button>'+toolbarPalette+'<button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击方向按钮切换 · 点空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.6 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),spot=x===undefined&&y===undefined?
    suggestPalettePosition(project,kind):{x:x??300,y:y??300};
@@ -782,7 +787,7 @@ app.addEventListener('click',e=>{
  case 'scope-open':if(lastScopeCapture){scopeOpen=true;render();app.querySelector<HTMLElement>('.scope-dialog [data-action="scope-close"]')?.focus()}break;
  case 'scope-close':scopeOpen=false;render();app.querySelector<HTMLElement>('[data-action="scope-open"]')?.focus();break;
  case 'scope-export':if(lastScopeCapture&&scopeOpen)download(exportScopeCSV(lastScopeCapture),'circuits-rc-waveform.csv');break;
- case 'zoom-in':changeZoom(1.15);break;case 'zoom-out':changeZoom(1/1.15);break;case 'fit':zoom=1;panX=0;panY=0;render();break;
+ case 'zoom-in':changeZoom(1.15);break;case 'zoom-out':changeZoom(1/1.15);break;case 'fit':fitView();break;
  case 'export':download(JSON.stringify(project,null,2),project.name+'.json');break;
  case 'download-code':download(project.code,'circuit.ino');break;
  case 'import':app.querySelector<HTMLInputElement>('#file')?.click();break}
@@ -935,7 +940,12 @@ app.addEventListener('pointerdown',e=>{
      return;
    }
    const at=canvasPoint(e.clientX,e.clientY);
-   if(at)marquee={start:at,end:at,screenX:e.clientX,screenY:e.clientY,active:false,additive:e.shiftKey};
+   if(!at)return;
+   if(wiring||e.shiftKey){
+     marquee={start:at,end:at,screenX:e.clientX,screenY:e.clientY,active:false,additive:e.shiftKey};
+   }else{
+     panDrag={x:e.clientX,y:e.clientY,panX,panY};
+   }
    return;
  }
  if(target.closest('[data-pin]')||e.shiftKey||e.ctrlKey||e.metaKey)return;
@@ -1135,6 +1145,9 @@ window.addEventListener('keydown',e=>{
  }
  if(['INPUT','TEXTAREA','SELECT'].includes(t.tagName))return;
  const command=e.ctrlKey||e.metaKey;
+ if(!command&&!e.altKey&&!wiring&&e.key.toLowerCase()==='f'){
+   e.preventDefault();fitView();return;
+ }
  // Tinkercad's R rotates components. The routing direction uses its labeled button.
  if(!command&&!e.altKey&&!wiring&&e.key.toLowerCase()==='r'&&selectedIds.size){
    e.preventDefault();rotateSelectedParts();return;
