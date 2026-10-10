@@ -1067,6 +1067,9 @@ test('Z order: breadboard substrate is under conductors; real sockets stay above
      sockets:document.querySelectorAll('.breadboard-sockets[data-part="bb1"] .pin').length};
  });
  expect(rendered.layers).toEqual(['substrate','wires','board-sockets','components','wire-controls','overlays']);
+ const sublayers=await page.locator('[data-layer="wires"]').evaluate(root=>
+   Array.from(root.children).map(child=>child.getAttribute('data-wire-sublayer')));
+ expect(sublayers).toEqual(['hit-targets','conductors']);
  expect(rendered).toMatchObject({board:'substrate',conductor:'wires',
    holes:'board-sockets',resistor:'components',parts:5,sockets:308});
  const crossing=await topOfWorld(page,643,560);

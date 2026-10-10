@@ -57,3 +57,6 @@ See `docs/ROADMAP.md` for functionality not yet implemented.
 
 
 **Alpha.8 SVG scene composition:** `src/ui/circuit-layers.ts` fixes the paint stack as breadboard substrate → completed wires → interactive breadboard sockets → foreground components → selected wire controls → ephemeral editor overlays. Breadboard substrates and interactive sockets share world-space transforms but have distinct DOM groups; sockets are not duplicate electrical parts. Narrow hole targets avoid swallowing wire stroke hit-testing, with nearest-board-terminal fallback on the substrate. The netlist remains entirely independent of SVG layer order, selection, and path overlap. Tests confirm wires remain visible/selectable over board body and individual hole targets still connect under zoom.
+
+
+**Conductor picking:** Within the wire painter group, separate `hit-targets` and `conductors` subgroups ensure every visible stroke outranks every wide transparent hit tolerance, even for closely spaced parallel traces. Layering never changes netlist junctions or wire order in saved JSON.
