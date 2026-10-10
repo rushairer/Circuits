@@ -814,7 +814,7 @@ test('wiring: zoomed breadboard socket drag, duplicate rejection and explicit ca
 async function assertManhattan(page:Page,selector:string):Promise<string>{
  const d=await page.locator(selector).getAttribute('d');
  expect(d).toBeTruthy();
- const pattern=/[ML](-?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:e[+-]?\\d+)?) (-?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:e[+-]?\\d+)?)/gi;
+ const pattern=/[ML](-?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?) (-?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?)/gi;
  const values=[...d!.matchAll(pattern)].map(x=>({x:Number(x[1]),y:Number(x[2])}));
  expect(values.length).toBeGreaterThanOrEqual(2);
  for(let i=1;i<values.length;i++){
