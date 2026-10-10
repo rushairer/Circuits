@@ -127,3 +127,12 @@
 .wire-palette{display:flex;align-items:center;gap:6px;flex-shrink:0;background:#f5faf8;border:1px solid #d0e5d9;border-radius:8px;padding:3px 6px;color:#45675c;font-size:11px;font-weight:650}
 .wire-palette select{max-width:106px;border:0;background:transparent;color:#365a50;font-size:11px;padding:4px 1px;cursor:pointer}
 .wire-palette-swatch{width:14px;height:14px;flex-shrink:0;border:1px solid #b6c1bd;border-radius:2px}
+
+/* Alpha.8: breadboard artwork sits underneath jumper wires; only actual
+   socket centers enter the foreground hit layer. Dense 9px row halos MUST
+   NOT cover conductor strokes or block editing directly on the board. */
+.breadboard-sockets .pin{fill:transparent;cursor:crosshair}
+.breadboard-sockets .pin-hit{cursor:crosshair}
+[data-layer="substrate"] .item{cursor:move}
+[data-layer="wire-controls"] .bend-handle,
+[data-layer="wire-controls"] .endpoint-handle{pointer-events:all}

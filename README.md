@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.4.0-alpha.7 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.4.0-alpha.8 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -136,3 +136,11 @@ Hover over a component terminal to see a red target square and pin identifier. D
 **Blank-canvas drag pans**, Shift+blank drag selects a rectangle, and **F** fits the full design and saved wire waypoints in view. Old schema-v2 projects retain their stored colors/routes and connectivity. In particular, wires never become electrically joined merely by geometric crossover.
 
 Evidence: [official Tinkercad Circuits guide](https://images.tinkercad.com/jl5ii4oqrdmc/4sMFqe3rDlbUymJt0I4yh/85a4487f7fe274e74c19870ae4679fc1/tinkercad-guides_circuits-Printable.pdf), [Brighton wiring tutorial](https://resources.finalsite.net/images/v1722986348/brightonk12com/mlrgfhesblbrombavk59/01tutorialtinkercadelectricalseriescircuit.pdf), and [Aberystwyth wire tutorial](https://outreach-hub.aber.ac.uk/Physics/Electronics/intro2Circuits.html). These references support specific behaviors; the authenticated original editor cannot be directly inspected here, so a pixel-for-pixel or absolute 1:1 parity claim would be premature.
+
+### v0.4.0-alpha.8: correct SVG Z-order over breadboards
+
+A reported usability bug caused breadboards to obscure live jumper wires: the original SVG builder appended all components AFTER completed wires, so board artwork painted on top of the wiring. The editor now uses explicit painter groups: **breadboard substrate → wires → thin/socket-only connector targets → ordinary components → wire edit handles → active previews**. Wires can be seen and selected across the board surface, while physical sockets still accept click/drag connections and plugged-in components remain visually above the wiring.
+
+Only socket centers receive the foreground pointer halo; the board surface keeps proximity-based hole selection. This avoids blanketing every adjacent socket row with a huge transparent hit zone that would make wire selection impossible. Import/export schema-v2 and electrical behavior are unchanged. Regression coverage checks z-order, visible wire-hit priority, socket wiring, foreground resistor and bend handles in Chromium, Firefox and WebKit.
+
+Reference screenshots of the original UI: [Autodesk Circuits PDF](https://assets.ctfassets.net/jl5ii4oqrdmc/4sMFqe3rDlbUymJt0I4yh/85a4487f7fe274e74c19870ae4679fc1/tinkercad-guides_circuits-Printable.pdf) and [Tinkercad breadboard circuit example](https://mirobo.tech/electronics). This is an evidence-based layer correction, not a complete pixel-perfect Tinkercad replica.
