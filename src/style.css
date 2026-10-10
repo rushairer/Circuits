@@ -107,3 +107,10 @@
 .wire-preview-target{fill:#a6f0d980;stroke:#078e7e;stroke-width:3;pointer-events:none}
 .wire-preview-target[data-valid="false"]{fill:#ffd6d680;stroke:#b54848}
 .pin{cursor:crosshair}
+
+/* Directional wiring and pen/touch-friendly enlarged SVG terminal targets. */
+.pin-hit{cursor:crosshair;pointer-events:all}
+.pin-hit:hover+.pin{stroke:#078f83;stroke-width:3}
+.wire-preview-corner{fill:#fff;stroke:#078f83;stroke-width:2;pointer-events:none}
+.bottom [data-action="wire-direction"]{border-color:#0b9c8c;background:#e9faf7;color:#06746c;font-weight:750}
+.inspector [data-action="wire-flip-direction"]{display:block;width:100%;margin:5px 0 10px;background:#e9faf7;border-color:#b4ded6;color:#08756d}
