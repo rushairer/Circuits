@@ -91,8 +91,8 @@ export function slideOrthogonalSegment(
  const points=orthogonalWireVertices(wire,project.parts);
  if(!points||segmentIndex<0||segmentIndex>=points.length-1)return null;
  const a=points[segmentIndex],b=points[segmentIndex+1];
- const axis:SegmentAxis=a.y===b.y&&a.x!==b.x?'horizontal':
-   a.x===b.x&&a.y!==b.y?'vertical':null as never;
+ const axis:SegmentAxis|null=a.y===b.y&&a.x!==b.x?'horizontal':
+   a.x===b.x&&a.y!==b.y?'vertical':null;
  if(axis!=='horizontal'&&axis!=='vertical')return null;
  // Drag the cross-axis ONLY. This is the physical on-screen "slide" gesture.
  const raw=axis==='horizontal'?worldDelta.y:worldDelta.x;

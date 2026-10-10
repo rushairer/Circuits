@@ -50,7 +50,7 @@ test('first/last terminal-adjacent wire legs acquire doglegs, never move pins',(
  }
  const single=structuredClone(base);
  single.parts.find(p=>p.id==='r1').y=178;
- single.parts.find(p=>p.id==='r1').x=190;
+ single.parts.find(p=>p.id==='r1').x=280;
  const src=orthogonalWireVertices(wire(single),single.parts);
  assert.equal(src.length,2);
  const moved=slideOrthogonalSegment(single,'w1',0,{x:100,y:30},10);
