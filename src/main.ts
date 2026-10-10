@@ -347,9 +347,22 @@ function updateWireCursor(point:Point){
  wiringHover=nearestTerminal(project,point,wireRadius());
  const from=pinWorld(wiring,project.parts);
  if(!from)return;
+ const previous=wiringBends.at(-1)??from;
+ const dx=point.x-previous.x,dy=point.y-previous.y;
+ // Choose the initial leg direction from the first decisive pointer motion.
+ if(!wiringDirectionLocked&&!wiringDirectionInferred&&Math.hypot(dx,dy)>=wireRadius(18)){
+   wiringDirection=Math.abs(dx)>=Math.abs(dy)?'horizontal':'vertical';
+   wiringDirectionInferred=true;
+   const label=app.querySelector<HTMLElement>('[data-action="wire-direction"]');
+   if(label)label.textContent='↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · R 切换';
+ }
  const end=wiringHover?.point??point;
  const path=app.querySelector<SVGPathElement>('#wire-preview-path');
- if(path)path.setAttribute('d',wirePath([from,...wiringBends,end],wiringBends.length>0));
+ if(path)path.setAttribute('d',wirePath([from,...wiringBends,end],true,wiringDirection));
+ const firstLeg=wiringBends[0]??end;
+ const corner=wiringDirection==='horizontal'?{x:firstLeg.x,y:from.y}:{x:from.x,y:firstLeg.y};
+ const cornerNode=app.querySelector<SVGCircleElement>('#wire-direction-corner');
+ if(cornerNode){cornerNode.setAttribute('cx',String(corner.x));cornerNode.setAttribute('cy',String(corner.y));}
  const ring=app.querySelector<SVGCircleElement>('#wire-preview-target');
  if(ring){
    ring.setAttribute('cx',String(end.x));ring.setAttribute('cy',String(end.y));
@@ -523,7 +536,7 @@ function add(kind:Kind,x?:number,y?:number){
 }
 function finishConnection(from:Endpoint,to:Endpoint,bends:readonly Point[]){
  const id=uid();
- const result=appendConnection(project,{id,from,to,color:'#e45454',
+ const result=appendConnection(project,{id,from,to,color:'#e45454',routing:wiringDirection,
    ...(bends.length?{bends:bends.map(p=>({...p}))}:{})});
  clearWireDraft();
  if(!result){
@@ -535,6 +548,12 @@ function finishConnection(from:Endpoint,to:Endpoint,bends:readonly Point[]){
  selectedIds.clear();selection=null; // Do not cover connected pins with endpoint retarget handles.
  connectionNotice='连线成功：'+from.componentId+'/'+from.pinId+' → '+to.componentId+'/'+to.pinId;
  commit(previous);
+}
+function flipDraftDirection(){
+ if(!wiring)return;
+ wiringDirection=wiringDirection==='horizontal'?'vertical':'horizontal';
+ wiringDirectionLocked=true;wiringDirectionInferred=true;
+ render();
 }
 function connect(a:Endpoint){
  if(!wiring){
@@ -645,6 +664,16 @@ app.addEventListener('click',e=>{
  case 'undo':revert(undo,redo);break;case 'redo':revert(redo,undo);break;
  case 'select-all':selectAllParts();break;
  case 'grid':gridEnabled=!gridEnabled;localStorage.setItem('circuits-grid',gridEnabled?'on':'off');render();break;
+ case 'wire-direction':flipDraftDirection();break;
+ case 'wire-flip-direction':{
+   const w=project.wires.find(w=>w.id===selection);
+   if(w){
+     const previous=copy();
+     w.routing=w.routing==='horizontal'?'vertical':'horizontal';
+     commit(previous);
+   }
+   break;
+ }
  case 'wire-add-bend':{
    const w=project.wires.find(w=>w.id===selection),coords=w&&wirePoints(w,project.parts);
    if(w&&coords){const a=coords[0],b=coords[coords.length-1];addBend(w.id,{x:(a.x+b.x)/2,y:(a.y+b.y)/2})}
@@ -939,18 +968,21 @@ window.addEventListener('pointerup',e=>{
  }
  if(marquee){
    const box=marquee;marquee=null;
-   if(box.active){
+   // In wire mode a blank gesture places a waypoint, never a marquee selection.
+   if(wiring){
+     const point=canvasPoint(e.clientX,e.clientY);
+     if(point&&wiringBends.length<32){
+       const bend={x:gridEnabled?snap(point.x):point.x,y:gridEnabled?snap(point.y):point.y};
+       const previous=wiringBends.at(-1)??pinWorld(wiring,project.parts);
+       if(!previous||previous.x!==bend.x||previous.y!==bend.y)wiringBends.push(bend);
+       wiringCursor=bend;wiringHover=null;
+       ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+250};
+     }else connectionNotice='一根导线最多包含 32 个途径点';
+   }else if(box.active){
      const ids=componentsWithinRect(project,box.start,box.end);
      selectedIds=box.additive?new Set([...selectedIds,...ids]):new Set(ids);
      selection=selectedIds.size===1?[...selectedIds][0]:null;
      ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
-   }else if(wiring){
-     const point=canvasPoint(e.clientX,e.clientY);
-     if(point&&wiringBends.length<32){
-       const bend={x:gridEnabled?snap(point.x):point.x,y:gridEnabled?snap(point.y):point.y};
-       wiringBends.push(bend);wiringCursor=bend;wiringHover=null;
-       ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+250};
-     }else connectionNotice='一根导线最多包含 32 个折点';
    }else if(!box.additive){selectedIds.clear();selection=null}
    render();return;
  }
@@ -982,6 +1014,9 @@ window.addEventListener('keydown',e=>{
  }
  if(['INPUT','TEXTAREA','SELECT'].includes(t.tagName))return;
  const command=e.ctrlKey||e.metaKey;
+ if(wiring&&!command&&!e.altKey&&e.key.toLowerCase()==='r'){
+   e.preventDefault();flipDraftDirection();return;
+ }
  const focusedPart=t.closest<SVGElement>('.item[data-part]');
  if(focusedPart&&(e.key==='Enter'||e.key===' ')){
    e.preventDefault();
