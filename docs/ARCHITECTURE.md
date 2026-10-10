@@ -60,3 +60,6 @@ See `docs/ROADMAP.md` for functionality not yet implemented.
 
 
 **Conductor picking:** Within the wire painter group, separate `hit-targets` and `conductors` subgroups ensure every visible stroke outranks every wide transparent hit tolerance, even for closely spaced parallel traces. Layering never changes netlist junctions or wire order in saved JSON.
+
+
+**Alpha.9 segment move geometry:** `src/core/wire-segments.ts` derives the currently visible SVG orthogonal path, identifies the nearest leg and projects screen drag onto its perpendicular world-space axis. Moving an internal leg replaces its two corners; a pin-adjacent leg inserts doglegs that anchor the original terminals. The operation is immutable, capped at 32 stored bends and recomputed from the pointer-down project. Undo records a single final snapshot; rejected moves and Escape persist nothing. Only intentional edits upgrade legacy auto-routed wires; imported legacy free-form paths remain unmodified and retain the original waypoint editor. No crossing or visual path segment ever becomes an electrical junction.

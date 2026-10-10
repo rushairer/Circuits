@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.4.0-alpha.8 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.4.0-alpha.9 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -144,3 +144,11 @@ A reported usability bug caused breadboards to obscure live jumper wires: the or
 Only socket centers receive the foreground pointer halo; the board surface keeps proximity-based hole selection. This avoids blanketing every adjacent socket row with a huge transparent hit zone that would make wire selection impossible. Import/export schema-v2 and electrical behavior are unchanged. Regression coverage checks z-order, visible wire-hit priority, socket wiring, foreground resistor and bend handles in Chromium, Firefox and WebKit.
 
 Reference screenshots of the original UI: [Autodesk Circuits PDF](https://assets.ctfassets.net/jl5ii4oqrdmc/4sMFqe3rDlbUymJt0I4yh/85a4487f7fe274e74c19870ae4679fc1/tinkercad-guides_circuits-Printable.pdf) and [Tinkercad breadboard circuit example](https://mirobo.tech/electronics). This is an evidence-based layer correction, not a complete pixel-perfect Tinkercad replica.
+
+### v0.4.0-alpha.9: direct, constrained wire-segment edits
+
+Drag the *body of a horizontal conductor* vertically to slide that entire visible leg. Drag a vertical leg horizontally. Unlike the previous free-bend behavior, the gesture moves both corners of the selected leg, lengthens the adjacent orthogonal legs and inserts a small dogleg when the selected leg meets an electrical pin, without relocating that pin or editing the netlist. The cursor hints the permitted direction. Snap uses the total displacement from mouse-down, so long drags cannot accumulate rounding drift.
+
+Press **Escape** while dragging to abandon the preview. A successful gesture is one undo step, persisted in the schema-v2 document and restored on reload. Old imported literal/diagonal manual paths still support their previous free-point edits and are never automatically converted. The resulting saved route remains orthogonal even after moving a connected part. Limits: 32 internal vertices per wire; extreme/tightly folded geometry is not automatically optimized, and apparent crossings remain electrically separate until explicitly connected.
+
+As with prior releases, this is evidence-based behavior work toward Tinkercad, not a verified pixel-for-pixel reproduction of the proprietary editor.
