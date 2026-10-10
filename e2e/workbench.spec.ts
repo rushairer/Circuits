@@ -765,7 +765,7 @@ test('wiring: click-source, add a world-space elbow, click destination, undo and
  const point=await page.evaluate(()=>{
   const svg=document.querySelector<SVGSVGElement>('#board')!;
   const scene=document.querySelector<SVGGElement>('#scene')!;
-  const p=svg.createSVGPoint();p.x=345;p.y=125;
+  const p=svg.createSVGPoint();p.x=346;p.y=126;
   const pos=p.matrixTransform(scene.getScreenCTM()!);
   return {x:pos.x,y:pos.y};
  });

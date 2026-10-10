@@ -130,3 +130,6 @@
 - A draft line, cursor hover, and snap target are transient UI state, never JSON. Commit completed wires atomically via `appendConnection`; reject duplicate and self terminal edges. Undo/redo must preserve wires and bends as one operation.
 - Board physical sockets use the nearest real terminal on that board, not SVG rendering order. Zoom-independent hit tolerance is measured in screen pixels and converted to world space. Breadboards render behind physically inserted parts, preserving access to their leads.
 - Maintain editor drag, marquee, pan, endpoint retarget, insertion reconciliation and circuit simulation behavior. Add cross-browser tests for dragging from pin to pin, breadboard snap, click-to-click, bends, cancel, duplicates, and changing zoom.
+
+- During electrical simulation, status text must show the live solver result rather than a stale connection-success notice. Clear transient notices on unrelated actions. Avoid placing browser tests exactly on half-grid rounding boundaries; confirm deterministic snap with non-tie input coordinates.
+- CI tests three engines serially with 1 retry; allow sufficient bounded global wall-clock time for full validation, but individual tests retain their own timeout.

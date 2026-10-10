@@ -6,7 +6,8 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   retries: process.env.CI ? 1 : 0,
   timeout: 30_000,
-  globalTimeout: 180_000,
+  // Three engines plus bounded retries can exceed the old global cap after adding regressions.
+  globalTimeout: process.env.CI ? 360_000 : 180_000,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: 'http://127.0.0.1:4173',
