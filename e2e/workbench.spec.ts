@@ -775,11 +775,14 @@ test('wiring: click-source, add a world-space elbow, click destination, undo and
  const doc=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
  expect(doc.wires).toHaveLength(1);
  expect(doc.wires[0].bends).toEqual([{x:350,y:130}]);
+ expect(['horizontal','vertical']).toContain(doc.wires[0].routing);
+ await assertManhattan(page,'.wire');
  await expect(page.locator('#wire-preview')).toHaveCount(0);
  await page.locator('[data-action="undo"]').click();
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.length)).toBe(0);
  await page.locator('[data-action="redo"]').click();
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].bends)).toEqual([{x:350,y:130}]);
+ await assertManhattan(page,'.wire');
 });
 test('wiring: zoomed breadboard socket drag, duplicate rejection and explicit cancellation',async({page})=>{
  await page.goto('/');
@@ -805,4 +808,89 @@ test('wiring: zoomed breadboard socket drag, duplicate rejection and explicit ca
  await page.keyboard.press('Escape');
  await expect(page.locator('#wire-preview')).toHaveCount(0);
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.length)).toBe(1);
+});
+
+/** Parse rendered SVG commands; every actual leg of an orthogonal wire must be axis-aligned. */
+async function assertManhattan(page:Page,selector:string):Promise<string>{
+ const d=await page.locator(selector).getAttribute('d');
+ expect(d).toBeTruthy();
+ const pattern=/[ML](-?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:e[+-]?\\d+)?) (-?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:e[+-]?\\d+)?)/gi;
+ const values=[...d!.matchAll(pattern)].map(x=>({x:Number(x[1]),y:Number(x[2])}));
+ expect(values.length).toBeGreaterThanOrEqual(2);
+ for(let i=1;i<values.length;i++){
+   const dx=Math.abs(values[i].x-values[i-1].x),dy=Math.abs(values[i].y-values[i-1].y);
+   expect(Math.min(dx,dy),'non-orthogonal wire segment: '+d).toBeLessThan(1e-6);
+ }
+ return d!;
+}
+test('directional wire: R switches a live elbow and the selected route is reversible with undo',async({page})=>{
+ await page.goto('/');
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));p.wires=[];
+ await page.locator('#file').setInputFiles({name:'route-switch.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
+ const source='.item[data-part="b1"] .pin[data-pin="positive"]';
+ const target='.item[data-part="r1"] .pin[data-pin="a"]';
+ await page.locator(source).click();
+ await expect(page.locator('[data-action="wire-direction"]')).toBeVisible();
+ const world=await page.evaluate(()=>{
+   const svg=document.querySelector<SVGSVGElement>('#board')!,scene=document.querySelector<SVGGElement>('#scene')!;
+   const p=svg.createSVGPoint();p.x=347;p.y=325;
+   const screen=p.matrixTransform(scene.getScreenCTM()!);
+   return {x:screen.x,y:screen.y};
+ });
+ await page.mouse.move(world.x,world.y);
+ const original=await assertManhattan(page,'#wire-preview-path');
+ const labelBefore=await page.locator('[data-action="wire-direction"]').textContent();
+ await page.keyboard.press('r');
+ const flipped=await assertManhattan(page,'#wire-preview-path');
+ expect(flipped).not.toBe(original);
+ const labelAfter=await page.locator('[data-action="wire-direction"]').textContent();
+ expect(labelAfter).not.toBe(labelBefore);
+ await page.locator('[data-action="wire-direction"]').click();
+ await page.mouse.move(world.x,world.y);
+ expect(await assertManhattan(page,'#wire-preview-path')).toBe(original);
+ const targetBox=await page.locator(target).boundingBox();
+ expect(targetBox).not.toBeNull();
+ await page.mouse.move(targetBox!.x+targetBox!.width/2,targetBox!.y+targetBox!.height/2);
+ const committedPreview=await assertManhattan(page,'#wire-preview-path');
+ await page.mouse.down();await page.mouse.up();
+ const wire=page.locator('.wire').first();
+ await expect(wire).toHaveCount(1);
+ expect(await assertManhattan(page,'.wire')).toBe(committedPreview);
+ const first=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0]);
+ expect(['horizontal','vertical']).toContain(first.routing);
+ const hit=await wire.evaluate((el:SVGPathElement)=>{
+   const p=el.getPointAtLength(el.getTotalLength()*0.5),m=el.getScreenCTM()!;
+   const svg=el.ownerSVGElement!,q=svg.createSVGPoint();q.x=p.x;q.y=p.y;
+   const screen=q.matrixTransform(m);return {x:screen.x,y:screen.y};
+ });
+ await page.mouse.click(hit.x,hit.y);
+ await expect(page.locator('[data-action="wire-flip-direction"]')).toBeVisible();
+ await page.locator('[data-action="wire-flip-direction"]').click();
+ const changed=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0]);
+ expect(changed.routing).not.toBe(first.routing);
+ expect(changed.from).toEqual(first.from);expect(changed.to).toEqual(first.to);
+ expect(changed.id).toBe(first.id);
+ await assertManhattan(page,'.wire');
+ await page.locator('[data-action="undo"]').click();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].routing)).toBe(first.routing);
+ await page.locator('[data-action="redo"]').click();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].routing)).toBe(changed.routing);
+ await page.reload();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].routing)).toBe(changed.routing);
+ await assertManhattan(page,'.wire');
+});
+test('palette: repeated component clicks avoid collisions but manual drag placement still remains explicit',async({page})=>{
+ await page.goto('/');
+ await page.locator('.topbar [data-action="new"]').click();
+ for(let i=0;i<3;i++)await page.locator('.part[data-kind="resistor"]').click();
+ const values=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(values.parts).toHaveLength(3);
+ expect(values.wires).toHaveLength(0);
+ for(let i=0;i<values.parts.length;i++){
+   for(let j=i+1;j<values.parts.length;j++){
+     const a=values.parts[i],b=values.parts[j];
+     expect(a.x+140+18<=b.x||b.x+140+18<=a.x||
+       a.y+60+18<=b.y||b.y+60+18<=a.y).toBeTruthy();
+   }
+ }
 });
