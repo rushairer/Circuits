@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.4.0-alpha.6 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.4.0-alpha.7 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -115,14 +115,24 @@ Open **Arduino D13 有界循环脉冲** to sample a repeated three-pulse D13 and
 
 ### v0.4.0-alpha.5: practical wiring gestures
 
-**Press a component pin and drag to another component pin or breadboard socket, then release** to commit a wire. A dashed line and snap target preview the connection before you let go. Traditional click-source then click-destination also works; while click-wiring, click empty canvas to add intermediate bendpoints (up to 32) and press Escape or **取消接线** to cancel without changing project JSON. Dense breadboard holes use nearest-terminal hit testing in screen pixels and drawn components remain above the breadboard substrate. New wires are not left in endpoint-edit mode, so you can branch another wire from the same pin. For an existing wire, click the line to reveal its two retarget handles, or double-click to insert a bend.
+**Press a component pin and drag to another component pin or breadboard socket, then release** to commit a wire. A live colored line and snap target preview the connection before you let go. Traditional click-source then click-destination also works; while click-wiring, click empty canvas to add intermediate bendpoints (up to 32) and press Escape or **取消接线** to cancel without changing project JSON. Dense breadboard holes use nearest-terminal hit testing in screen pixels and drawn components remain above the breadboard substrate. New wires are not left in endpoint-edit mode, so you can branch another wire from the same pin. For an existing wire, click the line to reveal its two retarget handles, or double-click to insert a bend.
 
 These are geometrical editing gestures, not electrical shortcuts: a wire's saved endpoint IDs establish continuity, never visual overlap. Undo/redo handles a finished multi-bend wire atomically. Imported v2 project JSON remains compatible. CI tests physical drag-to-connect and simulator continuity in Chromium, Firefox and WebKit.
 
 ### v0.4.0-alpha.6: directional manual wire layout
 
-New connections are **orthogonal (Manhattan) routes**, including routes through manually clicked waypoints. Start on a real pin and drag to another pin, or click a pin, add waypoints on blank canvas, and click the destination. The initial routing direction follows your first dominant pointer motion. Press **R** or click the visible **↳ 横向优先 / 纵向优先** button while wiring to reverse the elbow; this locks the chosen direction for that wire. A corner marker, dashed preview and target ring show the intended route before commit.
+New connections are **orthogonal (Manhattan) routes**, including routes through manually clicked waypoints. Start on a real pin and drag to another pin, or click a pin, add waypoints on blank canvas, and click the destination. The initial routing direction follows your first dominant pointer motion. Click the visible **↳ 横向优先 / 纵向优先** button while wiring to reverse the elbow; this locks the chosen direction for that wire. A corner marker, dashed preview and target ring show the intended route before commit.
 
 New wires save the direction as an optional `routing` field inside the existing schema-v2 JSON document. When components move, the orthogonal route recomputes using the same saved waypoint coordinates: diagonal segments cannot appear accidentally. Double-click a routed line to add a waypoint, drag an existing waypoint to adjust it, or select a line and toggle its direction from the inspector. Undo/redo preserves direction and waypoints as one project action. Legacy imported wires without `routing` continue displaying their original paths and are converted only when explicitly requested. Electrical continuity remains keyed solely by pin identity; bends and apparent line crossings do not change the netlist.
 
 Palette clicks now suggest a nearby **non-overlapping** position for new parts. Explicit drag/drop still places at the user's chosen position. Transparent pin hit targets improve mouse and touch access without altering circuit geometry.
+
+### v0.4.0-alpha.7: Tinkercad reference-aligned wiring details
+
+After comparing published Tinkercad Circuits documentation, the editor now uses **green as the default new-wire color**, presents a palette with the conventional black/red/orange/yellow/green/turquoise/blue/purple/pink/brown/gray/white options, and permits changing the selected wire via numeric keys **0–9**. The local number-to-color mapping follows the menu order; it has not been verified against each original numeric assignment. **R rotates selected parts**, not routing direction. The direction-reversal button is still available as an optional project-specific control.
+
+Hover over a component terminal to see a red target square and pin identifier. During wiring a light-blue horizontal or vertical alignment guide appears alongside the solid colored path preview. Create corners by clicking the canvas. On an existing wire, **drag its stroke to pull out a bend**, or double-click it and drag the resulting anchor. Select one anchor and press **Delete** to remove only that point, preserving the wire and circuit continuity. Undo/redo includes each edit atomically.
+
+**Blank-canvas drag pans**, Shift+blank drag selects a rectangle, and **F** fits the full design and saved wire waypoints in view. Old schema-v2 projects retain their stored colors/routes and connectivity. In particular, wires never become electrically joined merely by geometric crossover.
+
+Evidence: [official Tinkercad Circuits guide](https://images.tinkercad.com/jl5ii4oqrdmc/4sMFqe3rDlbUymJt0I4yh/85a4487f7fe274e74c19870ae4679fc1/tinkercad-guides_circuits-Printable.pdf), [Brighton wiring tutorial](https://resources.finalsite.net/images/v1722986348/brightonk12com/mlrgfhesblbrombavk59/01tutorialtinkercadelectricalseriescircuit.pdf), and [Aberystwyth wire tutorial](https://outreach-hub.aber.ac.uk/Physics/Electronics/intro2Circuits.html). These references support specific behaviors; the authenticated original editor cannot be directly inspected here, so a pixel-for-pixel or absolute 1:1 parity claim would be premature.
