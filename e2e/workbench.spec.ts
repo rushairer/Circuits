@@ -1075,16 +1075,16 @@ test('Z order: breadboard substrate is under conductors; real sockets stay above
  await page.mouse.click(crossing.x,crossing.y);
  await expect(page.locator('.endpoint-handle[data-wire="surface1"]')).toHaveCount(2);
  // Even next to the painted conductor, the actual socket wins at its own center.
- const socket=page.locator('.breadboard-sockets[data-part="bb1"] .pin[data-pin="hole-c-5"]');
+ const socket=page.locator('.breadboard-sockets[data-part="bb1"] .pin[data-pin="hole-c-9"]');
  await socket.hover();
- await expect(page.locator('#pin-hover-label')).toHaveText('hole-c-5');
+ await expect(page.locator('#pin-hover-label')).toHaveText('hole-c-9');
  await socket.click();
  await expect(page.locator('#wire-preview-path')).toHaveCount(1);
  await page.locator('.item[data-part="b1"] .pin[data-pin="negative"]').click();
  await expect(page.locator('.wire')).toHaveCount(2);
  const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
  expect(stored.wires.find((w:{id:string})=>w.id==='surface1').bends).toHaveLength(2);
- expect(stored.wires.find((w:{id:string})=>w.id!=='surface1').from).toEqual({componentId:'bb1',pinId:'hole-c-5'});
+ expect(stored.wires.find((w:{id:string})=>w.id!=='surface1').from).toEqual({componentId:'bb1',pinId:'hole-c-9'});
  await page.reload();
  await expect(page.locator('.wire')).toHaveCount(2);
  expect((await topOfWorld(page,643,560)).wire).toBe('surface1');
