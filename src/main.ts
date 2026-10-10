@@ -964,10 +964,12 @@ app.addEventListener('pointerdown',e=>{
    const segment=target.closest<SVGElement>('[data-wire]');
    if(segment&&!wiring){
      const at=canvasPoint(e.clientX,e.clientY);
-     if(at&&project.wires.some(w=>w.id===segment.getAttribute('data-wire'))){
-       segmentDrag={id:segment.getAttribute('data-wire')!,start:at,
+     const wire=project.wires.find(w=>w.id===segment.getAttribute('data-wire'));
+     if(at&&wire){
+       const leg=nearestOrthogonalSegment(wire,project.parts,at);
+       segmentDrag={id:wire.id,start:at,
          screenX:e.clientX,screenY:e.clientY,pointerId:e.pointerId,
-         before:copy(),active:false,index:-1};
+         before:copy(),active:false,index:-1,routeIndex:leg?.index??null,changed:false};
      }
      return;
    }
@@ -1022,15 +1024,34 @@ window.addEventListener('pointermove',e=>{
    const gesture=segmentDrag,point=canvasPoint(e.clientX,e.clientY);
    if(!point)return;
    if(!gesture.active&&Math.hypot(e.clientX-gesture.screenX,e.clientY-gesture.screenY)>6){
-     const added=insertWireWaypoint(project,gesture.id,gesture.start,gridEnabled?10:null);
-     if(!added){segmentDrag=null;return}
-     gesture.active=true;gesture.index=added.index;
-     project=added.project;selection=gesture.id;selectedIds.clear();
-     selectedBend={id:gesture.id,index:gesture.index};
+     gesture.active=true;selection=gesture.id;selectedIds.clear();
    }
    if(gesture.active){
-     const moved=moveWireWaypoint(project,gesture.id,gesture.index,point,gridEnabled?10:null);
-     if(moved){project=moved;refreshScene();}
+     if(gesture.routeIndex!==null){
+       // Rebuild from pointer-down rather than accumulated rounded positions.
+       const moved=slideOrthogonalSegment(gesture.before,gesture.id,gesture.routeIndex,
+         {x:point.x-gesture.start.x,y:point.y-gesture.start.y},gridEnabled?10:null);
+       if(moved){
+         project=moved.project;gesture.index=moved.bendIndex;gesture.changed=true;
+         selectedBend={id:gesture.id,index:moved.bendIndex};refreshScene();
+       }else if(gesture.changed){
+         project=gesture.before;gesture.changed=false;selectedBend=null;refreshScene();
+       }
+     }else{
+       // Untagged legacy diagonal wires retain free-form waypoint editing.
+       const added=insertWireWaypoint(gesture.before,gesture.id,gesture.start,gridEnabled?10:null);
+       const moved=added&&moveWireWaypoint(added.project,gesture.id,added.index,point,gridEnabled?10:null);
+       if(added&&moved){
+         const a=added.project.wires.find(w=>w.id===gesture.id)?.bends?.[added.index];
+         const b=moved.wires.find(w=>w.id===gesture.id)?.bends?.[added.index];
+         if(a&&b&&(a.x!==b.x||a.y!==b.y)){
+           project=moved;gesture.index=added.index;gesture.changed=true;
+           selectedBend={id:gesture.id,index:added.index};refreshScene();
+         }else if(gesture.changed){
+           project=gesture.before;gesture.changed=false;selectedBend=null;refreshScene();
+         }
+       }
+     }
    }
    return;
  }
@@ -1100,10 +1121,10 @@ window.addEventListener('pointerup',e=>{
  }
  if(segmentDrag&&e.pointerId===segmentDrag.pointerId){
    const gesture=segmentDrag;segmentDrag=null;
-   if(!gesture.active)return; // normal click selects the wire
+   if(!gesture.active)return;
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+250};
-   const moved=project.wires.find(w=>w.id===gesture.id)?.bends?.[gesture.index];
-   if(moved&&Math.hypot(moved.x-gesture.start.x,moved.y-gesture.start.y)>1){
+   if(gesture.changed){
+     connectionNotice='已调整走线；电气引脚连接保持不变';
      commit(gesture.before);
    }else{
      project=gesture.before;selectedBend=null;render();
