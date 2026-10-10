@@ -823,7 +823,7 @@ async function assertManhattan(page:Page,selector:string):Promise<string>{
  }
  return d!;
 }
-test('directional wire: R switches a live elbow and the selected route is reversible with undo',async({page})=>{
+test('directional wire: explicit button switches a live elbow and the selected route is reversible with undo',async({page})=>{
  await page.goto('/');
  const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));p.wires=[];
  await page.locator('#file').setInputFiles({name:'route-switch.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
@@ -840,7 +840,7 @@ test('directional wire: R switches a live elbow and the selected route is revers
  await page.mouse.move(world.x,world.y);
  const original=await assertManhattan(page,'#wire-preview-path');
  const labelBefore=await page.locator('[data-action="wire-direction"]').textContent();
- await page.keyboard.press('r');
+ await page.locator('[data-action="wire-direction"]').click();
  const flipped=await assertManhattan(page,'#wire-preview-path');
  expect(flipped).not.toBe(original);
  const labelAfter=await page.locator('[data-action="wire-direction"]').textContent();
@@ -893,4 +893,98 @@ test('palette: repeated component clicks avoid collisions but manual drag placem
        a.y+60+18<=b.y||b.y+60+18<=a.y).toBeTruthy();
    }
  }
+});
+
+test('original wire gestures: live alignment guide, red pin snap and green default wire',async({page})=>{
+ await page.goto('/');
+ const draft=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ draft.wires=[];
+ await page.locator('#file').setInputFiles({name:'green-wiring.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(draft))});
+ const source=page.locator('.item[data-part="b1"] .pin[data-pin="positive"]');
+ const destination=page.locator('.item[data-part="r1"] .pin[data-pin="a"]');
+ await source.hover();
+ await expect(page.locator('#pin-hover')).toHaveAttribute('opacity','1');
+ await expect(page.locator('#pin-hover-label')).toHaveText('positive');
+ await source.click();
+ await expect(page.locator('#wire-preview-path')).toHaveAttribute('stroke','#35b65d');
+ await destination.hover();
+ await expect(page.locator('#wire-preview-target')).toHaveAttribute('data-valid','true');
+ await expect(page.locator('#wire-preview-target')).toHaveAttribute('data-target-pin','a');
+ await expect(page.locator('#wire-target-label text')).toHaveText('a');
+ await expect(page.locator('#wire-align-guide')).toHaveCount(1);
+ await destination.click();
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(saved.wires).toHaveLength(1);
+ expect(saved.wires[0].color).toBe('#35b65d');
+ expect(saved.wires[0].from).toEqual({componentId:'b1',pinId:'positive'});
+ expect(saved.wires[0].to).toEqual({componentId:'r1',pinId:'a'});
+ await expect(page.locator('#wire-preview')).toHaveCount(0);
+});
+test('original shortcuts: R rotates a part; number keys change selected wire colors',async({page})=>{
+ await page.goto('/');
+ await page.locator('.item[data-part="r1"]').click();
+ const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').parts.find((p:{id:string})=>p.id==='r1').rotation);
+ await page.keyboard.press('r');
+ const after=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').parts.find((p:{id:string})=>p.id==='r1').rotation);
+ expect(after).toBe((before+90)%360);
+ await page.locator('.wire[data-wire="w1"]').click();
+ await page.keyboard.press('1');
+ let saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1'));
+ expect(saved.color).toBe('#de4747');
+ await expect(page.locator('#wire-palette')).toHaveValue('#de4747');
+ await page.keyboard.press('0');
+ saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1'));
+ expect(saved.color).toBe('#252525');
+ await page.locator('#wire-palette').selectOption('#3b86d1');
+ saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1'));
+ expect(saved.color).toBe('#3b86d1');
+ await page.reload();
+ await expect(page.locator('.wire[data-wire="w1"]')).toHaveAttribute('stroke','#3b86d1');
+});
+test('wire editing: dragging directly on a wire segment creates an anchor; Delete removes only that anchor',async({page})=>{
+ await page.goto('/');
+ const selected=page.locator('.wire[data-wire="w1"]');
+ const at=await selected.evaluate((el:SVGPathElement)=>{
+   const p=el.getPointAtLength(el.getTotalLength()*0.37);
+   const q=el.ownerSVGElement!.createSVGPoint();
+   q.x=p.x;q.y=p.y;const s=q.matrixTransform(el.getScreenCTM()!);
+   return {x:s.x,y:s.y};
+ });
+ await page.mouse.move(at.x,at.y);
+ await page.mouse.down();
+ await page.mouse.move(at.x+34,at.y-68,{steps:12});
+ await page.mouse.up();
+ await expect(page.locator('.bend-handle[data-selected="true"]')).toHaveCount(1);
+ const altered=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(altered.wires).toHaveLength(3);
+ expect(altered.wires.find((w:{id:string})=>w.id==='w1').bends).toHaveLength(1);
+ await page.keyboard.press('Delete');
+ const after=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(after.wires).toHaveLength(3);
+ expect(after.wires.find((w:{id:string})=>w.id==='w1').bends).toHaveLength(0);
+ await page.locator('[data-action="undo"]').click();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1').bends.length)).toBe(1);
+ await page.locator('[data-action="redo"]').click();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1').bends.length)).toBe(0);
+ await page.locator('[data-action="run"]').click();
+ await expect(page.locator('.bottom')).toContainText('LED 正常发光');
+});
+test('wire editing: selecting and deleting one of multiple existing bend points keeps the wire',async({page})=>{
+ await page.goto('/');
+ await page.locator('.wire[data-wire="w1"]').dblclick();
+ await expect(page.locator('.bend-handle[data-wire="w1"]')).toHaveCount(1);
+ const wire=page.locator('.wire[data-wire="w1"]');
+ const point=await wire.evaluate((el:SVGPathElement)=>{
+   const p=el.getPointAtLength(el.getTotalLength()*0.78);
+   const q=el.ownerSVGElement!.createSVGPoint();q.x=p.x;q.y=p.y;
+   const s=q.matrixTransform(el.getScreenCTM()!);return {x:s.x,y:s.y};
+ });
+ await page.mouse.dblclick(point.x,point.y);
+ await expect(page.locator('.bend-handle[data-wire="w1"]')).toHaveCount(2);
+ await page.locator('.bend-handle[data-wire="w1"][data-bend-index="0"]').click();
+ await expect(page.locator('.bend-handle[data-selected="true"]')).toHaveCount(1);
+ await page.keyboard.press('Delete');
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(saved.wires).toHaveLength(3);
+ expect(saved.wires.find((w:{id:string})=>w.id==='w1').bends).toHaveLength(1);
 });
