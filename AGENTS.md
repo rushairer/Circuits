@@ -144,3 +144,5 @@
 - An existing wire without routing is converted to orthogonal only by the selected-wire inspector button, not automatically. Reversing direction is an undoable project edit. Rendered component pin hit targets must not replace real pin positions or electrical IDs.
 
 - Palette-click part placement now chooses the nearest available collision-free canvas slot using deterministic ring search and rotated bounding boxes. Explicit drag/drop coordinates must remain unchanged. When the work area is completely full, do not destroy or reposition existing user parts.
+
+- Do not run cursor-follow previews when the mouse hovers toolbar, floating bottom buttons or inspector; only the SVG canvas should update a click-to-route ghost. Commit preview and destination must match exactly. Prove left/right routing geometry plus undos, moved endpoints and unchanged existing JSON in browser and model tests.

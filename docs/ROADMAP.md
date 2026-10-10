@@ -15,6 +15,7 @@
 ## v0.2 — physical editing and project fidelity
 - [x] Resistor/LED lead-to-hole auto-snapping, explicit insertion contacts and automatic disconnect on move/rotation (other parts pending)
 - [x] Persistent wire bendpoints (insert/drag/reset) and world-space grid snapping toggle
+- [x] Direction-aware orthogonal routing for new wires and manual waypoints, initial dominant-axis inference, R/button reversal, legacy path compatibility, routing persistence, overlap-avoiding palette placement and larger pointer targets
 - [x] Wire endpoint reconnection via world-space target snapping, with duplicate/invalid connection safeguards
 - [x] Direct press-drag-release wiring between pins and breadboard sockets, live target preview, click-to-connect + click-bend workflow, Escape/cancel, screen-pixel snap tolerance, and accessible inserted leads
 - [x] Shift-click selection, mouse marquee, rigid group drag with preserved net topology, atomic batch delete/rotate and undo

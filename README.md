@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.4.0-alpha.5 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.4.0-alpha.6 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -118,3 +118,11 @@ Open **Arduino D13 有界循环脉冲** to sample a repeated three-pulse D13 and
 **Press a component pin and drag to another component pin or breadboard socket, then release** to commit a wire. A dashed line and snap target preview the connection before you let go. Traditional click-source then click-destination also works; while click-wiring, click empty canvas to add intermediate bendpoints (up to 32) and press Escape or **取消接线** to cancel without changing project JSON. Dense breadboard holes use nearest-terminal hit testing in screen pixels and drawn components remain above the breadboard substrate. New wires are not left in endpoint-edit mode, so you can branch another wire from the same pin. For an existing wire, click the line to reveal its two retarget handles, or double-click to insert a bend.
 
 These are geometrical editing gestures, not electrical shortcuts: a wire's saved endpoint IDs establish continuity, never visual overlap. Undo/redo handles a finished multi-bend wire atomically. Imported v2 project JSON remains compatible. CI tests physical drag-to-connect and simulator continuity in Chromium, Firefox and WebKit.
+
+### v0.4.0-alpha.6: directional manual wire layout
+
+New connections are **orthogonal (Manhattan) routes**, including routes through manually clicked waypoints. Start on a real pin and drag to another pin, or click a pin, add waypoints on blank canvas, and click the destination. The initial routing direction follows your first dominant pointer motion. Press **R** or click the visible **↳ 横向优先 / 纵向优先** button while wiring to reverse the elbow; this locks the chosen direction for that wire. A corner marker, dashed preview and target ring show the intended route before commit.
+
+New wires save the direction as an optional `routing` field inside the existing schema-v2 JSON document. When components move, the orthogonal route recomputes using the same saved waypoint coordinates: diagonal segments cannot appear accidentally. Double-click a routed line to add a waypoint, drag an existing waypoint to adjust it, or select a line and toggle its direction from the inspector. Undo/redo preserves direction and waypoints as one project action. Legacy imported wires without `routing` continue displaying their original paths and are converted only when explicitly requested. Electrical continuity remains keyed solely by pin identity; bends and apparent line crossings do not change the netlist.
+
+Palette clicks now suggest a nearby **non-overlapping** position for new parts. Explicit drag/drop still places at the user's chosen position. Transparent pin hit targets improve mouse and touch access without altering circuit geometry.
