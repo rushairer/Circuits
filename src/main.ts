@@ -12,6 +12,7 @@ import { assessRcConvergence, type RcConvergenceReport } from './core/rc-accurac
 import { createScopeCapture, exportScopeCSV, type ScopeCapture } from './core/scope.js';
 import { readRcVoltageProbe, readRcCurrentProbe } from './core/rc-probes.js';
 import { renderScopePanel, updateScopePanel } from './ui/scope-panel.js';
+import { composeCircuitLayers } from './ui/circuit-layers.js';
 import { snap, pinWorld, wirePoints, wirePath, type Point, type WireDirection } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
 import { blankProject } from './model.js';
@@ -251,36 +252,52 @@ function art(c:Part){
    '<text x="160" y="75" text-anchor="middle" font-size="10" fill="#fff">D13</text>';
  return '<rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="9" fill="#f6f7f6" stroke="#bdc9cc" stroke-width="3"/><path d="M18 35h404 M18 167h404" stroke="#e06a6a" stroke-width="2"/><path d="M18 48h404 M18 180h404" stroke="#5d9fd4" stroke-width="2"/>'+Array.from({length:22},(_,x)=>Array.from({length:10},(_,y)=>'<circle cx="'+(28+x*18)+'" cy="'+(67+y*9)+'" r="2.8" fill="#89959b"/>').join('')).join('') }
 function canvas(){
- const wires=project.wires.map(w=>{
-   const coords=wirePoints(w,project.parts);
-   if(!coords)return '';
-   const selected=selection===w.id;
-   if(endpointDrag?.id===w.id){
-     const index=endpointDrag.side==='from'?0:coords.length-1;
-     coords[index]=endpointDrag.preview;
-   }
-   const d=wirePath(coords,Boolean(w.bends?.length),w.routing);
-   const bends=selected?(w.bends??[]).map((p,i)=>'<circle class="bend-handle" data-wire="'+w.id+'" data-bend-index="'+i+'" data-selected="'+(selectedBend?.id===w.id&&selectedBend.index===i)+'" cx="'+p.x+'" cy="'+p.y+'" r="8" fill="#ffffff" stroke="#17ad61" stroke-width="3" tabindex="0" role="button" aria-label="导线折点 '+(i+1)+'：按 Delete 删除"/>').join(''):'';
-   return '<g><path class="wire-hit" data-wire="'+w.id+'" d="'+d+'" fill="none" stroke="transparent" stroke-width="17"/><path class="wire" data-wire="'+w.id+'" d="'+d+'" stroke="'+w.color+'" stroke-width="'+(selected?8:5)+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'+bends+'</g>';
- }).join('');
- const readings=isRunning&&simulationMode==='classic'?evaluate(project):null;
+ const wires=[...project.wires].sort((a,b)=>Number(a.id===selection)-Number(b.id===selection)).map(w=>{
+    const coords=wirePoints(w,project.parts);
+    if(!coords)return '';
+    const selected=selection===w.id;
+    if(endpointDrag?.id===w.id){
+      const index=endpointDrag.side==='from'?0:coords.length-1;
+      coords[index]=endpointDrag.preview;
+    }
+    const d=wirePath(coords,Boolean(w.bends?.length),w.routing);
+    return '<g><path class="wire-hit" data-wire="'+w.id+'" d="'+d+'" fill="none" stroke="transparent" stroke-width="17"/><path class="wire" data-wire="'+w.id+'" d="'+d+'" stroke="'+w.color+'" stroke-width="'+(selected?8:5)+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>';
+  }).join('');
+  // Edit controls are always above parts and sockets, even for anchors on the board.
+  const bendHandles=project.wires.filter(w=>w.id===selection).map(w=>
+    (w.bends??[]).map((p,i)=>'<circle class="bend-handle" data-wire="'+w.id+'" data-bend-index="'+i+'" data-selected="'+(selectedBend?.id===w.id&&selectedBend.index===i)+'" cx="'+p.x+'" cy="'+p.y+'" r="8" fill="#ffffff" stroke="#17ad61" stroke-width="3" tabindex="0" role="button" aria-label="导线折点 '+(i+1)+'：按 Delete 删除"/>').join('')
+  ).join('');
+  const readings=isRunning&&simulationMode==='classic'?evaluate(project):null;
  const insertedPins=new Set((project.insertions??[]).flatMap(x=>[x.componentId+'::'+x.pinId,x.boardId+'::'+x.holeId]));
  // Breadboards are the substrate: draw them behind inserted resistors and LEDs.
- const shapes=[...project.parts].sort((a,b)=>Number(b.kind==='breadboard')-Number(a.kind==='breadboard')).map(c=>{
- const [w,h]=size[c.kind];
- const glow=c.kind==='led'&&isRunning&&(simulationMode==='classic'?readings?.lit:lastAnalysis?.leds[c.id]?.lit)?
-   '<circle cx="54" cy="49" r="52" fill="#ff7a74" opacity=".2"/>':'';
- const gpioGlow=c.kind==='led'&&unoPreview?.ok?
-   '<circle data-gpio-glow="'+c.id+'" cx="54" cy="49" r="52" fill="#ff7a74" opacity="'+
-   (lastGpio?.ok&&lastGpio.leds[c.id]?.lit?'0.28':'0')+'"/>':'';
- const board=c.kind==='breadboard';
- const pinsSvg=Object.entries(pins[c.kind]).map(([name,p])=>{
-   const inserted=insertedPins.has(c.id+'::'+name);
-   return '<circle class="pin-hit" data-part="'+c.id+'" data-pin="'+name+'" cx="'+p[0]+'" cy="'+p[1]+'" r="'+(board?8.5:13)+'" fill="transparent" pointer-events="all" aria-hidden="true"/>'+
-     '<circle class="pin" data-part="'+c.id+'" data-pin="'+name+'" cx="'+p[0]+'" cy="'+p[1]+'" r="'+(board?4.4:7)+'" fill="'+(inserted?'#19bd89':board?'#44535e':'#e6c08a')+'" stroke="'+(inserted?'#057d62':board?'#b2c4cb':'#a58142')+'" stroke-width="'+(board?1.2:2)+'"><title>'+name+(inserted?' · 已插入':'')+'</title></circle>';
- }).join('');
- return '<g class="item '+(selectedIds.has(c.id)?'selected':'')+'" data-part="'+c.id+'" tabindex="0" role="button" aria-label="'+labels[c.kind]+' '+c.id+'" aria-pressed="'+selectedIds.has(c.id)+'" transform="translate('+c.x+' '+c.y+')"><g transform="rotate('+c.rotation+' '+w/2+' '+h/2+')">'+glow+gpioGlow+art(c)+pinsSvg+'</g></g>'}).join('');
- const wireSource=wiring&&pinWorld(wiring,project.parts);
+ const renderPart=(c:Part,socketsOnly=false):string=>{
+    const [w,h]=size[c.kind],board=c.kind==='breadboard';
+    const glow=c.kind==='led'&&isRunning&&(simulationMode==='classic'?readings?.lit:lastAnalysis?.leds[c.id]?.lit)?
+      '<circle cx="54" cy="49" r="52" fill="#ff7a74" opacity=".2"/>':'';
+    const gpioGlow=c.kind==='led'&&unoPreview?.ok?
+      '<circle data-gpio-glow="'+c.id+'" cx="54" cy="49" r="52" fill="#ff7a74" opacity="'+
+      (lastGpio?.ok&&lastGpio.leds[c.id]?.lit?'0.28':'0')+'"/>':'';
+    // Dense board rows are spaced 9 world units: a broad hit halo would
+    // cover all conductor paths on the surface. Board art itself uses
+    // nearby-terminal fallback; only the real hole centers capture above wires.
+    const pinsSvg=board&&!socketsOnly?'':Object.entries(pins[c.kind])
+      .filter(([name])=>!board||(name!=='plus'&&name!=='minus'))
+      .map(([name,p])=>{
+        const inserted=insertedPins.has(c.id+'::'+name);
+        return '<circle class="pin-hit" data-part="'+c.id+'" data-pin="'+name+'" cx="'+p[0]+'" cy="'+p[1]+'" r="'+(board?5.25:13)+'" fill="transparent" pointer-events="all" aria-hidden="true"/>'+
+          '<circle class="pin" data-part="'+c.id+'" data-pin="'+name+'" cx="'+p[0]+'" cy="'+p[1]+'" r="'+(board?4.4:7)+'" fill="'+(board?'transparent':inserted?'#19bd89':'#e6c08a')+'" stroke="'+(inserted?'#057d62':board?'#b2c4cb':'#a58142')+'" stroke-width="'+(board?1.2:2)+'"><title>'+name+(inserted?' · 已插入':'')+'</title></circle>';
+      }).join('');
+    const layerClass=socketsOnly?'breadboard-sockets':'item '+(selectedIds.has(c.id)?'selected':'');
+    const accessibility=socketsOnly?'':' tabindex="0" role="button" aria-label="'+labels[c.kind]+' '+c.id+'" aria-pressed="'+selectedIds.has(c.id)+'"';
+    return '<g class="'+layerClass+'" data-part="'+c.id+'"'+accessibility+
+      ' transform="translate('+c.x+' '+c.y+')"><g transform="rotate('+c.rotation+' '+w/2+' '+h/2+')">'+
+      (socketsOnly?'':glow+gpioGlow+art(c))+pinsSvg+'</g></g>';
+  };
+  const boards=project.parts.filter(c=>c.kind==='breadboard');
+  const substrate=boards.map(c=>renderPart(c)).join('');
+  const boardSockets=boards.map(c=>renderPart(c,true)).join('');
+  const components=project.parts.filter(c=>c.kind!=='breadboard').map(c=>renderPart(c)).join('');
+  const wireSource=wiring&&pinWorld(wiring,project.parts);
  const wireEnd=wiringHover?.point??wiringCursor??wireSource;
  const endLabel=wiringHover?.endpoint.pinId??'';
  const firstLeg=wireSource&&(wiringBends[0]??wireEnd);
@@ -306,11 +323,18 @@ function canvas(){
      return '<circle class="endpoint-handle" data-wire="'+w.id+'" data-wire-end="'+side+'" cx="'+point.x+'" cy="'+point.y+'" r="10" fill="white" stroke="#0e9e95" stroke-width="3"><title>拖动重接 '+(side==='from'?'起点':'终点')+'</title></circle>';
    }).join('');
  }).join('');
- return '<svg id="board" viewBox="0 0 1100 800"><defs><pattern id="dot" width="21" height="21" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c5cfd3"/></pattern></defs><rect width="1100" height="800" fill="#f3f5f6"/><rect width="1100" height="800" fill="url(#dot)"/><g id="scene" transform="translate('+panX+' '+panY+') scale('+zoom+')">'+wires+shapes+terminalHandles+marqueeMarkup+draftWire+
-   '<g id="pin-hover" aria-hidden="true" pointer-events="none" opacity="0"><rect x="-6" y="-6" width="12" height="12" rx="2"/>'+
-   '<g transform="translate(13 -13)"><rect id="pin-hover-backdrop" x="0" y="-14" width="50" height="20" rx="2"/>'+
-   '<text id="pin-hover-label" x="6" y="0"></text></g></g>'+'</g></svg>'}
-function refreshScene(){
+ const hoverMarkup='<g id="pin-hover" aria-hidden="true" pointer-events="none" opacity="0"><rect x="-6" y="-6" width="12" height="12" rx="2"/>'+
+    '<g transform="translate(13 -13)"><rect id="pin-hover-backdrop" x="0" y="-14" width="50" height="20" rx="2"/>'+
+    '<text id="pin-hover-label" x="6" y="0"></text></g></g>';
+  const layers=composeCircuitLayers({
+    substrate,wires,'board-sockets':boardSockets,components,
+    'wire-controls':bendHandles+terminalHandles,
+    overlays:marqueeMarkup+draftWire+hoverMarkup
+  });
+  return '<svg id="board" viewBox="0 0 1100 800"><defs><pattern id="dot" width="21" height="21" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c5cfd3"/></pattern></defs><rect width="1100" height="800" fill="#f3f5f6"/><rect width="1100" height="800" fill="url(#dot)"/><g id="scene" transform="translate('+panX+' '+panY+') scale('+zoom+')">'+layers+'</g></svg>';
+}
+
+  function refreshScene(){
  const original=app.querySelector('#scene');
  if(!original)return;
  const wrapper=document.createElement('div');
@@ -343,7 +367,7 @@ function wireRadius(pixels=17):number {
 }
 /** Board artwork may be clicked near a hole; choose the nearest real pin of that part. */
 function pinFromPointer(target:Element,x:number,y:number):TerminalHit|null {
- const component=target.closest<SVGGElement>('.item[data-part]');
+ const component=target.closest<SVGGElement>('.item[data-part], .breadboard-sockets[data-part]');
  const pin=target.closest<SVGElement>('[data-pin]');
  if(!component||!component.dataset.part)return null;
  const part=project.parts.find(p=>p.id===component.dataset.part);
