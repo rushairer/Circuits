@@ -31,7 +31,7 @@ test('existing wire end can be dragged to a breadboard hole', async ({page})=>{
   await page.locator('.wire[data-wire="w1"]').click();
   await expect(page.locator('.endpoint-handle')).toHaveCount(2);
   const handle=page.locator('.endpoint-handle[data-wire="w1"][data-wire-end="to"]');
-  const target=page.locator('.item[data-part="bb1"] .pin[data-pin="hole-a-1"]');
+  const target=page.locator('.breadboard-sockets[data-part="bb1"] .pin[data-pin="hole-a-1"]');
   const start=await handle.boundingBox(),end=await target.boundingBox();
   expect(start).not.toBeNull();expect(end).not.toBeNull();
   await page.mouse.move(start!.x+start!.width/2,start!.y+start!.height/2);
@@ -795,7 +795,7 @@ test('wiring: zoomed breadboard socket drag, duplicate rejection and explicit ca
  await page.locator('#file').setInputFiles({name:'board-wiring.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
  await page.locator('[data-action="zoom-in"]').click();
  const source='.item[data-part="b1"] .pin[data-pin="positive"]';
- const hole='.item[data-part="bb1"] .pin[data-pin="hole-a-1"]';
+ const hole='.breadboard-sockets[data-part="bb1"] .pin[data-pin="hole-a-1"]';
  await dragWireBetween(page,source,hole);
  await expect(page.locator('.wire')).toHaveCount(1);
  let doc=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
@@ -1018,4 +1018,115 @@ test('viewport: blank click deselects while blank drag pans without changing pro
  expect(await page.locator('#scene').getAttribute('transform')).not.toBe(original);
  await expect(page.locator('.item[data-part="r1"]')).toHaveClass(/selected/);
  expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(stored);
+});
+
+/** Project-level overlap fixture: a wire is visibly routed over the board body. */
+async function loadBoardSurfaceWire(page:Page,withOverlaidResistor=false){
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ p.wires=[{
+   id:'surface1',from:{componentId:'b1',pinId:'positive'},
+   to:{componentId:'bb1',pinId:'hole-a-8'},color:'#35b65d',
+   bends:withOverlaidResistor?
+     [{x:595,y:560},{x:680,y:560},{x:810,y:560}]:
+     [{x:595,y:560},{x:810,y:560}]
+ }];
+ if(withOverlaidResistor){
+   const r=p.parts.find((x:{id:string})=>x.id==='r1');
+   r.x=620;r.y=530;
+ }
+ await page.locator('#file').setInputFiles({
+   name:'surface-wire.json',mimeType:'application/json',
+   buffer:Buffer.from(JSON.stringify(p))
+ });
+}
+async function topOfWorld(page:Page,x:number,y:number){
+ return page.evaluate(({x,y})=>{
+   const svg=document.querySelector<SVGSVGElement>('#board')!;
+   const scene=document.querySelector<SVGGElement>('#scene')!;
+   const p=svg.createSVGPoint();p.x=x;p.y=y;
+   const screen=p.matrixTransform(scene.getScreenCTM()!);
+   const hit=document.elementFromPoint(screen.x,screen.y);
+   return {x:screen.x,y:screen.y,wire:hit?.getAttribute('data-wire'),
+     bend:hit?.getAttribute('data-bend-index'),
+     closestPart:hit?.closest('[data-part]')?.getAttribute('data-part')??null,
+     className:hit?.getAttribute('class')??''};
+ },{x,y});
+}
+test('Z order: breadboard substrate is under conductors; real sockets stay above wires',async({page})=>{
+ await page.goto('/');
+ await loadBoardSurfaceWire(page);
+ const scene=page.locator('#scene');
+ const rendered=await scene.evaluate(el=>{
+   const layers=Array.from(el.children).map(x=>x.getAttribute('data-layer'));
+   const inLayer=(selector:string)=>document.querySelector(selector)?.closest('[data-layer]')?.getAttribute('data-layer');
+   return {layers,board:inLayer('.item[data-part="bb1"]'),
+     conductor:inLayer('.wire[data-wire="surface1"]'),
+     holes:inLayer('.breadboard-sockets[data-part="bb1"] .pin'),
+     resistor:inLayer('.item[data-part="r1"]'),
+     parts:document.querySelectorAll('.item[data-part]').length,
+     sockets:document.querySelectorAll('.breadboard-sockets[data-part="bb1"] .pin').length};
+ });
+ expect(rendered.layers).toEqual(['substrate','wires','board-sockets','components','wire-controls','overlays']);
+ const sublayers=await page.locator('[data-layer="wires"]').evaluate(root=>
+   Array.from(root.children).map(child=>child.getAttribute('data-wire-sublayer')));
+ expect(sublayers).toEqual(['hit-targets','conductors']);
+ expect(rendered).toMatchObject({board:'substrate',conductor:'wires',
+   holes:'board-sockets',resistor:'components',parts:5,sockets:308});
+ const crossing=await topOfWorld(page,643,560);
+ expect(crossing.wire).toBe('surface1');
+ expect(crossing.closestPart).toBeNull();
+ await page.mouse.click(crossing.x,crossing.y);
+ await expect(page.locator('.endpoint-handle[data-wire="surface1"]')).toHaveCount(2);
+ // Even next to the painted conductor, the actual socket wins at its own center.
+ const socket=page.locator('.breadboard-sockets[data-part="bb1"] .pin[data-pin="hole-c-9"]');
+ await socket.hover();
+ await expect(page.locator('#pin-hover-label')).toHaveText('hole-c-9');
+ await socket.click();
+ await expect(page.locator('#wire-preview-path')).toHaveCount(1);
+ await page.locator('.item[data-part="b1"] .pin[data-pin="negative"]').click();
+ await expect(page.locator('.wire')).toHaveCount(2);
+ const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(stored.wires.find((w:{id:string})=>w.id==='surface1').bends).toHaveLength(2);
+ expect(stored.wires.find((w:{id:string})=>w.id!=='surface1').from).toEqual({componentId:'bb1',pinId:'hole-c-9'});
+ await page.reload();
+ await expect(page.locator('.wire')).toHaveCount(2);
+ expect((await topOfWorld(page,643,560)).wire).toBe('surface1');
+});
+test('Z order: plugged-in resistor stays above wire, selected bend handle stays above both',async({page})=>{
+ await page.goto('/');
+ await loadBoardSurfaceWire(page,true);
+ const covered=await topOfWorld(page,700,560);
+ expect(covered.closestPart).toBe('r1');
+ expect(covered.wire).toBeNull();
+ const exposed=await topOfWorld(page,605,560);
+ expect(exposed.wire).toBe('surface1');
+ await page.mouse.click(exposed.x,exposed.y);
+ await expect(page.locator('.bend-handle[data-wire="surface1"]')).toHaveCount(3);
+ const anchor=await topOfWorld(page,680,560);
+ expect(anchor.bend).toBe('1');
+ expect(anchor.wire).toBe('surface1');
+ await page.mouse.click(anchor.x,anchor.y);
+ await page.keyboard.press('Delete');
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(saved.wires).toHaveLength(1);
+ expect(saved.wires[0].bends).toEqual([{x:595,y:560},{x:810,y:560}]);
+ await page.locator('[data-action="undo"]').click();
+ await expect(page.locator('.wire[data-wire="surface1"]')).toHaveCount(1);
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].bends.length)).toBe(3);
+});
+test('Z order: zoomed board pin drag and wire selection do not mutate netlist on viewport moves',async({page})=>{
+ await page.goto('/');
+ await loadBoardSurfaceWire(page);
+ const baseline=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ await page.locator('[data-action="zoom-in"]').click();
+ const socket=page.locator('.breadboard-sockets[data-part="bb1"] .pin[data-pin="hole-d-6"]');
+ await expect(socket).toBeVisible();
+ await socket.hover();
+ await expect(page.locator('#pin-hover-label')).toHaveText('hole-d-6');
+ await page.locator('[data-action="zoom-out"]').click();
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(baseline);
+ const crossing=await topOfWorld(page,643,560);
+ await page.mouse.move(crossing.x,crossing.y);
+ await expect(page.locator('#pin-hover')).toHaveAttribute('opacity','0');
+ expect((await topOfWorld(page,643,560)).wire).toBe('surface1');
 });

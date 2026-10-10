@@ -4,7 +4,7 @@
 
 Circuits 是独立开源的浏览器电路设计工作台，使用 **TypeScript + Vite** 开发。长期目标是对标 Tinkercad Circuits 的功能体验，而非复制 Autodesk 专有源码、商标或素材。
 
-> **当前 v0.4.0-alpha.7 是实验性原型，不是已完成的 1:1 复刻。** 仅提供受限 Arduino D13 教学代码预览，不支持通用 AVR/C++ 指令执行，也不是通用 SPICE 仿真器。
+> **当前 v0.4.0-alpha.8 是实验性原型，不是已完成的 1:1 复刻。** 仅提供受限 Arduino D13 教学代码预览，不支持通用 AVR/C++ 指令执行，也不是通用 SPICE 仿真器。
 
 ## 已实现
 
@@ -139,3 +139,11 @@ GPIO 采用独立的**教学近似输出级**：HIGH 为 5V、LOW 为 0V，串�
 **空白画布拖拽为平移，Shift＋空白处拖拽为框选，F 为缩放适应内容**，并考虑手动布线的折点边界。工程仍使用 schema-v2，旧线的颜色、路径和电气连接兼容保留。
 
 依据：[Autodesk 官方指南](https://images.tinkercad.com/jl5ii4oqrdmc/4sMFqe3rDlbUymJt0I4yh/85a4487f7fe274e74c19870ae4679fc1/tinkercad-guides_circuits-Printable.pdf)、[Brighton High School 接线教程](https://resources.finalsite.net/images/v1722986348/brightonk12com/mlrgfhesblbrombavk59/01tutorialtinkercadelectricalseriescircuit.pdf)、[Aberystwyth 接线教程](https://outreach-hub.aber.ac.uk/Physics/Electronics/intro2Circuits.html)。上述资料能验证部分操作习惯，但无法代替登录原站后的逐像素交互审计。
+
+### v0.4.0-alpha.8：修复面包板遮线与导线层级
+
+针对面包板挡住接线、导线在板面上无法选中的问题，将 SVG 渲染拆成固定层级：**面包板底板 → 已连接导线 → 仅插孔位置的命中与细边框 → 其他元件 → 折点／端点编辑手柄 → 接线预览及提示**。导线应能在面包板上正常显示与被选择，LED／电阻等实体元件仍显示在电线之上。
+
+面包板插孔的前景透明命中圈缩小到孔附近，避免密集插孔吃掉整块板面上的导线点击；面包板空白区域仍可用屏幕像素半径吸附到最近真实插孔。不会修改原有 JSON 电路的导通关系或导线 ID，并新增三个浏览器的板面走线、真实插孔、元件遮挡、折点手柄与缩放回归测试。
+
+原版参考：[Autodesk Circuits 官方指南](https://assets.ctfassets.net/jl5ii4oqrdmc/4sMFqe3rDlbUymJt0I4yh/85a4487f7fe274e74c19870ae4679fc1/tinkercad-guides_circuits-Printable.pdf)、[面包板接线示例](https://mirobo.tech/electronics)。当前仍不是完整的 Tinkercad Circuits 1:1 复刻。

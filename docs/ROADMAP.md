@@ -55,3 +55,6 @@
 - [ ] Block ↔ text coding, synchronized schematic, shared projects and parity audit
 
 **Not yet functional parity.** A visible component does not imply an electrical model. No Autodesk affiliation.
+
+
+- [x] Alpha.8 breadboard/trace/component SVG Z-order contract, socket input overlay and foreground wire edit handles; browser hit-test parity and electrical invariance regression
