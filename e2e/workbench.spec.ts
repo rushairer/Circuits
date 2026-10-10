@@ -993,3 +993,29 @@ test('wire editing: selecting and deleting one of multiple existing bend points 
  expect(saved.wires).toHaveLength(3);
  expect(saved.wires.find((w:{id:string})=>w.id==='w1').bends).toHaveLength(1);
 });
+
+test('viewport: blank click deselects while blank drag pans without changing project',async({page})=>{
+ await page.goto('/');
+ await page.locator('.item[data-part="r1"]').click();
+ await expect(page.locator('.item[data-part="r1"]')).toHaveClass(/selected/);
+ const at=await page.evaluate(()=>{
+   const scene=document.querySelector<SVGGElement>('#scene')!;
+   const svg=document.querySelector<SVGSVGElement>('#board')!;
+   const p=svg.createSVGPoint();p.x=1040;p.y=90;
+   const point=p.matrixTransform(scene.getScreenCTM()!);
+   return {x:point.x,y:point.y};
+ });
+ await page.mouse.click(at.x,at.y);
+ await expect(page.locator('.item.selected')).toHaveCount(0);
+ await page.locator('.item[data-part="r1"]').click();
+ await expect(page.locator('.item[data-part="r1"]')).toHaveClass(/selected/);
+ const stored=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ const original=await page.locator('#scene').getAttribute('transform');
+ await page.mouse.move(at.x,at.y);
+ await page.mouse.down();
+ await page.mouse.move(at.x+68,at.y+42,{steps:10});
+ await page.mouse.up();
+ expect(await page.locator('#scene').getAttribute('transform')).not.toBe(original);
+ await expect(page.locator('.item[data-part="r1"]')).toHaveClass(/selected/);
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(stored);
+});

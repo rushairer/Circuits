@@ -155,3 +155,5 @@
 - The hover pin square, snap label, alignment guide and path preview must be pointer-transparent and ephemeral. Only actual real pins complete a new wire. Clearing an incomplete gesture or leaving the canvas must not create wire JSON.
 - Blank drag pans; Shift+blank drag marquee-selects, and F actually fits the contents, including waypoint extents. Existing browser storage and schema-v2 JSON remain import-compatible.
 - Original editor's authenticated interactive UI was not available for pixel-by-pixel direct inspection. Parity references are the official guide and documented training examples, not a claim of independently verified exact UI equivalence.
+
+- A simple unmodified click on empty canvas clears part/wire/anchor selection; a moved blank-canvas drag pans and preserves selection. Space/middle-button pans never deselect. This click-vs-drag threshold must be covered in all Playwright engines.

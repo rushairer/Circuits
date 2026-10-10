@@ -1046,7 +1046,11 @@ window.addEventListener('pointermove',e=>{
 });
 window.addEventListener('pointerup',e=>{
  if(panDrag){
-   panDrag=null;
+   const gesture=panDrag;panDrag=null;
+   // A tap on empty canvas clears selection, whereas a real pan keeps it.
+   if(e.button===0&&!spaceHeld&&Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)<5){
+     selectedIds.clear();selection=null;selectedBend=null;connectionNotice='';
+   }
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
    render();return;
  }
