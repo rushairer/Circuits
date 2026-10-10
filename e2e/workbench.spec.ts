@@ -1166,7 +1166,7 @@ test('segment slide: horizontal leg moves only vertically, preserves terminals a
  expect(moved.to).toEqual({componentId:'r1',pinId:'a'});
  expect(moved.id).toBe('w1');expect(moved.color).toBe('#35b65d');
  expect(moved.routing).toBe('horizontal');
- expect(moved.bends).toEqual([{x:190,y:268},{x:310,y:268},{x:310,y:245}]);
+ expect(moved.bends).toEqual([{x:190,y:268},{x:430,y:268}]);
  await assertManhattan(page,'.wire[data-wire="w1"]');
  await page.locator('[data-action="undo"]').click();
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].bends)).toBeUndefined();
@@ -1179,15 +1179,15 @@ test('segment slide: horizontal leg moves only vertically, preserves terminals a
 test('segment slide: vertical leg moves only horizontally at changed zoom',async({page})=>{
  await page.goto('/');await loadSingleRoutedWire(page);
  await page.locator('[data-action="zoom-in"]').click();
- const origin=await screenFromWorld(page,310,225);
- const target=await screenFromWorld(page,370,345);
+ const origin=await screenFromWorld(page,430,225);
+ const target=await screenFromWorld(page,490,345);
  await page.mouse.move(origin.x,origin.y);
  await expect(page.locator('.wire[data-wire="w1"]')).toHaveCSS('cursor','ew-resize');
  await page.mouse.down();
  await page.mouse.move(target.x,target.y,{steps:12});
  await page.mouse.up();
  const moved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0]);
- expect(moved.bends).toEqual([{x:370,y:208},{x:370,y:245}]);
+ expect(moved.bends).toEqual([{x:490,y:208},{x:490,y:245}]);
  expect(moved.routing).toBe('horizontal');
  await assertManhattan(page,'.wire[data-wire="w1"]');
 });
@@ -1208,7 +1208,7 @@ test('segment slide: Escape cancels an in-flight slide without saving any change
  const target=await screenFromWorld(page,270,278);
  await page.mouse.move(origin.x,origin.y);await page.mouse.down();
  await page.mouse.move(target.x,target.y,{steps:8});
- await expect(page.locator('.bend-handle')).toHaveCount(3);
+ await expect(page.locator('.bend-handle')).toHaveCount(2);
  await page.keyboard.press('Escape');
  await page.mouse.up();
  expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(before);
