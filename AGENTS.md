@@ -124,3 +124,9 @@
 - Only permit `for(int counter=0; counter<N; counter++) { ... }` with integer literal `0 <= N <= 16`. The body contains whitelisted calls only; nested loops, branches, counter reads, variable expressions, other increments and arbitrary C++ must fail closed.
 - Statically unroll into at most 128 operations total and reuse existing delay, cycle, serial-output and GPIO bounds. Never add executable C++/JS runtime or persist preview events to JSON.
 - Extract only truly top-level integer aliases; loop initializers must not be removed. Test quoted braces/semicolons, invalid loops and time scrubbing across Chromium, Firefox and WebKit.
+
+## v0.4.0-alpha.5 connect-first editor contract
+- Basic wiring must support BOTH tap/click-to-connect and press-drag-release from real part terminals to real target terminals; allow blank-canvas clicks to add bounded world-space bendpoints while drafting. Escape and a visible cancel button discard draft state.
+- A draft line, cursor hover, and snap target are transient UI state, never JSON. Commit completed wires atomically via `appendConnection`; reject duplicate and self terminal edges. Undo/redo must preserve wires and bends as one operation.
+- Board physical sockets use the nearest real terminal on that board, not SVG rendering order. Zoom-independent hit tolerance is measured in screen pixels and converted to world space. Breadboards render behind physically inserted parts, preserving access to their leads.
+- Maintain editor drag, marquee, pan, endpoint retarget, insertion reconciliation and circuit simulation behavior. Add cross-browser tests for dragging from pin to pin, breadboard snap, click-to-click, bends, cancel, duplicates, and changing zoom.

@@ -14,17 +14,18 @@ export const identicalConnection=(a:Wire,b:Wire):boolean=>
 
 /** Search in world-space so camera zoom does not affect terminal identity. */
 export function nearestTerminal(
- project:Project,target:Point,radius=13,exclude?:Endpoint
+ project:Project,target:Point,radius=13,exclude?:Endpoint,componentId?:string
 ):TerminalHit|null {
  if(!Number.isFinite(target.x)||!Number.isFinite(target.y)||!Number.isFinite(radius)||radius<=0)return null;
  let best:TerminalHit|null=null;
  for(const part of project.parts){
+  if(componentId&&part.id!==componentId)continue;
   for(const pinId of Object.keys(pins[part.kind])){
    // These two pre-v0.2 aliases remain import-compatible but not selectable.
    if(part.kind==='breadboard'&&(pinId==='plus'||pinId==='minus'))continue;
    const endpoint={componentId:part.id,pinId};
    if(exclude&&same(endpoint,exclude))continue;
-   const point=pinWorld(endpoint,project.parts);
+   const point=pinWorld(endpoint,[part]);
    if(!point)continue;
    const distance=Math.hypot(point.x-target.x,point.y-target.y);
    if(distance<=radius&&(!best||distance<best.distance-1e-9))best={endpoint,point,distance};

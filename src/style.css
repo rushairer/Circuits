@@ -98,3 +98,12 @@
 .uno-serial-header button{background:#edf7fa;border:1px solid #accdd7;border-radius:5px;font-size:11px;padding:5px 8px;cursor:pointer}
 #uno-serial-lines{padding:11px;margin:0;border-radius:6px;background:#182b35;color:#b9f4d4;font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;min-height:56px;max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 #uno-serial-status{font-size:11px;color:#637b86}
+
+/* Practical connection targets and drag-to-wire preview. Ghosts never capture input. */
+.wire-hit{pointer-events:stroke;cursor:pointer}
+.wire-preview-path{fill:none;stroke:#079f92;stroke-width:5;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:10 7;opacity:.9;pointer-events:none}
+.wire-preview-source{fill:#dcfbf2;stroke:#078e7e;stroke-width:3;pointer-events:none}
+.wire-preview-bend{fill:#fff;stroke:#079f92;stroke-width:2;pointer-events:none}
+.wire-preview-target{fill:#a6f0d980;stroke:#078e7e;stroke-width:3;pointer-events:none}
+.wire-preview-target[data-valid="false"]{fill:#ffd6d680;stroke:#b54848}
+.pin{cursor:crosshair}
