@@ -993,8 +993,19 @@ app.addEventListener('pointerdown',e=>{
 });
 window.addEventListener('pointermove',e=>{
  const pointerTarget=e.target as Element;
- if(pointerTarget.closest?.('#board'))updatePinHover(pointerTarget,e.clientX,e.clientY);
- else app.querySelector('#pin-hover')?.setAttribute('opacity','0');
+ if(pointerTarget.closest?.('#board')){
+   updatePinHover(pointerTarget,e.clientX,e.clientY);
+   if(!segmentDrag&&!wireDrag&&!wiring&&!drag&&!panDrag){
+     const stroke=pointerTarget.closest<SVGElement>('.wire,.wire-hit');
+     if(stroke){
+       const wire=project.wires.find(w=>w.id===stroke.getAttribute('data-wire'));
+       const point=canvasPoint(e.clientX,e.clientY);
+       const leg=wire&&point?nearestOrthogonalSegment(wire,project.parts,point):null;
+       stroke.style.cursor=leg?.axis==='horizontal'?'ns-resize':
+         leg?.axis==='vertical'?'ew-resize':'grab';
+     }
+   }
+ }else app.querySelector('#pin-hover')?.setAttribute('opacity','0');
  if(panDrag){
    const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
    if(!matrix)return;
