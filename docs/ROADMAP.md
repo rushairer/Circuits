@@ -15,8 +15,9 @@
 ## v0.2 — physical editing and project fidelity
 - [x] Resistor/LED lead-to-hole auto-snapping, explicit insertion contacts and automatic disconnect on move/rotation (other parts pending)
 - [x] Persistent wire bendpoints (insert/drag/reset) and world-space grid snapping toggle
-- [x] Direction-aware orthogonal routing for new wires and manual waypoints, initial dominant-axis inference, R/button reversal, legacy path compatibility, routing persistence, overlap-avoiding palette placement and larger pointer targets
+- [x] Direction-aware orthogonal routing for new wires and manual waypoints, initial dominant-axis inference, visible-button reversal, legacy path compatibility, routing persistence, overlap-avoiding palette placement and larger pointer targets
 - [x] Wire endpoint reconnection via world-space target snapping, with duplicate/invalid connection safeguards
+- [x] Tinkercad reference parity pass: green wire default, pin snap square and alignment line, wire-stroke drag inserts anchor, single-anchor Delete, R rotate, 0-9 wire colors, blank pan, Shift marquee and F content-fit (original still requires live visual verification)
 - [x] Direct press-drag-release wiring between pins and breadboard sockets, live target preview, click-to-connect + click-bend workflow, Escape/cancel, screen-pixel snap tolerance, and accessible inserted leads
 - [x] Shift-click selection, mouse marquee, rigid group drag with preserved net topology, atomic batch delete/rotate and undo
 - [x] Focusable SVG components, Enter/Space activation, Ctrl/Cmd+A selection and arrow-key group nudge

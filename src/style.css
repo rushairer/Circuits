@@ -114,3 +114,16 @@
 .wire-preview-corner{fill:#fff;stroke:#078f83;stroke-width:2;pointer-events:none}
 .bottom [data-action="wire-direction"]{border-color:#0b9c8c;background:#e9faf7;color:#06746c;font-weight:750}
 .inspector [data-action="wire-flip-direction"]{display:block;width:100%;margin:5px 0 10px;background:#e9faf7;border-color:#b4ded6;color:#08756d}
+
+/* Original-style wire feedback: solid green-by-default line, cyan guide and highlighted terminal. */
+.wire-preview-path{stroke-dasharray:none;stroke-width:4.5;opacity:1}
+.wire-align-guide{stroke:#54bce2;stroke-width:1;stroke-opacity:.75;pointer-events:none}
+.wire-preview-target{fill:#db454b;stroke:#ffffff;stroke-width:1.8;pointer-events:none}
+.wire-preview-target[data-valid="false"]{fill:#aab4b7;stroke:#cc5656}
+#pin-hover>rect{fill:#e33b42;stroke:white;stroke-width:1.5}
+#pin-hover-backdrop,.wire-target-label rect{fill:#273e48;stroke:white;stroke-width:.7}
+#pin-hover-label,.wire-target-label text{fill:white;font:12px/1.3 ui-monospace,monospace}
+.bend-handle[data-selected="true"]{fill:#36b969;stroke:#fff;stroke-width:3;filter:drop-shadow(0 0 3px #1da34b)}
+.wire-palette{display:flex;align-items:center;gap:6px;flex-shrink:0;background:#f5faf8;border:1px solid #d0e5d9;border-radius:8px;padding:3px 6px;color:#45675c;font-size:11px;font-weight:650}
+.wire-palette select{max-width:106px;border:0;background:transparent;color:#365a50;font-size:11px;padding:4px 1px;cursor:pointer}
+.wire-palette-swatch{width:14px;height:14px;flex-shrink:0;border:1px solid #b6c1bd;border-radius:2px}
