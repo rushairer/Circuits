@@ -12,7 +12,7 @@ import { assessRcConvergence, type RcConvergenceReport } from './core/rc-accurac
 import { createScopeCapture, exportScopeCSV, type ScopeCapture } from './core/scope.js';
 import { readRcVoltageProbe, readRcCurrentProbe } from './core/rc-probes.js';
 import { renderScopePanel, updateScopePanel } from './ui/scope-panel.js';
-import { snap, pinWorld, wirePoints, wirePath, nearestWireSegment, type Point, type WireDirection } from './core/geometry.js';
+import { snap, pinWorld, wirePoints, wirePath, type Point, type WireDirection } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
 import { blankProject } from './model.js';
 import { createExample, exampleCatalog } from './core/examples.js';
@@ -282,16 +282,19 @@ function canvas(){
  return '<g class="item '+(selectedIds.has(c.id)?'selected':'')+'" data-part="'+c.id+'" tabindex="0" role="button" aria-label="'+labels[c.kind]+' '+c.id+'" aria-pressed="'+selectedIds.has(c.id)+'" transform="translate('+c.x+' '+c.y+')"><g transform="rotate('+c.rotation+' '+w/2+' '+h/2+')">'+glow+gpioGlow+art(c)+pinsSvg+'</g></g>'}).join('');
  const wireSource=wiring&&pinWorld(wiring,project.parts);
  const wireEnd=wiringHover?.point??wiringCursor??wireSource;
+ const endLabel=wiringHover?.endpoint.pinId??'';
  const firstLeg=wireSource&&(wiringBends[0]??wireEnd);
  const firstCorner=wireSource&&firstLeg?(wiringDirection==='horizontal'?
    {x:firstLeg.x,y:wireSource.y}:{x:wireSource.x,y:firstLeg.y}):null;
  const draftWire=wireSource&&wireEnd?
    '<g id="wire-preview" aria-hidden="true" pointer-events="none">'+
+   '<line id="wire-align-guide" class="wire-align-guide" x1="'+(wiringDirection==='horizontal'?wireEnd.x:0)+'" y1="'+(wiringDirection==='horizontal'?-500:wireEnd.y)+'" x2="'+(wiringDirection==='horizontal'?wireEnd.x:1100)+'" y2="'+(wiringDirection==='horizontal'?1500:wireEnd.y)+'"/>'+
    '<path id="wire-preview-path" class="wire-preview-path" stroke="'+activeWireColor+'" d="'+wirePath([wireSource,...wiringBends,wireEnd],true,wiringDirection)+'"/>'+
    '<circle class="wire-preview-source" cx="'+wireSource.x+'" cy="'+wireSource.y+'" r="9" style="stroke:'+activeWireColor+'"/>'+
    wiringBends.map(p=>'<circle class="wire-preview-bend" cx="'+p.x+'" cy="'+p.y+'" r="5"/>').join('')+
    '<circle id="wire-direction-corner" class="wire-preview-corner" cx="'+firstCorner!.x+'" cy="'+firstCorner!.y+'" r="4"/>'+
-   '<circle id="wire-preview-target" class="wire-preview-target" cx="'+wireEnd.x+'" cy="'+wireEnd.y+'" r="12" opacity="'+(wiringHover?'1':'0')+'" data-valid="'+(wiringHover&&validWireTarget(wiring!,wiringHover.endpoint)?'true':'false')+'"/>'+
+   '<rect id="wire-preview-target" class="wire-preview-target" x="'+(wireEnd.x-7)+'" y="'+(wireEnd.y-7)+'" width="14" height="14" rx="2" opacity="'+(wiringHover?'1':'0')+'" data-valid="'+(wiringHover&&validWireTarget(wiring!,wiringHover.endpoint)?'true':'false')+'"/>'+
+   '<g id="wire-target-label" class="wire-target-label" transform="translate('+(wireEnd.x+12)+' '+(wireEnd.y-16)+')" opacity="'+(wiringHover?'1':'0')+'"><rect x="0" y="-15" width="'+Math.max(48,endLabel.length*8+12)+'" height="22" rx="3"/><text x="7" y="0">'+escape(endLabel)+'</text></g>'+
    '</g>':'';
  const marqueeMarkup=marquee?.active?'<rect class="marquee-box" x="'+Math.min(marquee.start.x,marquee.end.x)+'" y="'+Math.min(marquee.start.y,marquee.end.y)+'" width="'+Math.abs(marquee.start.x-marquee.end.x)+'" height="'+Math.abs(marquee.start.y-marquee.end.y)+'"/>':'';
  const terminalHandles=project.wires.filter(w=>w.id===selection).map(w=>{
@@ -303,7 +306,10 @@ function canvas(){
      return '<circle class="endpoint-handle" data-wire="'+w.id+'" data-wire-end="'+side+'" cx="'+point.x+'" cy="'+point.y+'" r="10" fill="white" stroke="#0e9e95" stroke-width="3"><title>拖动重接 '+(side==='from'?'起点':'终点')+'</title></circle>';
    }).join('');
  }).join('');
- return '<svg id="board" viewBox="0 0 1100 800"><defs><pattern id="dot" width="21" height="21" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c5cfd3"/></pattern></defs><rect width="1100" height="800" fill="#f3f5f6"/><rect width="1100" height="800" fill="url(#dot)"/><g id="scene" transform="translate('+panX+' '+panY+') scale('+zoom+')">'+wires+shapes+terminalHandles+marqueeMarkup+draftWire+'</g></svg>'}
+ return '<svg id="board" viewBox="0 0 1100 800"><defs><pattern id="dot" width="21" height="21" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c5cfd3"/></pattern></defs><rect width="1100" height="800" fill="#f3f5f6"/><rect width="1100" height="800" fill="url(#dot)"/><g id="scene" transform="translate('+panX+' '+panY+') scale('+zoom+')">'+wires+shapes+terminalHandles+marqueeMarkup+draftWire+
+   '<g id="pin-hover" aria-hidden="true" pointer-events="none" opacity="0"><rect x="-6" y="-6" width="12" height="12" rx="2"/>'+
+   '<g transform="translate(13 -13)"><rect id="pin-hover-backdrop" x="0" y="-14" width="50" height="20" rx="2"/>'+
+   '<text id="pin-hover-label" x="6" y="0"></text></g></g>'+'</g></svg>'}
 function refreshScene(){
  const original=app.querySelector('#scene');
  if(!original)return;
@@ -347,6 +353,19 @@ function validWireTarget(from:Endpoint,to:Endpoint):boolean {
  return !project.wires.some(w=>identicalConnection(w,proposed));
 }
 /** Mousemove updates the SVG guide without recreating all breadboard pins. */
+/** Idle hover highlights the actual terminal, not a visual wire crossing. */
+function updatePinHover(target:Element,clientX:number,clientY:number){
+ const indicator=app.querySelector<SVGGElement>('#pin-hover');
+ if(!indicator)return;
+ const hit=pinFromPointer(target,clientX,clientY);
+ if(!hit){indicator.setAttribute('opacity','0');return}
+ indicator.setAttribute('opacity','1');
+ indicator.setAttribute('transform','translate('+hit.point.x+' '+hit.point.y+')');
+ const label=app.querySelector<SVGTextElement>('#pin-hover-label');
+ const background=app.querySelector<SVGRectElement>('#pin-hover-backdrop');
+ if(label)label.textContent=hit.endpoint.pinId;
+ if(background)background.setAttribute('width',String(Math.max(48,hit.endpoint.pinId.length*8+12)));
+}
 function updateWireCursor(point:Point){
  if(!wiring)return;
  wiringCursor=point;
@@ -369,9 +388,9 @@ function updateWireCursor(point:Point){
  const corner=wiringDirection==='horizontal'?{x:firstLeg.x,y:from.y}:{x:from.x,y:firstLeg.y};
  const cornerNode=app.querySelector<SVGCircleElement>('#wire-direction-corner');
  if(cornerNode){cornerNode.setAttribute('cx',String(corner.x));cornerNode.setAttribute('cy',String(corner.y));}
- const ring=app.querySelector<SVGCircleElement>('#wire-preview-target');
+ const ring=app.querySelector<SVGRectElement>('#wire-preview-target');
  if(ring){
-   ring.setAttribute('cx',String(end.x));ring.setAttribute('cy',String(end.y));
+   ring.setAttribute('x',String(end.x-7));ring.setAttribute('y',String(end.y-7));
    ring.setAttribute('opacity',wiringHover?'1':'0');
    ring.setAttribute('data-valid',wiringHover&&validWireTarget(wiring,wiringHover.endpoint)?'true':'false');
    if(wiringHover){
@@ -380,6 +399,23 @@ function updateWireCursor(point:Point){
    }else{
      ring.removeAttribute('data-target-part');ring.removeAttribute('data-target-pin');
    }
+ }
+ const guide=app.querySelector<SVGLineElement>('#wire-align-guide');
+ if(guide){
+   const horizontal=wiringDirection==='horizontal';
+   guide.setAttribute('x1',String(horizontal?end.x:0));
+   guide.setAttribute('x2',String(horizontal?end.x:1100));
+   guide.setAttribute('y1',String(horizontal?-500:end.y));
+   guide.setAttribute('y2',String(horizontal?1500:end.y));
+ }
+ const label=app.querySelector<SVGGElement>('#wire-target-label');
+ if(label){
+   label.setAttribute('opacity',wiringHover?'1':'0');
+   label.setAttribute('transform','translate('+(end.x+12)+' '+(end.y-16)+')');
+   const text=label.querySelector<SVGTextElement>('text');
+   const bg=label.querySelector<SVGRectElement>('rect');
+   if(text)text.textContent=wiringHover?.endpoint.pinId??'';
+   if(bg)bg.setAttribute('width',String(Math.max(48,(wiringHover?.endpoint.pinId.length??0)*8+12)));
  }
 }
 function addBend(wireId:string,point:Point){
@@ -912,6 +948,9 @@ app.addEventListener('pointerdown',e=>{
  render();
 });
 window.addEventListener('pointermove',e=>{
+ const pointerTarget=e.target as Element;
+ if(pointerTarget.closest?.('#board'))updatePinHover(pointerTarget,e.clientX,e.clientY);
+ else app.querySelector('#pin-hover')?.setAttribute('opacity','0');
  if(panDrag){
    const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
    if(!matrix)return;
