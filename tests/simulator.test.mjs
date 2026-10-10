@@ -64,7 +64,7 @@ test('a switched series circuit toggles LED only when closed',()=>{
  assert.equal(evaluate(p).lit,true);
 });
 
-import {snap,pinWorld,wirePoints,wirePath,nearestSegment} from '../.test-dist/core/geometry.js';
+import {snap,pinWorld,wirePoints,wirePath,nearestSegment,orthogonalRoute,nearestWireSegment} from '../.test-dist/core/geometry.js';
 test('grid snapping is consistent including negative world-space coordinates',()=>{
  assert.equal(snap(16),20); assert.equal(snap(-16),-20);assert.equal(snap(35,5),35);
  assert.throws(()=>snap(4,0),/Invalid/);
@@ -306,4 +306,58 @@ test('nearest-terminal search can prefer the visible part over overlapping bread
  assert.equal(hit?.endpoint.componentId,'r1');
  assert.equal(hit?.endpoint.pinId,'a');
  assert.equal(nearestTerminal(p,resistor,5,undefined,'bb1'),null);
+});
+
+test('orthogonal directions respect manual waypoints with no diagonal segments',()=>{
+ const points=[{x:10,y:10},{x:90,y:65},{x:120,y:100}];
+ const h=orthogonalRoute(points,'horizontal'),v=orthogonalRoute(points,'vertical');
+ assert.deepEqual(h,[{x:10,y:10},{x:90,y:10},{x:90,y:65},{x:120,y:65},{x:120,y:100}]);
+ assert.deepEqual(v,[{x:10,y:10},{x:10,y:65},{x:90,y:65},{x:90,y:100},{x:120,y:100}]);
+ for(const vertices of [h,v]){
+   for(let i=1;i<vertices.length;i++)
+     assert.ok(vertices[i].x===vertices[i-1].x||vertices[i].y===vertices[i-1].y);
+ }
+ assert.equal(wirePath(points,true,'horizontal'),'M10 10 L90 10 L90 65 L120 65 L120 100');
+ assert.equal(wirePath(points,true,'vertical'),'M10 10 L10 65 L90 65 L90 100 L120 100');
+});
+test('opt-in routes follow moved pins and legacy manually bent wires stay unchanged',()=>{
+ const p=demo(),w=p.wires[0];
+ w.bends=[{x:350,y:170}];
+ const oldShape=wirePath(wirePoints(w,p.parts),true);
+ assert.equal(oldShape,'M190 208 L350 170 L430 245');
+ w.routing='horizontal';
+ const next=wirePath(wirePoints(w,p.parts),true,w.routing);
+ assert.notEqual(next,oldShape);
+ assert.equal(validProject(p),true);
+ const baseline=evaluate(p);
+ p.parts.find(c=>c.id==='r1').y+=80;
+ const moved=wirePath(wirePoints(w,p.parts),true,w.routing);
+ assert.notEqual(moved,next);
+ assert.equal(moved.includes(' L430 325'),true);
+ assert.deepEqual(evaluate(p),baseline);
+ assert.equal(validProject(JSON.parse(JSON.stringify(p))),true);
+});
+test('route hit mapping uses actual orthogonal legs, not direct waypoint diagonals',()=>{
+ const points=[{x:10,y:10},{x:90,y:65},{x:160,y:150}];
+ assert.equal(nearestWireSegment(points,{x:35,y:10},'horizontal'),0);
+ assert.equal(nearestWireSegment(points,{x:110,y:65},'horizontal'),1);
+ assert.equal(nearestWireSegment(points,{x:160,y:130},'vertical'),1);
+ assert.deepEqual(orthogonalRoute([{x:2,y:2},{x:2,y:2}], 'vertical'),[{x:2,y:2}]);
+});
+test('schema-v2 wire routing validates enum and preserves old JSON projects',()=>{
+ const p=demo();
+ assert.equal(p.wires[0].routing,undefined);
+ assert.equal(validProject(p),true);
+ for(const axis of ['horizontal','vertical']){
+   p.wires[0].routing=axis;
+   assert.equal(validProject(p),true);
+   assert.equal(appendConnection({...p,wires:[]},p.wires[0])?.wires[0].routing,axis);
+ }
+ for(const invalid of ['AUTO','diagonal',null,42,'']){
+   p.wires[0].routing=invalid;
+   assert.equal(validProject(p),false);
+   assert.equal(appendConnection({...p,wires:[]},p.wires[0]),null);
+ }
+ delete p.wires[0].routing;
+ assert.equal(validProject(p),true);
 });
