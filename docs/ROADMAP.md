@@ -58,3 +58,7 @@
 
 
 - [x] Alpha.8 breadboard/trace/component SVG Z-order contract, socket input overlay and foreground wire edit handles; browser hit-test parity and electrical invariance regression
+
+
+- [x] Alpha.9 orthogonal full-segment dragging, perpendicular-axis cursor and grid snapping, stable pin anchors, single-step undo/redo, cancellation and compatibility with legacy free-form paths
+- [ ] Verify fine-grained Tinkercad segment deformation against the live authenticated original; continue junction/branch and device touch QA after this bounded approximation

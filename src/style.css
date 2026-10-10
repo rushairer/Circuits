@@ -136,3 +136,6 @@
 [data-layer="substrate"] .item{cursor:move}
 [data-layer="wire-controls"] .bend-handle,
 [data-layer="wire-controls"] .endpoint-handle{pointer-events:all}
+
+/* Alpha.9: sliding line segments keeps terminal endpoints fixed. */
+[data-layer="wires"] .wire,[data-layer="wires"] .wire-hit{touch-action:none}
