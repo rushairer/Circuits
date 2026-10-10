@@ -1,5 +1,6 @@
 import './style.css';
 import { DEFAULT_WIRE_COLOR, WIRE_COLOR_PRESETS, wireColorForDigit, wireColorOptions } from './core/wire-colors.js';
+import { insertWireWaypoint, moveWireWaypoint, removeWireWaypoint } from './core/wire-edit.js';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
 import { compileUnoPreview, sampleUnoPreview, sampleUnoSerial, type UnoPreviewResult, type UnoSerialSnapshot } from './core/uno-preview.js';
@@ -55,6 +56,9 @@ let gridEnabled=localStorage.getItem('circuits-grid')!=='off';
 let spaceHeld=false;
 let panDrag:{x:number;y:number;panX:number;panY:number}|null=null;
 let bendDrag:{id:string;index:number;before:Project}|null=null;
+let selectedBend:{id:string;index:number}|null=null;
+let segmentDrag:{id:string;start:Point;screenX:number;screenY:number;pointerId:number;
+ before:Project;active:boolean;index:number}|null=null;
 let endpointDrag:{id:string;side:'from'|'to';preview:Point}|null=null;
 let ignoredClick:{x:number;y:number;until:number}|null=null;
 let connectionNotice='';
@@ -78,11 +82,11 @@ function clearWireDraft(){
 function openWorkspace(id:string){
  workspace=switchProject(workspace,id);
  project=reconcileInsertions(activeProject(workspace));
- selection=null;selectedIds.clear();marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
+ selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
  save();render();
 }
 function commit(before:Project){clearWireDraft();resetUnoPreview();rcConvergence=null;project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
-function revert(stack:Project[],other:Project[]){const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedIds.clear();marquee=null;save();render()}
+function revert(stack:Project[],other:Project[]){const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;save();render()}
 const uid=()=>crypto.randomUUID().slice(0,8);
 const pos=(e:Endpoint):[number,number]|null=>{
  const p=pinWorld(e,project.parts);return p?[p.x,p.y]:null;
@@ -256,7 +260,7 @@ function canvas(){
      coords[index]=endpointDrag.preview;
    }
    const d=wirePath(coords,Boolean(w.bends?.length),w.routing);
-   const bends=selected?(w.bends??[]).map((p,i)=>'<circle class="bend-handle" data-wire="'+w.id+'" data-bend-index="'+i+'" cx="'+p.x+'" cy="'+p.y+'" r="8" fill="#ffffff" stroke="#0f9c94" stroke-width="3"/>').join(''):'';
+   const bends=selected?(w.bends??[]).map((p,i)=>'<circle class="bend-handle" data-wire="'+w.id+'" data-bend-index="'+i+'" data-selected="'+(selectedBend?.id===w.id&&selectedBend.index===i)+'" cx="'+p.x+'" cy="'+p.y+'" r="8" fill="#ffffff" stroke="#17ad61" stroke-width="3" tabindex="0" role="button" aria-label="导线折点 '+(i+1)+'：按 Delete 删除"/>').join(''):'';
    return '<g><path class="wire-hit" data-wire="'+w.id+'" d="'+d+'" fill="none" stroke="transparent" stroke-width="17"/><path class="wire" data-wire="'+w.id+'" d="'+d+'" stroke="'+w.color+'" stroke-width="'+(selected?8:5)+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'+bends+'</g>';
  }).join('');
  const readings=isRunning&&simulationMode==='classic'?evaluate(project):null;
@@ -381,12 +385,12 @@ function updateWireCursor(point:Point){
 function addBend(wireId:string,point:Point){
  const w=project.wires.find(w=>w.id===wireId);
  if(!w|| (w.bends?.length??0)>=32)return;
- const pts=wirePoints(w,project.parts);if(!pts)return;
  const before=copy();
- const p={x:gridEnabled?snap(point.x):point.x,y:gridEnabled?snap(point.y):point.y};
- const index=nearestWireSegment(pts,p,w.routing);
- (w.bends??=[]).splice(index,0,p);
- selection=w.id;commit(before);
+ const inserted=insertWireWaypoint(project,wireId,point,gridEnabled?10:null);
+ if(!inserted)return;
+ project=inserted.project;selection=w.id;
+ selectedBend={id:w.id,index:inserted.index};
+ commit(before);
 }
 function side(){
  if(showExamples){
@@ -596,6 +600,15 @@ function rotateSelectedParts(){
  commit(before);
 }
 function deleteSelection(){
+ if(selectedBend){
+   const restored=removeWireWaypoint(project,selectedBend.id,selectedBend.index);
+   if(restored){
+     const previous=copy();
+     project=restored;selection=selectedBend.id;selectedBend=null;
+     commit(previous);return;
+   }
+   selectedBend=null;
+ }
  const before=copy();
  let changed=false;
  if(selectedIds.size){
@@ -606,7 +619,7 @@ function deleteSelection(){
    if(wires.length!==project.wires.length){project={...project,wires};changed=true}
  }
  if(!changed)return;
- selectedIds.clear();selection=null;commit(before);
+ selectedIds.clear();selection=null;selectedBend=null;commit(before);
 }
 function download(text:string,name:string){const url=URL.createObjectURL(new Blob([text]));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
 app.addEventListener('click',e=>{
@@ -619,7 +632,7 @@ app.addEventListener('click',e=>{
  if(pin){connect(pin.endpoint);return}
  const part=t.closest<SVGGElement>('[data-part]');
  if(part){
-   connectionNotice='';
+   connectionNotice='';selectedBend=null;
    const id=part.dataset.part!;
    if(e.shiftKey||e.ctrlKey||e.metaKey){
      selectedIds=new Set(selectedIds);
@@ -629,7 +642,15 @@ app.addEventListener('click',e=>{
    selection=selectedIds.size===1?[...selectedIds][0]:null;
    showCode=false;showProjects=false;render();return;
  }
- const wire=t.closest<SVGElement>('[data-wire]');if(wire){connectionNotice='';const next=wire.getAttribute('data-wire');if(selection!==next||selectedIds.size){selectedIds.clear();selection=next;render()}return}
+ const bend=t.closest<SVGElement>('[data-bend-index]');
+ if(bend){
+   const id=bend.getAttribute('data-wire')!,index=Number(bend.getAttribute('data-bend-index'));
+   if(project.wires.find(w=>w.id===id)?.bends?.[index]){
+     selection=id;selectedIds.clear();selectedBend={id,index};render();
+   }
+   return;
+ }
+ const wire=t.closest<SVGElement>('[data-wire]');if(wire){selectedBend=null;connectionNotice='';const next=wire.getAttribute('data-wire');if(selection!==next||selectedIds.size){selectedIds.clear();selection=next;render()}return}
  const k=t.closest<HTMLElement>('[data-kind]');if(k){add(k.dataset.kind as Kind);return}
  const example=t.closest<HTMLElement>('[data-load-example]');
  if(example){
@@ -697,7 +718,7 @@ app.addEventListener('click',e=>{
  }
  case 'wire-reset-bends':{
    const w=project.wires.find(w=>w.id===selection);
-   if(w?.bends?.length){const b=copy();delete w.bends;commit(b)}
+   if(w?.bends?.length){const b=copy();delete w.bends;selectedBend=null;commit(b)}
    break;
  }
  case 'toggle-switch':{const c=project.parts.find(p=>p.id===selection);if(c?.kind==='switch'){const b=copy();c.closed=!c.closed;rcTimeIndex=0;commit(b)}break}
@@ -853,7 +874,10 @@ app.addEventListener('pointerdown',e=>{
  const handle=target.closest<SVGElement>('[data-bend-index]');
  if(handle){
    const w=project.wires.find(x=>x.id===handle.getAttribute('data-wire')),index=Number(handle.getAttribute('data-bend-index'));
-   if(w?.bends?.[index]){bendDrag={id:w.id,index,before:copy()};return}
+   if(w?.bends?.[index]){
+   selection=w.id;selectedBend={id:w.id,index};
+   bendDrag={id:w.id,index,before:copy()};return;
+ }
  }
  const startPin=pinFromPointer(target,e.clientX,e.clientY);
  if(startPin){
@@ -864,7 +888,16 @@ app.addEventListener('pointerdown',e=>{
  if(!svg)return;
  const component=target.closest<SVGGElement>('[data-part]');
  if(!component){
-   if(target.closest('[data-wire]'))return;
+   const segment=target.closest<SVGElement>('[data-wire]');
+   if(segment&&!wiring){
+     const at=canvasPoint(e.clientX,e.clientY);
+     if(at&&project.wires.some(w=>w.id===segment.getAttribute('data-wire'))){
+       segmentDrag={id:segment.getAttribute('data-wire')!,start:at,
+         screenX:e.clientX,screenY:e.clientY,pointerId:e.pointerId,
+         before:copy(),active:false,index:-1};
+     }
+     return;
+   }
    const at=canvasPoint(e.clientX,e.clientY);
    if(at)marquee={start:at,end:at,screenX:e.clientX,screenY:e.clientY,active:false,additive:e.shiftKey};
    return;
@@ -901,6 +934,22 @@ window.addEventListener('pointermove',e=>{
    if(wireDrag.active){
      const point=canvasPoint(e.clientX,e.clientY);
      if(point)updateWireCursor(point);
+   }
+   return;
+ }
+ if(segmentDrag&&e.pointerId===segmentDrag.pointerId){
+   const gesture=segmentDrag,point=canvasPoint(e.clientX,e.clientY);
+   if(!point)return;
+   if(!gesture.active&&Math.hypot(e.clientX-gesture.screenX,e.clientY-gesture.screenY)>6){
+     const added=insertWireWaypoint(project,gesture.id,gesture.start,gridEnabled?10:null);
+     if(!added){segmentDrag=null;return}
+     gesture.active=true;gesture.index=added.index;
+     project=added.project;selection=gesture.id;selectedIds.clear();
+     selectedBend={id:gesture.id,index:gesture.index};
+   }
+   if(gesture.active){
+     const moved=moveWireWaypoint(project,gesture.id,gesture.index,point,gridEnabled?10:null);
+     if(moved){project=moved;refreshScene();}
    }
    return;
  }
@@ -964,6 +1013,18 @@ window.addEventListener('pointerup',e=>{
    else{clearWireDraft();connectionNotice='未连线：请在目标引脚或插孔上松开';render();}
    return;
  }
+ if(segmentDrag&&e.pointerId===segmentDrag.pointerId){
+   const gesture=segmentDrag;segmentDrag=null;
+   if(!gesture.active)return; // normal click selects the wire
+   ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+250};
+   const moved=project.wires.find(w=>w.id===gesture.id)?.bends?.[gesture.index];
+   if(moved&&Math.hypot(moved.x-gesture.start.x,moved.y-gesture.start.y)>1){
+     commit(gesture.before);
+   }else{
+     project=gesture.before;selectedBend=null;render();
+   }
+   return;
+ }
  if(endpointDrag){
    const current=endpointDrag;endpointDrag=null;
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
@@ -984,6 +1045,7 @@ window.addEventListener('pointerup',e=>{
    const before=d.before.wires.find(w=>w.id===d.id)?.bends?.[d.index];
    const after=project.wires.find(w=>w.id===d.id)?.bends?.[d.index];
    if(before&&after&&(before.x!==after.x||before.y!==after.y))commit(d.before);
+   else render();
    return;
  }
  if(marquee){
@@ -1073,7 +1135,8 @@ window.addEventListener('keydown',e=>{
      project=reconcileInsertions(updated);commit(before);
    }
  }else if(e.key==='Escape'){
-   clearWireDraft();endpointDrag=null;bendDrag=null;drag=null;marquee=null;panDrag=null;
+   if(segmentDrag?.active)project=segmentDrag.before;
+   segmentDrag=null;selectedBend=null;clearWireDraft();endpointDrag=null;bendDrag=null;drag=null;marquee=null;panDrag=null;
    selectedIds.clear();selection=null;connectionNotice='';render();
  }else if(e.key==='Delete'||e.key==='Backspace'){
    e.preventDefault();deleteSelection();
@@ -1084,8 +1147,9 @@ window.addEventListener('keyup',e=>{
 });
 window.addEventListener('pointercancel',e=>{
  if(wireDrag?.pointerId===e.pointerId){clearWireDraft();connectionNotice='手势已取消';render()}
+ if(segmentDrag?.pointerId===e.pointerId){project=segmentDrag.before;segmentDrag=null;selectedBend=null;render()}
 });
-window.addEventListener('blur',()=>{spaceHeld=false;panDrag=null;clearWireDraft()});
+window.addEventListener('blur',()=>{if(segmentDrag?.active)project=segmentDrag.before;segmentDrag=null;selectedBend=null;spaceHeld=false;panDrag=null;clearWireDraft();});
 // Persist the first demo or migrated workspace before browser tests and user edits.
 save();
 render();
