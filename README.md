@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.4.0-alpha.4 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.4.0-alpha.5 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -112,3 +112,9 @@ Use the new **Arduino 虚拟串口日志** example and select **解析并预览 
 ### Static bounded Arduino for loops (v0.4.0-alpha.4)
 
 Open **Arduino D13 有界循环脉冲** to sample a repeated three-pulse D13 and virtual Serial timeline. The whitelist parser accepts only literal-bound `for(int i=0; i<N; i++) { ... }` loops (N from 0 to 16), with pre-existing supported statements in the body. It expands at most 128 total operations. Nested or dynamic loops, conditionals, variable expressions and actual AVR/C++ execution remain unsupported. Preview history is not persisted in JSON. **15 examples** are available.
+
+### v0.4.0-alpha.5: practical wiring gestures
+
+**Press a component pin and drag to another component pin or breadboard socket, then release** to commit a wire. A dashed line and snap target preview the connection before you let go. Traditional click-source then click-destination also works; while click-wiring, click empty canvas to add intermediate bendpoints (up to 32) and press Escape or **取消接线** to cancel without changing project JSON. Dense breadboard holes use nearest-terminal hit testing in screen pixels and drawn components remain above the breadboard substrate. New wires are not left in endpoint-edit mode, so you can branch another wire from the same pin. For an existing wire, click the line to reveal its two retarget handles, or double-click to insert a bend.
+
+These are geometrical editing gestures, not electrical shortcuts: a wire's saved endpoint IDs establish continuity, never visual overlap. Undo/redo handles a finished multi-bend wire atomically. Imported v2 project JSON remains compatible. CI tests physical drag-to-connect and simulator continuity in Chromium, Firefox and WebKit.

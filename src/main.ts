@@ -523,7 +523,7 @@ function finishConnection(from:Endpoint,to:Endpoint,bends:readonly Point[]){
  }
  const previous=copy();
  project=result;
- selectedIds.clear();selection=id;
+ selectedIds.clear();selection=null; // Do not cover connected pins with endpoint retarget handles.
  connectionNotice='连线成功：'+from.componentId+'/'+from.pinId+' → '+to.componentId+'/'+to.pinId;
  commit(previous);
 }
@@ -851,7 +851,7 @@ window.addEventListener('pointermove',e=>{
  if(endpointDrag){
    const point=canvasPoint(e.clientX,e.clientY);
    if(point){
-     const hit=nearestTerminal(project,point,12);
+     const hit=nearestTerminal(project,point,wireRadius());
      endpointDrag.preview=hit?.point??point;
      refreshScene();
    }
@@ -909,7 +909,8 @@ window.addEventListener('pointerup',e=>{
    const current=endpointDrag;endpointDrag=null;
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
    const point=canvasPoint(e.clientX,e.clientY);
-   const target=point&&nearestTerminal(project,point,12);
+   const direct=e.target instanceof Element?pinFromPointer(e.target,e.clientX,e.clientY):null;
+   const target=direct??(point&&nearestTerminal(project,point,wireRadius()));
    const result=target&&reconnectEndpoint(project,current.id,current.side,target.endpoint);
    if(result&&result!==project){
      const before=copy();project=result;connectionNotice='';commit(before);

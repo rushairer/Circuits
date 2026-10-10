@@ -298,3 +298,12 @@ test('zoom clamping and panning reject invalid controls without mutating input',
  assert.equal(original.panX,0);
  assert.equal(panBy(original,{x:NaN,y:0}),original);
 });
+
+test('nearest-terminal search can prefer the visible part over overlapping breadboard pads',()=>{
+ const p=demo(),resistor=pinWorld({componentId:'r1',pinId:'a'},p.parts);
+ assert.ok(resistor);
+ const hit=nearestTerminal(p,resistor,5,undefined,'r1');
+ assert.equal(hit?.endpoint.componentId,'r1');
+ assert.equal(hit?.endpoint.pinId,'a');
+ assert.equal(nearestTerminal(p,resistor,5,undefined,'bb1'),null);
+});

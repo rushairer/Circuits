@@ -16,6 +16,7 @@
 - [x] Resistor/LED lead-to-hole auto-snapping, explicit insertion contacts and automatic disconnect on move/rotation (other parts pending)
 - [x] Persistent wire bendpoints (insert/drag/reset) and world-space grid snapping toggle
 - [x] Wire endpoint reconnection via world-space target snapping, with duplicate/invalid connection safeguards
+- [x] Direct press-drag-release wiring between pins and breadboard sockets, live target preview, click-to-connect + click-bend workflow, Escape/cancel, screen-pixel snap tolerance, and accessible inserted leads
 - [x] Shift-click selection, mouse marquee, rigid group drag with preserved net topology, atomic batch delete/rotate and undo
 - [x] Focusable SVG components, Enter/Space activation, Ctrl/Cmd+A selection and arrow-key group nudge
 - [x] Wheel pointer-centered zoom and space/middle-button drag pan with geometry tests

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 test('workbench loads 13 parts and the sample LED circuit lights', async ({page})=>{
   await page.goto('/');
@@ -721,4 +721,88 @@ test('static Arduino for loop previews D13 and serial while retaining project JS
  await page.locator('#code').fill('void setup(){pinMode(13,OUTPUT);}void loop(){for(;;){delay(1);}}');
  await page.locator('[data-action="uno-preview-run"]').click();
  await expect(page.locator('#uno-preview')).toContainText('不支持');
+});
+
+/** Exercise public SVG pointer gestures, not internal project mutation APIs. */
+async function dragWireBetween(page:Page,fromSelector:string,toSelector:string){
+ const source=await page.locator(fromSelector).boundingBox(),target=await page.locator(toSelector).boundingBox();
+ expect(source).not.toBeNull();expect(target).not.toBeNull();
+ await page.mouse.move(source!.x+source!.width/2,source!.y+source!.height/2);
+ await page.mouse.down();
+ await page.mouse.move(target!.x+target!.width/2,target!.y+target!.height/2,{steps:12});
+ await expect(page.locator('#wire-preview-path')).toHaveCount(1);
+ await page.mouse.up();
+}
+test('wiring: drag three actual pin-to-pin wires and light a previously disconnected LED circuit',async({page})=>{
+ await page.goto('/');
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ p.wires=[];
+ await page.locator('#file').setInputFiles({name:'unwired.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
+ await expect(page.locator('.wire')).toHaveCount(0);
+ const pin=(part:string,pin:string)=>'.item[data-part="'+part+'"] .pin[data-pin="'+pin+'"]';
+ await dragWireBetween(page,pin('b1','positive'),pin('r1','a'));
+ await dragWireBetween(page,pin('r1','b'),pin('l1','anode'));
+ await dragWireBetween(page,pin('l1','cathode'),pin('b1','negative'));
+ await expect(page.locator('.wire')).toHaveCount(3);
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(saved.wires).toHaveLength(3);
+ expect(saved.wires.map((w:{from:{pinId:string},to:{pinId:string}})=>[w.from.pinId,w.to.pinId])).toEqual([
+  ['positive','a'],['b','anode'],['cathode','negative']
+ ]);
+ await expect(page.locator('#wire-preview')).toHaveCount(0);
+ await page.locator('button[data-action="run"]').click();
+ await expect(page.locator('.bottom')).toContainText('LED 正常发光');
+ await page.reload();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.length)).toBe(3);
+});
+test('wiring: click-source, add a world-space elbow, click destination, undo and redo',async({page})=>{
+ await page.goto('/');
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));p.wires=[];
+ await page.locator('#file').setInputFiles({name:'elbow.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
+ await page.locator('.item[data-part="b1"] .pin[data-pin="positive"]').click();
+ await expect(page.locator('#wire-preview-path')).toHaveCount(1);
+ await expect(page.locator('[data-action="cancel-wire"]')).toHaveCount(1);
+ const point=await page.evaluate(()=>{
+  const svg=document.querySelector<SVGSVGElement>('#board')!;
+  const scene=document.querySelector<SVGGElement>('#scene')!;
+  const p=svg.createSVGPoint();p.x=345;p.y=125;
+  const pos=p.matrixTransform(scene.getScreenCTM()!);
+  return {x:pos.x,y:pos.y};
+ });
+ await page.mouse.click(point.x,point.y);
+ await expect(page.locator('.wire-preview-bend')).toHaveCount(1);
+ await page.locator('.item[data-part="r1"] .pin[data-pin="a"]').click();
+ const doc=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(doc.wires).toHaveLength(1);
+ expect(doc.wires[0].bends).toEqual([{x:350,y:130}]);
+ await expect(page.locator('#wire-preview')).toHaveCount(0);
+ await page.locator('[data-action="undo"]').click();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.length)).toBe(0);
+ await page.locator('[data-action="redo"]').click();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].bends)).toEqual([{x:350,y:130}]);
+});
+test('wiring: zoomed breadboard socket drag, duplicate rejection and explicit cancellation',async({page})=>{
+ await page.goto('/');
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));p.wires=[];
+ await page.locator('#file').setInputFiles({name:'board-wiring.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))});
+ await page.locator('[data-action="zoom-in"]').click();
+ const source='.item[data-part="b1"] .pin[data-pin="positive"]';
+ const hole='.item[data-part="bb1"] .pin[data-pin="hole-a-1"]';
+ await dragWireBetween(page,source,hole);
+ await expect(page.locator('.wire')).toHaveCount(1);
+ let doc=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(doc.wires[0].to).toEqual({componentId:'bb1',pinId:'hole-a-1'});
+ await page.locator(source).click();
+ await expect(page.locator('#wire-preview')).toHaveCount(1);
+ await page.locator(hole).click();
+ await expect(page.locator('.bottom')).toContainText('不能连接');
+ doc=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(doc.wires).toHaveLength(1);
+ await page.locator(source).click();
+ await page.locator('[data-action="cancel-wire"]').click();
+ await expect(page.locator('#wire-preview')).toHaveCount(0);
+ await page.locator(source).click();
+ await page.keyboard.press('Escape');
+ await expect(page.locator('#wire-preview')).toHaveCount(0);
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.length)).toBe(1);
 });
