@@ -1,4 +1,5 @@
 import './style.css';
+import { DEFAULT_WIRE_COLOR, WIRE_COLOR_PRESETS, wireColorForDigit, wireColorOptions } from './core/wire-colors.js';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
 import { compileUnoPreview, sampleUnoPreview, sampleUnoSerial, type UnoPreviewResult, type UnoSerialSnapshot } from './core/uno-preview.js';
@@ -57,6 +58,7 @@ let bendDrag:{id:string;index:number;before:Project}|null=null;
 let endpointDrag:{id:string;side:'from'|'to';preview:Point}|null=null;
 let ignoredClick:{x:number;y:number;until:number}|null=null;
 let connectionNotice='';
+let activeWireColor:string=DEFAULT_WIRE_COLOR;
 let undo:Project[]=[],redo:Project[]=[],drag:{ids:string[];x:number;y:number;before:Project}|null=null;
 const copy=():Project=>structuredClone(project);
 const save=()=>{
@@ -281,8 +283,8 @@ function canvas(){
    {x:firstLeg.x,y:wireSource.y}:{x:wireSource.x,y:firstLeg.y}):null;
  const draftWire=wireSource&&wireEnd?
    '<g id="wire-preview" aria-hidden="true" pointer-events="none">'+
-   '<path id="wire-preview-path" class="wire-preview-path" d="'+wirePath([wireSource,...wiringBends,wireEnd],true,wiringDirection)+'"/>'+
-   '<circle class="wire-preview-source" cx="'+wireSource.x+'" cy="'+wireSource.y+'" r="9"/>'+
+   '<path id="wire-preview-path" class="wire-preview-path" stroke="'+activeWireColor+'" d="'+wirePath([wireSource,...wiringBends,wireEnd],true,wiringDirection)+'"/>'+
+   '<circle class="wire-preview-source" cx="'+wireSource.x+'" cy="'+wireSource.y+'" r="9" style="stroke:'+activeWireColor+'"/>'+
    wiringBends.map(p=>'<circle class="wire-preview-bend" cx="'+p.x+'" cy="'+p.y+'" r="5"/>').join('')+
    '<circle id="wire-direction-corner" class="wire-preview-corner" cx="'+firstCorner!.x+'" cy="'+firstCorner!.y+'" r="4"/>'+
    '<circle id="wire-preview-target" class="wire-preview-target" cx="'+wireEnd.x+'" cy="'+wireEnd.y+'" r="12" opacity="'+(wiringHover?'1':'0')+'" data-valid="'+(wiringHover&&validWireTarget(wiring!,wiringHover.endpoint)?'true':'false')+'"/>'+
@@ -337,7 +339,7 @@ function pinFromPointer(target:Element,x:number,y:number):TerminalHit|null {
 }
 function validWireTarget(from:Endpoint,to:Endpoint):boolean {
  if(from.componentId===to.componentId&&from.pinId===to.pinId)return false;
- const proposed={id:'preview',from,to,color:'#e45454'};
+ const proposed={id:'preview',from,to,color:activeWireColor};
  return !project.wires.some(w=>identicalConnection(w,proposed));
 }
 /** Mousemove updates the SVG guide without recreating all breadboard pins. */
@@ -354,7 +356,7 @@ function updateWireCursor(point:Point){
    wiringDirection=Math.abs(dx)>=Math.abs(dy)?'horizontal':'vertical';
    wiringDirectionInferred=true;
    const label=app.querySelector<HTMLElement>('[data-action="wire-direction"]');
-   if(label)label.textContent='↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · R 切换';
+   if(label)label.textContent='↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换';
  }
  const end=wiringHover?.point??point;
  const path=app.querySelector<SVGPathElement>('#wire-preview-path');
@@ -424,7 +426,7 @@ function side(){
        '尚未获得有效电流读数'):
        '请切换到非线性 DC 或 RC 暂态模式')+
      '</p><p>本电流表通过 0.1Ω 分流电阻串入回路，正端流向负端为正电流；超过 ±200mA 会提示超量程，不模拟保险丝损坏。不可并接替代电压表。</p>':'') +(c.kind==='capacitor'?'<p>RC 暂态支持单电容解析及 2–6 只电容线性数值积分；非线性/电感未模拟。</p>':'')+(!['battery','resistor','led','breadboard','switch','capacitor','multimeter','ammeter'].includes(c.kind)?'<p>该元件仅支持可视化与接线，暂未接入电气仿真。</p>':'')+'<button data-action="rotate">旋转 90°</button><button data-action="delete">删除元件</button><button data-action="parts">返回元件库</button></div>';
- return '<h2>▦ 组件库</h2><div class="search"><input id="search" placeholder="搜索组件..." value="'+escape(search)+'"/></div><div class="parts">'+parts.filter(k=>labels[k].toLowerCase().includes(search.toLowerCase())).map(kind=>'<button class="part" draggable="true" data-kind="'+kind+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg>'+labels[kind]+'</button>').join('')+'</div><div class="field"><p>从引脚拖线至目标引脚完成连接；布线时用 R 或方向按钮切换横向/纵向优先。单击空白处添加途径点，Escape 取消。</p></div>'}
+ return '<h2>▦ 组件库</h2><div class="search"><input id="search" placeholder="搜索组件..." value="'+escape(search)+'"/></div><div class="parts">'+parts.filter(k=>labels[k].toLowerCase().includes(search.toLowerCase())).map(kind=>'<button class="part" draggable="true" data-kind="'+kind+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg>'+labels[kind]+'</button>').join('')+'</div><div class="field"><p>从引脚拖线到目标引脚；点击空白位置增加转折点。默认绿色导线；顶部颜色菜单或数字键 0–9 可改色，R 旋转元件。</p></div>'}
 function rcBounds(samples:readonly RcSample[]){
  const values=samples.map(p=>p.voltageVolts),minimum=Math.min(...values),maximum=Math.max(...values);
  const pad=Math.max(0.25,(maximum-minimum)*0.1);
@@ -526,8 +528,12 @@ function render(){
      return '<div class="analysis-line"><span>电压表 '+escape(p.id)+'</span><strong>'+value+'</strong></div>';
    }).join(''):'<p>本电路未生成可信的仿真读数</p>')+
    '<small>仅作教学近似；不含 MCU、暂态、温升及器件容差。</small></div>':'';
+ const chosenToolbarWire=project.wires.find(w=>w.id===selection);
+ const toolbarWireColor=chosenToolbarWire?.color??activeWireColor;
+ const toolbarPalette='<label class="wire-palette"><span class="wire-palette-swatch" style="background:'+toolbarWireColor+'"></span>'+
+   '<span>导线颜色</span><select id="wire-palette" aria-label="导线颜色" title="选中导线后改变其颜色；数字键 0–9">'+wireColorOptions(toolbarWireColor)+'</select></label>';
  const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastNetwork?.reason??lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
- app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate">⟳ 旋转</button><button data-action="delete">删除</button><button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 按 R 切换 · 点空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向，快捷键 R">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · R 切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.6 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate" title="R · 旋转">⟳ 旋转</button><button data-action="delete">删除</button>'+toolbarPalette+'<button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击方向按钮切换 · 点空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit">重置</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.6 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),spot=x===undefined&&y===undefined?
    suggestPalettePosition(project,kind):{x:x??300,y:y??300};
@@ -538,7 +544,7 @@ function add(kind:Kind,x?:number,y?:number){
 }
 function finishConnection(from:Endpoint,to:Endpoint,bends:readonly Point[]){
  const id=uid();
- const result=appendConnection(project,{id,from,to,color:'#e45454',routing:wiringDirection,
+ const result=appendConnection(project,{id,from,to,color:activeWireColor,routing:wiringDirection,
    ...(bends.length?{bends:bends.map(p=>({...p}))}:{})});
  clearWireDraft();
  if(!result){
@@ -556,6 +562,14 @@ function flipDraftDirection(){
  wiringDirection=wiringDirection==='horizontal'?'vertical':'horizontal';
  wiringDirectionLocked=true;wiringDirectionInferred=true;
  render();
+}
+function chooseWireColor(color:string){
+ if(!/^#[0-9a-f]{6}$/i.test(color))return;
+ activeWireColor=color;
+ const selected=project.wires.find(w=>w.id===selection);
+ if(selected&&selected.color.toLowerCase()!==color.toLowerCase()){
+   const before=copy();selected.color=color;commit(before);
+ }else render();
 }
 function connect(a:Endpoint){
  if(!wiring){
@@ -794,7 +808,8 @@ app.addEventListener('change',async e=>{
    if([0.1,0.5,1,5,10].includes(selected)){rcWindowSeconds=selected;rcTimeIndex=0;rcConvergence=null;render()}
    return;
  }
- if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){const b=copy();w.color=t.value;commit(b)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}
+ if(t.id==='wire-palette'){if(WIRE_COLOR_PRESETS.some(x=>x.value===t.value))chooseWireColor(t.value);return;}
+ if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){chooseWireColor(t.value)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}
  if(t.id==='switch-contact'){const c=project.parts.find(p=>p.id===selection);const value=Number(t.value);if(c?.kind==='switch'&&t.value.trim()!==''&&Number.isFinite(value)&&(value===0||(value>=0.1&&value<=1e6))){const before=copy();c.contactOhms=value;rcTimeIndex=0;commit(before)}else render()}
  if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();rcTimeIndex=0;scopeOpen=false;scopeCapacitorId='';commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
 app.addEventListener('dragstart',e=>{const p=(e.target as Element).closest<HTMLElement>('[data-kind]');if(p)e.dataTransfer?.setData('text/circuit-kind',p.dataset.kind!)});
@@ -1019,8 +1034,13 @@ window.addEventListener('keydown',e=>{
  }
  if(['INPUT','TEXTAREA','SELECT'].includes(t.tagName))return;
  const command=e.ctrlKey||e.metaKey;
- if(wiring&&!command&&!e.altKey&&e.key.toLowerCase()==='r'){
-   e.preventDefault();flipDraftDirection();return;
+ // Tinkercad's R rotates components. The routing direction uses its labeled button.
+ if(!command&&!e.altKey&&!wiring&&e.key.toLowerCase()==='r'&&selectedIds.size){
+   e.preventDefault();rotateSelectedParts();return;
+ }
+ if(!command&&!e.altKey&&/^[0-9]$/.test(e.key)&&(wiring||project.wires.some(w=>w.id===selection))){
+   const color=wireColorForDigit(e.key);
+   if(color){e.preventDefault();chooseWireColor(color);return;}
  }
  const focusedPart=t.closest<SVGElement>('.item[data-part]');
  if(focusedPart&&(e.key==='Enter'||e.key===' ')){
