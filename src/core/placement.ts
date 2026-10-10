@@ -1,4 +1,4 @@
-import { pins, type Endpoint, type Insertion, type Part, type Project } from '../model.js';
+import { pins, size, type Kind, type Endpoint, type Insertion, type Part, type Project } from '../model.js';
 import { pinWorld, type Point } from './geometry.js';
 
 const supported = new Set<Part['kind']>(['resistor','led']);
@@ -63,4 +63,31 @@ export function snapPartToBreadboard(project:Project,id:string,radius=11):Projec
 export function insertionTarget(project:Project,endpoint:Endpoint):Endpoint|null {
  const match=(project.insertions??[]).find(x=>x.componentId===endpoint.componentId&&x.pinId===endpoint.pinId);
  return match?{componentId:match.boardId,pinId:match.holeId}:null;
+}
+
+/** Deterministic nearby placement for palette clicks; explicit drag/drop is untouched. */
+export function suggestPalettePosition(project:Project,kind:Kind,preferred:Point={x:300,y:300}):Point {
+ const [width,height]=size[kind];
+ const existing=project.parts.map(part=>{
+   const [w,h]=size[part.kind],r=part.rotation*Math.PI/180;
+   const rw=Math.abs(w*Math.cos(r))+Math.abs(h*Math.sin(r));
+   const rh=Math.abs(w*Math.sin(r))+Math.abs(h*Math.cos(r));
+   return {left:part.x+(w-rw)/2,right:part.x+(w+rw)/2,
+     top:part.y+(h-rh)/2,bottom:part.y+(h+rh)/2};
+ });
+ const origin={x:Math.round(preferred.x/10)*10,y:Math.round(preferred.y/10)*10};
+ const space=18,step=40;
+ for(let ring=0;ring<=20;ring++){
+   for(let dy=-ring;dy<=ring;dy++){
+     for(let dx=-ring;dx<=ring;dx++){
+       if(Math.max(Math.abs(dx),Math.abs(dy))!==ring)continue;
+       const x=origin.x+dx*step,y=origin.y+dy*step;
+       if(x<12||y<12||x+width>1088||y+height>788)continue;
+       if(existing.every(box=>x+width+space<=box.left||x-space>=box.right||
+         y+height+space<=box.top||y-space>=box.bottom))return {x,y};
+     }
+   }
+ }
+ // Very dense or entirely occupied workspaces: keep add available, never delete/move existing parts.
+ return origin;
 }

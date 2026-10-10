@@ -173,7 +173,7 @@ test('nearest terminal uses rotated pin geometry and breadboard hole positions',
  assert.equal(validTerminal(p,{componentId:'bb1',pinId:'not-a-hole'}),false);
 });
 
-import {nearestBreadboardHole,snapPartToBreadboard,reconcileInsertions,insertionTarget} from '../.test-dist/core/placement.js';
+import {nearestBreadboardHole,snapPartToBreadboard,reconcileInsertions,insertionTarget,suggestPalettePosition} from '../.test-dist/core/placement.js';
 test('dropping a resistor near breadboard sockets inserts both legs in distinct columns',()=>{
  const p=demo(),board=p.parts.find(c=>c.id==='bb1'),r=p.parts.find(c=>c.id==='r1');
  r.x=board.x+28+3;r.y=board.y+67-30+2;
@@ -360,4 +360,33 @@ test('schema-v2 wire routing validates enum and preserves old JSON projects',()=
  }
  delete p.wires[0].routing;
  assert.equal(validProject(p),true);
+});
+
+test('palette click placement avoids overlapping existing parts and stays in view',()=>{
+ const p=demo(),seen=[];
+ for(let i=0;i<5;i++){
+   const candidate=suggestPalettePosition(p,'resistor');
+   assert.ok(candidate.x>=12&&candidate.y>=12);
+   assert.ok(candidate.x+140<=1088&&candidate.y+60<=788);
+   for(const original of p.parts){
+     const [w,h]=original.kind==='resistor'?[140,60]:original.kind==='led'?[110,100]:
+       original.kind==='arduino'?[205,175]:original.kind==='breadboard'?[440,210]:[92,135];
+     if(original.rotation!==0)continue;
+     assert.ok(candidate.x+140+18<=original.x||candidate.x-18>=original.x+w||
+       candidate.y+60+18<=original.y||candidate.y-18>=original.y+h,
+       'new resistor must not overlap existing '+original.id);
+   }
+   seen.push(candidate);
+   p.parts.push({id:'extra'+i,kind:'resistor',x:candidate.x,y:candidate.y,rotation:0,value:220});
+ }
+ assert.equal(new Set(seen.map(x=>x.x+':'+x.y)).size,5);
+});
+test('palette placement respects a rotated part and does not mutate project geometry',()=>{
+ const p=demo(),saved=structuredClone(p);
+ p.parts.find(c=>c.id==='r1').rotation=90;
+ const before=structuredClone(p);
+ const pos=suggestPalettePosition(p,'led');
+ assert.deepEqual(p,before);
+ assert.ok(pos.x>=0&&pos.y>=0);
+ assert.equal(saved.parts.find(c=>c.id==='r1').rotation,0);
 });

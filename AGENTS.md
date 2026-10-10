@@ -142,3 +142,5 @@
 
 - During a draft, infer first route axis once from dominant pointer movement after 18 CSS pixels. The bottom button or R key locks deliberate reversal; both the live ghost and saved wire must use the same direction. While wiring, a blank-canvas gesture places a waypoint rather than selecting a marquee.
 - An existing wire without routing is converted to orthogonal only by the selected-wire inspector button, not automatically. Reversing direction is an undoable project edit. Rendered component pin hit targets must not replace real pin positions or electrical IDs.
+
+- Palette-click part placement now chooses the nearest available collision-free canvas slot using deterministic ring search and rotated bounding boxes. Explicit drag/drop coordinates must remain unchanged. When the work area is completely full, do not destroy or reposition existing user parts.
