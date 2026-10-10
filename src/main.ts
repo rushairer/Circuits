@@ -252,18 +252,25 @@ function art(c:Part){
    '<text x="160" y="75" text-anchor="middle" font-size="10" fill="#fff">D13</text>';
  return '<rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="9" fill="#f6f7f6" stroke="#bdc9cc" stroke-width="3"/><path d="M18 35h404 M18 167h404" stroke="#e06a6a" stroke-width="2"/><path d="M18 48h404 M18 180h404" stroke="#5d9fd4" stroke-width="2"/>'+Array.from({length:22},(_,x)=>Array.from({length:10},(_,y)=>'<circle cx="'+(28+x*18)+'" cy="'+(67+y*9)+'" r="2.8" fill="#89959b"/>').join('')).join('') }
 function canvas(){
- const wires=[...project.wires].sort((a,b)=>Number(a.id===selection)-Number(b.id===selection)).map(w=>{
+ const wireRoutes=[...project.wires].sort((a,b)=>Number(a.id===selection)-Number(b.id===selection)).map(w=>{
     const coords=wirePoints(w,project.parts);
-    if(!coords)return '';
+    if(!coords)return null;
     const selected=selection===w.id;
     if(endpointDrag?.id===w.id){
       const index=endpointDrag.side==='from'?0:coords.length-1;
       coords[index]=endpointDrag.preview;
     }
     const d=wirePath(coords,Boolean(w.bends?.length),w.routing);
-    return '<g><path class="wire-hit" data-wire="'+w.id+'" d="'+d+'" fill="none" stroke="transparent" stroke-width="17"/><path class="wire" data-wire="'+w.id+'" d="'+d+'" stroke="'+w.color+'" stroke-width="'+(selected?8:5)+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>';
-  }).join('');
-  // Edit controls are always above parts and sockets, even for anchors on the board.
+    return {
+      hit:'<path class="wire-hit" data-wire="'+w.id+'" d="'+d+'" fill="none" stroke="transparent" stroke-width="17"/>',
+      visible:'<path class="wire" data-wire="'+w.id+'" d="'+d+'" stroke="'+w.color+'" stroke-width="'+(selected?8:5)+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
+    };
+  }).filter((w):w is {hit:string;visible:string}=>w!==null);
+  // All oversized invisible hit targets go BELOW all visible conductors, not
+  // interleaved wire-by-wire. A neighboring wire's broad hit region must not
+  // intercept a click directly on another visible conductor stroke.
+  const wires='<g data-wire-sublayer="hit-targets">'+wireRoutes.map(w=>w.hit).join('')+'</g>'+
+    '<g data-wire-sublayer="conductors">'+wireRoutes.map(w=>w.visible).join('')+'</g>';
   const bendHandles=project.wires.filter(w=>w.id===selection).map(w=>
     (w.bends??[]).map((p,i)=>'<circle class="bend-handle" data-wire="'+w.id+'" data-bend-index="'+i+'" data-selected="'+(selectedBend?.id===w.id&&selectedBend.index===i)+'" cx="'+p.x+'" cy="'+p.y+'" r="8" fill="#ffffff" stroke="#17ad61" stroke-width="3" tabindex="0" role="button" aria-label="导线折点 '+(i+1)+'：按 Delete 删除"/>').join('')
   ).join('');
