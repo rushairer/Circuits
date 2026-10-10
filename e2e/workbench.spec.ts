@@ -1048,7 +1048,7 @@ async function topOfWorld(page:Page,x:number,y:number){
    const hit=document.elementFromPoint(screen.x,screen.y);
    return {x:screen.x,y:screen.y,wire:hit?.getAttribute('data-wire'),
      bend:hit?.getAttribute('data-bend-index'),
-     closestPart:hit?.closest('[data-part]')?.getAttribute('data-part'),
+     closestPart:hit?.closest('[data-part]')?.getAttribute('data-part')??null,
      className:hit?.getAttribute('class')??''};
  },{x,y});
 }
