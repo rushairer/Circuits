@@ -946,7 +946,7 @@ test('original shortcuts: R rotates a part; number keys change selected wire col
  await page.reload();
  await expect(page.locator('.wire[data-wire="w1"]')).toHaveAttribute('stroke','#3b86d1');
 });
-test('wire editing: dragging directly on a wire segment creates an anchor; Delete removes only that anchor',async({page})=>{
+test('wire editing: dragging a real wire leg creates orthogonal bends; Delete removes only the selected bend',async({page})=>{
  await page.goto('/');
  const selected=page.locator('.wire[data-wire="w1"]');
  const at=await selected.evaluate((el:SVGPathElement)=>{
@@ -962,15 +962,15 @@ test('wire editing: dragging directly on a wire segment creates an anchor; Delet
  await expect(page.locator('.bend-handle[data-selected="true"]')).toHaveCount(1);
  const altered=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
  expect(altered.wires).toHaveLength(3);
- expect(altered.wires.find((w:{id:string})=>w.id==='w1').bends).toHaveLength(1);
+ expect(altered.wires.find((w:{id:string})=>w.id==='w1').bends).toHaveLength(3);
  await page.keyboard.press('Delete');
  const after=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
  expect(after.wires).toHaveLength(3);
- expect(after.wires.find((w:{id:string})=>w.id==='w1').bends).toHaveLength(0);
+ expect(after.wires.find((w:{id:string})=>w.id==='w1').bends).toHaveLength(2);
  await page.locator('[data-action="undo"]').click();
- expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1').bends.length)).toBe(1);
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1').bends.length)).toBe(3);
  await page.locator('[data-action="redo"]').click();
- expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1').bends.length)).toBe(0);
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1').bends.length)).toBe(2);
  await page.locator('[data-action="run"]').click();
  await expect(page.locator('.bottom')).toContainText('LED 正常发光');
 });
@@ -1129,4 +1129,103 @@ test('Z order: zoomed board pin drag and wire selection do not mutate netlist on
  await page.mouse.move(crossing.x,crossing.y);
  await expect(page.locator('#pin-hover')).toHaveAttribute('opacity','0');
  expect((await topOfWorld(page,643,560)).wire).toBe('surface1');
+});
+
+async function loadSingleRoutedWire(page:Page,legacyDiagonal=false){
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ p.wires=[{id:'w1',from:{componentId:'b1',pinId:'positive'},
+   to:{componentId:'r1',pinId:'a'},color:'#35b65d',
+   ...(legacyDiagonal?{bends:[{x:310,y:340}]}:{routing:'horizontal'})}];
+ await page.locator('#file').setInputFiles({
+   name:'segment-slide.json',mimeType:'application/json',
+   buffer:Buffer.from(JSON.stringify(p))
+ });
+}
+async function screenFromWorld(page:Page,x:number,y:number){
+ return page.evaluate(({x,y})=>{
+   const scene=document.querySelector<SVGGElement>('#scene')!;
+   const svg=document.querySelector<SVGSVGElement>('#board')!;
+   const q=svg.createSVGPoint();q.x=x;q.y=y;
+   const s=q.matrixTransform(scene.getScreenCTM()!);
+   return {x:s.x,y:s.y};
+ },{x,y});
+}
+test('segment slide: horizontal leg moves only vertically, preserves terminals and undo is atomic',async({page})=>{
+ await page.goto('/');await loadSingleRoutedWire(page);
+ const origin=await screenFromWorld(page,255,208);
+ const target=await screenFromWorld(page,470,268); // large parallel move is ignored
+ await page.mouse.move(origin.x,origin.y);
+ await expect(page.locator('.wire[data-wire="w1"]')).toHaveCSS('cursor','ns-resize');
+ await page.mouse.down();
+ await page.mouse.move(target.x,target.y,{steps:12});
+ await page.mouse.up();
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ expect(saved.wires).toHaveLength(1);
+ const moved=saved.wires[0];
+ expect(moved.from).toEqual({componentId:'b1',pinId:'positive'});
+ expect(moved.to).toEqual({componentId:'r1',pinId:'a'});
+ expect(moved.id).toBe('w1');expect(moved.color).toBe('#35b65d');
+ expect(moved.routing).toBe('horizontal');
+ expect(moved.bends).toEqual([{x:190,y:268},{x:310,y:268},{x:310,y:245}]);
+ await assertManhattan(page,'.wire[data-wire="w1"]');
+ await page.locator('[data-action="undo"]').click();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].bends)).toBeUndefined();
+ await page.locator('[data-action="redo"]').click();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].bends)).toEqual(moved.bends);
+ await page.reload();
+ await assertManhattan(page,'.wire[data-wire="w1"]');
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].bends)).toEqual(moved.bends);
+});
+test('segment slide: vertical leg moves only horizontally at changed zoom',async({page})=>{
+ await page.goto('/');await loadSingleRoutedWire(page);
+ await page.locator('[data-action="zoom-in"]').click();
+ const origin=await screenFromWorld(page,310,225);
+ const target=await screenFromWorld(page,370,345);
+ await page.mouse.move(origin.x,origin.y);
+ await expect(page.locator('.wire[data-wire="w1"]')).toHaveCSS('cursor','ew-resize');
+ await page.mouse.down();
+ await page.mouse.move(target.x,target.y,{steps:12});
+ await page.mouse.up();
+ const moved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0]);
+ expect(moved.bends).toEqual([{x:370,y:208},{x:370,y:245}]);
+ expect(moved.routing).toBe('horizontal');
+ await assertManhattan(page,'.wire[data-wire="w1"]');
+});
+test('segment slide: parallel-only movement does not create points or undo history',async({page})=>{
+ await page.goto('/');await loadSingleRoutedWire(page);
+ const before=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ const origin=await screenFromWorld(page,255,208);
+ const target=await screenFromWorld(page,285,208);
+ await page.mouse.move(origin.x,origin.y);await page.mouse.down();
+ await page.mouse.move(target.x,target.y,{steps:8});await page.mouse.up();
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(before);
+ await expect(page.locator('.bend-handle')).toHaveCount(0);
+});
+test('segment slide: Escape cancels an in-flight slide without saving any changes',async({page})=>{
+ await page.goto('/');await loadSingleRoutedWire(page);
+ const before=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ const origin=await screenFromWorld(page,250,208);
+ const target=await screenFromWorld(page,270,278);
+ await page.mouse.move(origin.x,origin.y);await page.mouse.down();
+ await page.mouse.move(target.x,target.y,{steps:8});
+ await expect(page.locator('.bend-handle')).toHaveCount(3);
+ await page.keyboard.press('Escape');
+ await page.mouse.up();
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(before);
+ await expect(page.locator('.bend-handle')).toHaveCount(0);
+ await assertManhattan(page,'.wire[data-wire="w1"]');
+});
+test('segment slide: old diagonal wires remain freely editable, never silently converted',async({page})=>{
+ await page.goto('/');await loadSingleRoutedWire(page,true);
+ const origin=await screenFromWorld(page,250,274);
+ const target=await screenFromWorld(page,270,300);
+ await page.mouse.move(origin.x,origin.y);await page.mouse.down();
+ await page.mouse.move(target.x,target.y,{steps:10});await page.mouse.up();
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0]);
+ expect(saved.routing).toBeUndefined();
+ expect(saved.bends).toHaveLength(2);
+ expect(saved.from).toEqual({componentId:'b1',pinId:'positive'});
+ expect(saved.to).toEqual({componentId:'r1',pinId:'a'});
+ await page.locator('[data-action="undo"]').click();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].bends)).toEqual([{x:310,y:340}]);
 });
