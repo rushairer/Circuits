@@ -163,7 +163,7 @@ test('wheel zoom preserves cursor anchor and Space-drag pans without editing the
  expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(initial);
  await page.locator('[data-action="fit"]').click();
  const fitted=await page.locator('#scene').getAttribute('transform');
- expect(fitted).toMatch(/translate\(-?[\\d.]+ -?[\\d.]+\) scale\([\\d.]+\)/);
+ expect(fitted).toMatch(/translate\(-?[\d.]+ -?[\d.]+\) scale\([\d.]+\)/);
  await page.keyboard.press('f');
  expect(await page.locator('#scene').getAttribute('transform')).toBe(fitted);
 });
