@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {demo,validProject} from '../.test-dist/model.js';
+import {evaluate} from '../.test-dist/core/dc.js';
+import {insertWireWaypoint,moveWireWaypoint,removeWireWaypoint} from '../.test-dist/core/wire-edit.js';
+test('dragging a wire segment adds precisely one selected anchor, never edits circuit topology',()=>{
+ const baseline=demo(),old=evaluate(baseline);
+ const inserted=insertWireWaypoint(baseline,'w1',{x:290,y:211},10);
+ assert.ok(inserted);
+ assert.equal(inserted.index,0);
+ assert.equal(inserted.project.wires[0].bends.length,1);
+ assert.deepEqual(inserted.project.wires[0].bends,[{x:290,y:210}]);
+ assert.equal(baseline.wires[0].bends,undefined);
+ assert.deepEqual(evaluate(inserted.project),old);
+ assert.equal(validProject(inserted.project),true);
+ const moved=moveWireWaypoint(inserted.project,'w1',inserted.index,{x:310,y:145},10);
+ assert.deepEqual(moved.wires[0].bends,[{x:310,y:150}]);
+ assert.deepEqual(evaluate(moved),old);
+ const removed=removeWireWaypoint(moved,'w1',inserted.index);
+ assert.deepEqual(removed.wires[0].bends,[]);
+ assert.equal(removed.wires[0].id,'w1');
+ assert.equal(removed.wires[0].color,baseline.wires[0].color);
+ assert.deepEqual(evaluate(removed),old);
+});
+test('waypoint editor refuses invalid bounds and protects 32-anchor project cap',()=>{
+ const project=demo();
+ assert.equal(insertWireWaypoint(project,'missing',{x:5,y:5}),null);
+ assert.equal(insertWireWaypoint(project,'w1',{x:Infinity,y:3}),null);
+ assert.equal(insertWireWaypoint(project,'w1',{x:100001,y:3}),null);
+ assert.equal(moveWireWaypoint(project,'w1',0,{x:1,y:1}),null);
+ assert.equal(removeWireWaypoint(project,'w1',0),null);
+ const full=structuredClone(project);
+ full.wires[0].bends=Array.from({length:32},(_,i)=>({x:i*5,y:20}));
+ assert.equal(insertWireWaypoint(full,'w1',{x:2,y:2}),null);
+ assert.equal(validProject(full),true);
+ assert.equal(removeWireWaypoint(full,'w1',31).wires[0].bends.length,31);
+ assert.equal(moveWireWaypoint(full,'w1',1,{x:NaN,y:1}),null);
+});
+test('orthogonal routed paths keep original routing, ids and connections after anchor edits',()=>{
+ const p=demo();p.wires[0].routing='vertical';
+ const first=insertWireWaypoint(p,'w1',{x:255,y:222});
+ assert.ok(first);
+ assert.equal(first.project.wires[0].routing,'vertical');
+ const moved=moveWireWaypoint(first.project,'w1',first.index,{x:280,y:260});
+ assert.equal(moved.wires[0].routing,'vertical');
+ assert.equal(moved.wires[0].to.pinId,p.wires[0].to.pinId);
+ assert.equal(validProject(moved),true);
+});
