@@ -1322,7 +1322,7 @@ test('crossing bridge: changing an existing waypoint redraws the jump without cr
  expect(bounds).not.toBeNull();
  await page.mouse.move(bounds!.x+bounds!.width/2,bounds!.y+bounds!.height/2);
  await page.mouse.down();
- const outside=await screenFromWorld(page,450,275);
+ const outside=await screenFromWorld(page,450,283); // avoid the 275 half-grid rounding tie
  await page.mouse.move(outside.x,outside.y,{steps:12});
  await page.mouse.up();
  await expect(page.locator('.wire[data-wire="w2"]')).toHaveAttribute('data-crossovers','1');
