@@ -4,7 +4,7 @@
 
 Circuits is an **independent, open-source browser circuit workbench** written in TypeScript + Vite. Its long-term goal is functional parity with Tinkercad Circuits, not reproduction of Autodesk's proprietary code, branding, or artwork.
 
-> **v0.4.0-alpha.9 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
+> **v0.4.0-alpha.10 — experimental prototype.** This is **not** a complete Tinkercad Circuits replica, SPICE simulator, or functioning Arduino emulator.
 
 ## Implemented
 
@@ -152,3 +152,11 @@ Drag the *body of a horizontal conductor* vertically to slide that entire visibl
 Press **Escape** while dragging to abandon the preview. A successful gesture is one undo step, persisted in the schema-v2 document and restored on reload. Old imported literal/diagonal manual paths still support their previous free-point edits and are never automatically converted. The resulting saved route remains orthogonal even after moving a connected part. Limits: 32 internal vertices per wire; extreme/tightly folded geometry is not automatically optimized, and apparent crossings remain electrically separate until explicitly connected.
 
 As with prior releases, this is evidence-based behavior work toward Tinkercad, not a verified pixel-for-pixel reproduction of the proprietary editor.
+
+### v0.4.0-alpha.10: visible noncontact crossings and easier wire picking
+
+When two completed jumper wires cross in free space, the visually higher conductor now gets a small insulating **crossover arch** rather than two perfectly overlapping strokes. This follows the documented Tinkercad teaching convention for "passing over without connecting", but is not a new electrical junction. The route stored in schema-v2, component pin IDs and simulator result are unaffected. A selected wire comes to the visual foreground (and may own the crossover decoration). Parallel overlapping wires and path corners do not receive fake bridges.
+
+Transparent SVG wire pick strokes now retain a **17 CSS-pixel** target under camera zoom instead of shrinking to nearly unclickable targets. Real board socket centers still have priority when the pointer is directly over a physical hole. Drawing very dense imported projects remains bounded: when there are more than 720 visible line segments the editor omits decorative bridges rather than degrading interactive performance; the conductors and netlist stay intact.
+
+Reference: [Aberystwyth Tinkercad electronics exercises](https://outreach-hub.aber.ac.uk/Engineering/Tinkercad/electronicsSeries.html) explicitly describe the arch as an unconnected wire crossover. The proprietary authenticated editor's exact arc size and rendering order have not been pixel-audited.
