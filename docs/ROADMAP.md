@@ -62,3 +62,7 @@
 
 - [x] Alpha.9 orthogonal full-segment dragging, perpendicular-axis cursor and grid snapping, stable pin anchors, single-step undo/redo, cancellation and compatibility with legacy free-form paths
 - [ ] Verify fine-grained Tinkercad segment deformation against the live authenticated original; continue junction/branch and device touch QA after this bounded approximation
+
+
+- [x] Alpha.10 wire crossover arches with pointer-transparent insulation, stable zoomed wire pick tolerance and no implicit electrical contact; three-engine browser / unit regression
+- [ ] Direct authenticated editor parity screenshots for exact arc curvature, overlay styling, narrow trace selection and touch screen gestures
