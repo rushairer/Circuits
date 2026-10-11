@@ -1312,9 +1312,8 @@ test('crossing bridge: changing an existing waypoint redraws the jump without cr
  await loadCrossingFixture(page);
  const upper=page.locator('.wire[data-wire="w2"]');
  await expect(upper).toHaveAttribute('data-crossovers','1');
- await page.locator('.wire[data-wire="w2"]').click({position:{x:5,y:5},force:true});
- // Select the top wire by clicking the arch, then move the upper wire's
- // already-authored handle so its vertical span is no longer at the X.
+ // Select the top wire at its visible arch, then move its authored
+ // waypoint to reposition (not electrically reconnect) the crossover.
  const bridge=await screenFromWorld(page,376,315);
  await page.mouse.click(bridge.x,bridge.y);
  await expect(page.locator('.bend-handle[data-wire="w2"]')).toHaveCount(2);
@@ -1326,6 +1325,7 @@ test('crossing bridge: changing an existing waypoint redraws the jump without cr
  const outside=await screenFromWorld(page,450,275);
  await page.mouse.move(outside.x,outside.y,{steps:12});
  await page.mouse.up();
+ await expect(page.locator('.wire[data-wire="w2"]')).toHaveAttribute('data-crossovers','1');
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
  const moved=saved.wires.find((wire:{id:string})=>wire.id==='w2');
  expect(moved.from).toEqual({componentId:'a1',pinId:'d13'});
