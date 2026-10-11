@@ -139,3 +139,7 @@
 
 /* Alpha.9: sliding line segments keeps terminal endpoints fixed. */
 [data-layer="wires"] .wire,[data-layer="wires"] .wire-hit{touch-action:none}
+
+/* Alpha.10 crossing bridges: view-only insulating outline, not a junction. */
+.wire-bridge-clear{stroke:#f5f7f7;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+[data-layer="wires"] .wire-hit{vector-effect:non-scaling-stroke}
