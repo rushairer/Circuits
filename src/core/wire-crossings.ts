@@ -16,6 +16,7 @@ export interface PaintedWire {
  bridgeBackdrops:readonly string[];
  bridgeCount:number;
 }
+export interface WireEndpointPreview { id:string; side:'from'|'to'; point:Point }
 interface Segment {
  wireIndex:number;
  from:Point;
@@ -34,8 +35,7 @@ const subtract=(a:Point,b:Point)=>({x:a.x-b.x,y:a.y-b.y});
 const cross=(a:Point,b:Point)=>a.x*b.y-a.y*b.x;
 const at=(a:Point,b:Point,t:number):Point=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});
 
-function visualVertices(w:Wire,parts:readonly Part[]):Point[]|null{
- const points=wirePoints(w,parts);
+function visualVertices(w:Wire,points:Point[]|null):Point[]|null{
  if(!points)return null;
  if(w.routing)return orthogonalRoute(points,w.routing);
  if(w.bends?.length)return points;
@@ -100,11 +100,17 @@ function bridgePath(vertices:readonly Point[],crosses:readonly Intersection[],ra
  * electrical model, and the project is never mutated.
  */
 export function paintCrossingWires(
- wires:readonly Wire[],parts:readonly Part[],bridgeRadius=DEFAULT_RADIUS
+ wires:readonly Wire[],parts:readonly Part[],bridgeRadius=DEFAULT_RADIUS,
+ preview:WireEndpointPreview|null=null
 ):PaintedWire[] {
  const prepared=wires.map(w=>{
-   const vertices=visualVertices(w,parts);
-   const points=wirePoints(w,parts);
+   const originalPoints=wirePoints(w,parts);
+   const points=originalPoints?.map(p=>({...p}))??null;
+   if(points&&preview?.id===w.id){
+     const index=preview.side==='from'?0:points.length-1;
+     points[index]={...preview.point};
+   }
+   const vertices=visualVertices(w,points);
    return {id:w.id,vertices,
      original:points?wirePath(points,Boolean(w.bends?.length),w.routing):''};
  });
