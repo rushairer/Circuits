@@ -1229,3 +1229,112 @@ test('segment slide: old diagonal wires remain freely editable, never silently c
  await page.locator('[data-action="undo"]').click();
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires[0].bends)).toEqual([{x:310,y:340}]);
 });
+
+async function loadCrossingFixture(page:Page){
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ p.wires=[
+  {id:'w1',from:{componentId:'b1',pinId:'positive'},
+    to:{componentId:'l1',pinId:'anode'},color:'#35b65d',
+    bends:[{x:290,y:315},{x:600,y:315}]},
+  {id:'w2',from:{componentId:'a1',pinId:'d13'},
+    to:{componentId:'r1',pinId:'a'},color:'#e45454',
+    bends:[{x:370,y:380},{x:370,y:275}]}
+ ];
+ await page.locator('#file').setInputFiles({
+   name:'crossing-jump.json',mimeType:'application/json',
+   buffer:Buffer.from(JSON.stringify(p))
+ });
+}
+async function visibleAtWorld(page:Page,x:number,y:number){
+ return page.evaluate(({x,y})=>{
+   const svg=document.querySelector<SVGSVGElement>('#board')!;
+   const scene=document.querySelector<SVGGElement>('#scene')!;
+   const q=svg.createSVGPoint();q.x=x;q.y=y;
+   const client=q.matrixTransform(scene.getScreenCTM()!);
+   const target=document.elementFromPoint(client.x,client.y);
+   return {wire:target?.getAttribute('data-wire')??null,
+     layer:target?.closest('[data-layer]')?.getAttribute('data-layer')??null};
+ },{x,y});
+}
+test('crossing bridge: upper wire makes an insulated arch, lower wire remains selectable at the crossing',async({page})=>{
+ await page.goto('/');
+ await loadCrossingFixture(page);
+ const original=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ const lower=page.locator('.wire[data-wire="w1"]');
+ const upper=page.locator('.wire[data-wire="w2"]');
+ await expect(lower).toHaveAttribute('data-crossovers','0');
+ await expect(upper).toHaveAttribute('data-crossovers','1');
+ expect(await upper.getAttribute('d')).toContain(' Q');
+ expect(await lower.getAttribute('d')).not.toContain(' Q');
+ await expect(page.locator('.wire-bridge-clear[data-bridge-for="w2"]')).toHaveCount(1);
+ await expect(page.locator('.wire-bridge-clear')).toHaveAttribute('pointer-events','none');
+ // The arch is drawn slightly to the right of the X, while the lower
+ // horizontal wire stays straight through the original intersection.
+ expect((await visibleAtWorld(page,370,315)).wire).toBe('w1');
+ expect((await visibleAtWorld(page,376,315)).wire).toBe('w2');
+ const cross=await screenFromWorld(page,370,315);
+ await page.mouse.click(cross.x,cross.y);
+ await expect(page.locator('.endpoint-handle[data-wire="w1"]')).toHaveCount(2);
+ // Selecting a conductor raises it; the higher arched wire can be chosen
+ // again by clicking the now-visible straight wire at the same point.
+ expect(await page.locator('.wire[data-wire="w1"]').getAttribute('d')).toContain(' Q');
+ expect(await page.locator('.wire[data-wire="w2"]').getAttribute('d')).not.toContain(' Q');
+ await page.mouse.click(cross.x,cross.y);
+ await expect(page.locator('.endpoint-handle[data-wire="w2"]')).toHaveCount(2);
+ expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(original);
+ await page.reload();
+ await expect(page.locator('.wire[data-wire="w2"]')).toHaveAttribute('data-crossovers','1');
+ await expect(page.locator('.wire-bridge-clear')).toHaveCount(1);
+});
+test('crossing bridge: hit tolerance remains in screen pixels across camera zoom',async({page})=>{
+ await page.goto('/');
+ await loadCrossingFixture(page);
+ const before=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ await expect(page.locator('.wire-hit[data-wire="w1"]')).toHaveAttribute('vector-effect','non-scaling-stroke');
+ for(const action of ['zoom-out','zoom-in','zoom-in']){
+   await page.locator('[data-action="'+action+'"]').click();
+   // Six client pixels off the thin visible wire must still resolve to its
+   // transparent hit stroke, regardless of SVG camera zoom.
+   const onWire=await screenFromWorld(page,400,315);
+   const picked=await page.evaluate(({x,y})=>{
+     const node=document.elementFromPoint(x,y-6);
+     return node?.getAttribute('data-wire')??null;
+   },onWire);
+   expect(picked).toBe('w1');
+   await page.mouse.click(onWire.x,onWire.y-6);
+   await expect(page.locator('.endpoint-handle[data-wire="w1"]')).toHaveCount(2);
+   const after=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+   expect(after).toBe(before);
+ }
+});
+test('crossing bridge: changing an existing waypoint redraws the jump without creating a netlist junction',async({page})=>{
+ await page.goto('/');
+ await loadCrossingFixture(page);
+ const upper=page.locator('.wire[data-wire="w2"]');
+ await expect(upper).toHaveAttribute('data-crossovers','1');
+ await page.locator('.wire[data-wire="w2"]').click({position:{x:5,y:5},force:true});
+ // Select the top wire by clicking the arch, then move the upper wire's
+ // already-authored handle so its vertical span is no longer at the X.
+ const bridge=await screenFromWorld(page,376,315);
+ await page.mouse.click(bridge.x,bridge.y);
+ await expect(page.locator('.bend-handle[data-wire="w2"]')).toHaveCount(2);
+ const handle=page.locator('.bend-handle[data-wire="w2"][data-bend-index="1"]');
+ const bounds=await handle.boundingBox();
+ expect(bounds).not.toBeNull();
+ await page.mouse.move(bounds!.x+bounds!.width/2,bounds!.y+bounds!.height/2);
+ await page.mouse.down();
+ const outside=await screenFromWorld(page,450,275);
+ await page.mouse.move(outside.x,outside.y,{steps:12});
+ await page.mouse.up();
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}'));
+ const moved=saved.wires.find((wire:{id:string})=>wire.id==='w2');
+ expect(moved.from).toEqual({componentId:'a1',pinId:'d13'});
+ expect(moved.to).toEqual({componentId:'r1',pinId:'a'});
+ expect(saved.wires).toHaveLength(2);
+ // Moving an authored waypoint only changes visual path geometry.
+ expect(moved.bends[1].x).toBe(450);
+ expect(moved.bends[1].y).toBe(280);
+ await page.locator('[data-action="undo"]').click();
+ const restored=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w2').bends);
+ expect(restored).toEqual([{x:370,y:380},{x:370,y:275}]);
+});
