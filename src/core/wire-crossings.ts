@@ -65,8 +65,9 @@ function normal(from:Point,to:Point):Point{
  const dx=to.x-from.x,dy=to.y-from.y,len=Math.hypot(dx,dy);
  // The hump goes toward the top of the editor for mostly horizontal legs
  // and toward the right for mostly vertical ones, independent of wire order.
- if(Math.abs(dx)>=Math.abs(dy))return {x:dy/len,y:-dx/len*(dx>=0?1:-1)};
- return {x:Math.abs(dy)/len,y:dx/len*(dy>=0?1:-1)};
+ const base={x:-dy/len,y:dx/len};
+ const invert=Math.abs(dx)>=Math.abs(dy)?base.y>0:base.x<0;
+ return invert?{x:-base.x,y:-base.y}:base;
 }
 function bridgePath(vertices:readonly Point[],crosses:readonly Intersection[],radius:number){
  if(!crosses.length)return null;
