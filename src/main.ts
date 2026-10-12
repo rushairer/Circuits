@@ -1285,6 +1285,8 @@ window.addEventListener('keyup',e=>{
  if(e.key===' '){spaceHeld=false;app.querySelector('.canvas')?.classList.remove('pan-mode')}
 });
 function cancelCanvasGesture(){
+ // Do not replace a native file input or an unfinished text edit on idle blur.
+ if(!drag&&!bendDrag&&!segmentDrag&&!endpointDrag&&!marquee&&!panDrag&&!wiring&&!spaceHeld)return;
  // Roll back every preview, not just whole-wire segment edits. No save/commit.
  const before=drag?.before??bendDrag?.before??segmentDrag?.before;
  if(before)project=before;
