@@ -89,7 +89,11 @@ export function bindCanvasPointers(root: HTMLElement, hooks: Hooks) {
     const event = input(e, targetAt(e), contact?.dragged);
     if (!owned || event.dragged || e.pointerType !== 'mouse') suppress(e,e.timeStamp);
     // Apply the final sample even if the browser did not deliver a final move.
-    if (owned && event.dragged) hooks.move(event);
+    if (owned && event.dragged) {
+      hooks.move(event);
+      // A final preview can replace the scene. Never commit using a detached pin.
+      event.target = targetAt(e);
+    }
     session.finish(e.pointerId);
     try {
       if (owned) {
