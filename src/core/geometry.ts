@@ -8,15 +8,43 @@ export function snap(value: number, pitch=10): number {
   return Math.round(value/pitch)*pitch;
 }
 
-export function pinWorld(endpoint: Endpoint, parts: readonly Part[]): Point | null {
-  const component=parts.find(c=>c.id===endpoint.componentId);
-  if (!component) return null;
-  const local=pins[component.kind][endpoint.pinId];
+function pinOnPart(component: Part, pinId: string): Point | null {
+  const local=pins[component.kind][pinId];
   if (!local) return null;
   const [w,h]=size[component.kind],radians=component.rotation*Math.PI/180;
   const dx=local[0]-w/2,dy=local[1]-h/2;
   return {x:component.x+w/2+dx*Math.cos(radians)-dy*Math.sin(radians),
           y:component.y+h/2+dx*Math.sin(radians)+dy*Math.cos(radians)};
+}
+
+export function pinWorld(endpoint: Endpoint, parts: readonly Part[]): Point | null {
+  const component=parts.find(c=>c.id===endpoint.componentId);
+  return component?pinOnPart(component,endpoint.pinId):null;
+}
+
+/**
+ * Resolve many wire endpoints against ONE geometry snapshot in O(parts + pins).
+ * Create a new resolver for every render/edit operation, never retain it across
+ * moves, rotations, undo or imports. Only requested pins are calculated; large
+ * breadboards do not require eagerly transforming every socket. Returned points
+ * are copies so previews cannot corrupt another wire sharing the same terminal.
+ */
+export function createPinResolver(parts: readonly Part[]): (endpoint: Endpoint)=>Point|null {
+  const components=new Map<string,Part>();
+  const resolved=new Map<string,Map<string,Point|null>>();
+  for (const part of parts) {
+    // Preserve pinWorld's first-match behavior even for unvalidated duplicate IDs.
+    if (!components.has(part.id)) components.set(part.id,{...part});
+  }
+  return endpoint=>{
+    const component=components.get(endpoint.componentId);
+    if (!component) return null;
+    let locations=resolved.get(endpoint.componentId);
+    if (!locations) {locations=new Map();resolved.set(endpoint.componentId,locations);}
+    if (!locations.has(endpoint.pinId)) locations.set(endpoint.pinId,pinOnPart(component,endpoint.pinId));
+    const point=locations.get(endpoint.pinId);
+    return point?{...point}:null;
+  };
 }
 
 export function wirePoints(wire: Wire, parts: readonly Part[]): Point[] | null {
