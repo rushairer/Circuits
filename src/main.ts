@@ -1286,7 +1286,7 @@ window.addEventListener('keyup',e=>{
 });
 function cancelCanvasGesture(){
  // Do not replace a native file input or an unfinished text edit on idle blur.
- if(!drag&&!bendDrag&&!segmentDrag&&!endpointDrag&&!marquee&&!panDrag&&!wiring&&!spaceHeld)return;
+ if(!drag&&!bendDrag&&!segmentDrag&&!endpointDrag&&!marquee&&!panDrag&&!wireDrag&&!wiring&&!spaceHeld)return;
  // Roll back every preview, not just whole-wire segment edits. No save/commit.
  const before=drag?.before??bendDrag?.before??segmentDrag?.before;
  if(before)project=before;

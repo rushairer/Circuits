@@ -44,7 +44,9 @@ Escape、pointercancel、丢失捕获、窗口失焦和页面隐藏统一清理�
 
 `e2e/wire-performance.spec.ts` 继续覆盖 300 元件、2000 导线的导入、显示、缩放、微移、端点保持和单步撤销。它不是 FPS 测试。
 
-第二批增加 13 项纯状态机测试，以及 `e2e/pointer-input.spec.ts`、`e2e/pointer-boundaries.spec.ts` 的 26 个浏览器场景。覆盖真实触摸点按、缩放后的接线、元件/折点移动、面包板端点改接、相机平移、最终采样、四类取消、多指介入、迟到事件、笔侧键、表单保护和单步撤销。
+第二批增加 14 项纯逻辑测试（含继承事件属性快照回归），以及 `e2e/pointer-input.spec.ts`、`e2e/pointer-boundaries.spec.ts` 的 26 个浏览器场景。覆盖真实触摸点按、缩放后的接线、元件/折点移动、面包板端点改接、相机平移、最终采样、四类取消、多指介入、迟到事件、笔侧键、表单保护和单步撤销。
+
+另有 `e2e/pointer-recovery.spec.ts` 的 3 个场景检查尚未拖动就取消的引脚操作不会污染下一次元件拖动，第二批合计 29 个浏览器场景。
 
 三引擎运行同一组确定性 PointerEvent 轨迹，并使用 Playwright 的原生触摸点按。仅 Chromium 通过 CDP 注入原生触摸/笔拖动；该单项在 Firefox/WebKit 明确跳过，不把合成事件冒充平台捕获验证。所有原有鼠标、键盘、仿真与大场景测试仍必须通过。
 
