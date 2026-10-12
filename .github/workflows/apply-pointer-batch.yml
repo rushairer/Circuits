@@ -1,0 +1,51 @@
+name: Apply alpha11 pointer integration
+on:
+  pull_request:
+    branches: [main]
+    paths: [scripts/apply-pointer-batch.mjs]
+permissions:
+  contents: read
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'work/alpha11-pointer-input'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply exact-base integration and validate whitespace
+        run: |
+          node scripts/apply-pointer-batch.mjs
+          git diff --check
+      - name: Source snapshot for offline validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpha11-pointer-source
+          retention-days: 3
+          include-hidden-files: true
+          path: |
+            src/
+            tests/
+            e2e/
+            docs/
+            scripts/
+            AGENTS.md
+            package.json
+            tsconfig.json
+            tsconfig.test.json
+            playwright.config.ts
+            vite.config.ts
+            index.html
+            .github/workflows/ci.yml
+      - name: Commit source integration on this development branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/main.ts
+          git commit -m 'feat(editor): integrate owned pointer gestures and atomic cancellation'
+          git push origin HEAD:refs/heads/work/alpha11-pointer-input
