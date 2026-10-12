@@ -40,6 +40,14 @@ jobs:
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Browser end-to-end tests
         run: npm run test:e2e
+      - name: Save touch and pen interaction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pointer-interaction-evidence
+          path: /tmp/circuits-pointer-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload browser test report on failure
         if: failure()
         uses: actions/upload-artifact@v4

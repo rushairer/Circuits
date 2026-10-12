@@ -29,7 +29,12 @@ export class PointerSession {
     // UI-only contacts must retain native scrolling, selection and form behavior.
     if (!onCanvas && !this.busy) return 'ignore';
     const occupied = this.busy;
-    this.contacts.set(p.pointerId, {...p, startX:p.clientX, startY:p.clientY, dragged:false});
+    // DOM event attributes may be inherited accessors, not enumerable own fields.
+    this.contacts.set(p.pointerId, {
+      pointerId:p.pointerId, pointerType:p.pointerType, isPrimary:p.isPrimary,
+      clientX:p.clientX, clientY:p.clientY,
+      startX:p.clientX, startY:p.clientY, dragged:false
+    });
     if (occupied) {
       const interrupted = this.owner !== null;
       this.owner = null;

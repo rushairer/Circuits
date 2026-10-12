@@ -79,7 +79,11 @@ export function bindCanvasPointers(root: HTMLElement, hooks: Hooks) {
     hooks.move(input(e, targetAt(e), contact?.dragged));
   };
   const up = (e: PointerEvent) => {
-    if (!session.has(e.pointerId)) return;
+    if (!session.has(e.pointerId)) {
+      // An up after blur/reset cannot become a fresh canvas click, even much later.
+      if (e.target instanceof Element && (e.target === root || onCanvas(e.target))) suppress(e,e.timeStamp);
+      return;
+    }
     const contact = session.update(e);
     const owned = session.owns(e.pointerId);
     const event = input(e, targetAt(e), contact?.dragged);

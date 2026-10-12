@@ -6,7 +6,8 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] First batch: per-render endpoint snapshots, adaptive sparse crossing lookup, early decoration-budget exits, alpha.10 output-equivalence fixtures and reproducible geometry-only benchmarks
 - [x] Add browser regression for 300-part / 2000-wire import, zoom, keyboard movement and undo (execution remains subject to the three-engine CI gate)
-- [ ] Touch/stylus gesture ownership, cancellation, multi-pointer transitions and real-device verification
+- [x] Second batch: unified pointer ownership, stable touch/pen capture, atomic preview cancellation, final-release sampling, compatibility-click filtering and unit/browser regression coverage
+- [ ] Native Safari, physical touch/pen devices, OS palm/interruption behavior and multi-touch navigation verification
 - [ ] Distance-ranked crossing/overlap selection with explicit candidate switching
 - [ ] Screen-space waypoint alignment snapping and snap-release hysteresis
 - [ ] Browser frame-time, long-task and input-latency profiling on large circuits
