@@ -1,5 +1,17 @@
 # Circuits functional parity roadmap
 
+## Active milestone — alpha.11 (in progress)
+
+See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
+
+- [x] First batch: per-render endpoint snapshots, adaptive sparse crossing lookup, early decoration-budget exits, alpha.10 output-equivalence fixtures and reproducible geometry-only benchmarks
+- [x] Add browser regression for 300-part / 2000-wire import, zoom, keyboard movement and undo (execution remains subject to the three-engine CI gate)
+- [ ] Touch/stylus gesture ownership, cancellation, multi-pointer transitions and real-device verification
+- [ ] Distance-ranked crossing/overlap selection with explicit candidate switching
+- [ ] Screen-space waypoint alignment snapping and snap-release hysteresis
+- [ ] Browser frame-time, long-task and input-latency profiling on large circuits
+- [ ] Complete interaction acceptance and advance the package version from alpha.10 to alpha.11
+
 ## v0.1.x — editor and DC foundation (implemented and under verification)
 - [x] Browser component palette, SVG editor, pin wiring, JSON import/export, browser persistence
 - [x] Battery/resistors/one LED experimental DC modified nodal analysis, including parallel resistance
