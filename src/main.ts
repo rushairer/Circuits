@@ -1,4 +1,5 @@
 import './style.css';
+import { bindCanvasPointers, type CanvasClick, type CanvasPointer } from './ui/pointer-input.js';
 import { DEFAULT_WIRE_COLOR, WIRE_COLOR_PRESETS, wireColorForDigit, wireColorOptions } from './core/wire-colors.js';
 import { insertWireWaypoint, moveWireWaypoint, removeWireWaypoint } from './core/wire-edit.js';
 import { nearestOrthogonalSegment, slideOrthogonalSegment } from './core/wire-segments.js';
@@ -83,13 +84,14 @@ function clearWireDraft(){
  wiringDirection='horizontal';wiringDirectionLocked=false;wiringDirectionInferred=false;
 }
 function openWorkspace(id:string){
+ pointerInput.cancel();
  workspace=switchProject(workspace,id);
  project=reconcileInsertions(activeProject(workspace));
  selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
  save();render();
 }
 function commit(before:Project){clearWireDraft();resetUnoPreview();rcConvergence=null;project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
-function revert(stack:Project[],other:Project[]){const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;save();render()}
+function revert(stack:Project[],other:Project[]){pointerInput.cancel();const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;save();render()}
 const uid=()=>crypto.randomUUID().slice(0,8);
 const pos=(e:Endpoint):[number,number]|null=>{
  const p=pinWorld(e,project.parts);return p?[p.x,p.y]:null;
@@ -703,7 +705,7 @@ function deleteSelection(){
  selectedIds.clear();selection=null;selectedBend=null;commit(before);
 }
 function download(text:string,name:string){const url=URL.createObjectURL(new Blob([text]));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
-app.addEventListener('click',e=>{
+function handleClick(e:CanvasClick){
  if(ignoredClick&&e.timeStamp<ignoredClick.until&&Math.hypot(e.clientX-ignoredClick.x,e.clientY-ignoredClick.y)<4){
    ignoredClick=null;return;
  }
@@ -831,7 +833,8 @@ app.addEventListener('click',e=>{
  case 'export':download(JSON.stringify(project,null,2),project.name+'.json');break;
  case 'download-code':download(project.code,'circuit.ino');break;
  case 'import':app.querySelector<HTMLInputElement>('#file')?.click();break}
-});
+}
+app.addEventListener('click',handleClick);
 app.addEventListener('input',e=>{
  const t=e.target as HTMLInputElement;
  if(t.id==='uno-time'&&unoPreview?.ok){
@@ -913,7 +916,7 @@ app.addEventListener('change',async e=>{
  if(t.id==='wire-palette'){if(WIRE_COLOR_PRESETS.some(x=>x.value===t.value))chooseWireColor(t.value);return;}
  if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){chooseWireColor(t.value)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}
  if(t.id==='switch-contact'){const c=project.parts.find(p=>p.id===selection);const value=Number(t.value);if(c?.kind==='switch'&&t.value.trim()!==''&&Number.isFinite(value)&&(value===0||(value>=0.1&&value<=1e6))){const before=copy();c.contactOhms=value;rcTimeIndex=0;commit(before)}else render()}
- if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();rcTimeIndex=0;scopeOpen=false;scopeCapacitorId='';commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
+ if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();pointerInput.cancel();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();rcTimeIndex=0;scopeOpen=false;scopeCapacitorId='';commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
 app.addEventListener('dragstart',e=>{const p=(e.target as Element).closest<HTMLElement>('[data-kind]');if(p)e.dataTransfer?.setData('text/circuit-kind',p.dataset.kind!)});
 app.addEventListener('dragover',e=>{if((e.target as Element).closest('.canvas'))e.preventDefault()});
 app.addEventListener('drop',e=>{const svg=app.querySelector<SVGSVGElement>('#board');const kind=e.dataTransfer?.getData('text/circuit-kind') as Kind;if(!svg||!parts.includes(kind)||!(e.target as Element).closest('.canvas'))return;e.preventDefault();const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM();if(!m)return;const p=pt.matrixTransform(m.inverse());add(kind,(p.x-panX)/zoom-size[kind][0]/2,(p.y-panY)/zoom-size[kind][1]/2)});
@@ -927,6 +930,7 @@ app.addEventListener('dblclick',e=>{
 });
 app.addEventListener('wheel',e=>{
  if(!(e.target as Element).closest('.canvas')||e.deltaY===0||scopeOpen)return;
+ pointerInput.cancel();
  e.preventDefault();
  const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
  if(!svg||!matrix)return;
@@ -935,7 +939,8 @@ app.addEventListener('wheel',e=>{
  const view=zoomAt({zoom,panX,panY},{x:anchor.x,y:anchor.y},zoom*(e.deltaY<0?1.12:1/1.12));
  zoom=view.zoom;panX=view.panX;panY=view.panY;render();
 },{passive:false});
-app.addEventListener('pointerdown',e=>{
+function handlePointerDown(e:CanvasPointer){
+ ignoredClick=null;
  const svg=app.querySelector<SVGSVGElement>('#board'),target=e.target as Element;
  // Pointer gestures must start inside the SVG, never on toolbar or inspector controls.
  if(!target.closest('#board'))return;
@@ -998,8 +1003,8 @@ app.addEventListener('pointerdown',e=>{
  selection=ids.length===1?id:null;
  drag={ids,x:e.clientX,y:e.clientY,before:copy()};
  render();
-});
-window.addEventListener('pointermove',e=>{
+}
+function handlePointerMove(e:CanvasPointer){
  const pointerTarget=e.target as Element;
  if(pointerTarget.closest?.('#board')){
    updatePinHover(pointerTarget,e.clientX,e.clientY);
@@ -1015,6 +1020,7 @@ window.addEventListener('pointermove',e=>{
    }
  }else app.querySelector('#pin-hover')?.setAttribute('opacity','0');
  if(panDrag){
+   if(!e.dragged)return;
    const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
    if(!matrix)return;
    const scale=Math.hypot(matrix.a,matrix.b);
@@ -1027,13 +1033,13 @@ window.addEventListener('pointermove',e=>{
    return;
  }
  if(wireDrag&&e.pointerId===wireDrag.pointerId){
-   if(!wireDrag.active&&Math.hypot(e.clientX-wireDrag.clientX,e.clientY-wireDrag.clientY)>5){
+   if(!wireDrag.active&&e.dragged){
      wireDrag.active=true;
      if(!wiring){wiring={...wireDrag.from};wiringBends=[];}
      selectedIds.clear();selection=null;connectionNotice='';
      render();
    }
-   if(wireDrag.active){
+   if(wireDrag.active&&pointerTarget.closest('#board')){
      const point=canvasPoint(e.clientX,e.clientY);
      if(point)updateWireCursor(point);
    }
@@ -1042,7 +1048,7 @@ window.addEventListener('pointermove',e=>{
  if(segmentDrag&&e.pointerId===segmentDrag.pointerId){
    const gesture=segmentDrag,point=canvasPoint(e.clientX,e.clientY);
    if(!point)return;
-   if(!gesture.active&&Math.hypot(e.clientX-gesture.screenX,e.clientY-gesture.screenY)>6){
+   if(!gesture.active&&e.dragged){
      gesture.active=true;selection=gesture.id;selectedIds.clear();
    }
    if(gesture.active){
@@ -1084,18 +1090,17 @@ window.addEventListener('pointermove',e=>{
    return;
  }
  if(bendDrag){
-   const w=project.wires.find(w=>w.id===bendDrag!.id),point=canvasPoint(e.clientX,e.clientY);
-   if(w?.bends?.[bendDrag.index]&&point){
-     w.bends[bendDrag.index]={x:gridEnabled?snap(point.x):point.x,y:gridEnabled?snap(point.y):point.y};
-     refreshScene();
-   }
+   if(!e.dragged)return;
+   const point=canvasPoint(e.clientX,e.clientY);
+   const moved=point&&moveWireWaypoint(bendDrag.before,bendDrag.id,bendDrag.index,point,gridEnabled?10:null);
+   if(moved){project=moved;refreshScene();}
    return;
  }
  if(marquee){
    const point=canvasPoint(e.clientX,e.clientY);
    if(point){
      marquee.end=point;
-     marquee.active=marquee.active||Math.hypot(e.clientX-marquee.screenX,e.clientY-marquee.screenY)>5;
+     marquee.active=marquee.active||e.dragged;
      if(marquee.active)refreshScene();
    }
    return;
@@ -1108,19 +1113,19 @@ window.addEventListener('pointermove',e=>{
    }
    return;
  }
- if(!drag)return;
+ if(!drag||!e.dragged)return;
  const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
  if(!matrix)return;
  const scale=Math.hypot(matrix.a,matrix.b)*zoom;
  if(scale<=0)return;
  project=translateComponents(drag.before,drag.ids,{x:(e.clientX-drag.x)/scale,y:(e.clientY-drag.y)/scale},gridEnabled?10:null);
  refreshScene();
-});
-window.addEventListener('pointerup',e=>{
+}
+function handlePointerUp(e:CanvasPointer){
  if(panDrag){
    const gesture=panDrag;panDrag=null;
    // A tap on empty canvas clears selection, whereas a real pan keeps it.
-   if(e.button===0&&!spaceHeld&&Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)<5){
+   if(e.button===0&&!spaceHeld&&!e.dragged){
      selectedIds.clear();selection=null;selectedBend=null;connectionNotice='';
    }
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
@@ -1132,7 +1137,8 @@ window.addEventListener('pointerup',e=>{
    const from=wiring??started.from,bends=[...wiringBends];
    const point=canvasPoint(e.clientX,e.clientY);
    const explicit=e.target instanceof Element?pinFromPointer(e.target,e.clientX,e.clientY):null;
-   const hit=explicit??(point&&nearestTerminal(project,point,wireRadius()));
+   const hit=(e.target as Element).closest('#board')?
+     (explicit??(point&&nearestTerminal(project,point,wireRadius()))):null;
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+250};
    if(hit)finishConnection(from,hit.endpoint,bends);
    else{clearWireDraft();connectionNotice='未连线：请在目标引脚或插孔上松开';render();}
@@ -1155,7 +1161,8 @@ window.addEventListener('pointerup',e=>{
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
    const point=canvasPoint(e.clientX,e.clientY);
    const direct=e.target instanceof Element?pinFromPointer(e.target,e.clientX,e.clientY):null;
-   const target=direct??(point&&nearestTerminal(project,point,wireRadius()));
+   const target=(e.target as Element).closest('#board')?
+     (direct??(point&&nearestTerminal(project,point,wireRadius()))):null;
    const result=target&&reconnectEndpoint(project,current.id,current.side,target.endpoint);
    if(result&&result!==project){
      const before=copy();project=result;connectionNotice='';commit(before);
@@ -1177,6 +1184,7 @@ window.addEventListener('pointerup',e=>{
    const box=marquee;marquee=null;
    // In wire mode a blank gesture places a waypoint, never a marquee selection.
    if(wiring){
+     if(!(e.target as Element).closest('#board')){render();return;}
      const point=canvasPoint(e.clientX,e.clientY);
      if(point&&wiringBends.length<32){
        const bend={x:gridEnabled?snap(point.x):point.x,y:gridEnabled?snap(point.y):point.y};
@@ -1203,8 +1211,12 @@ window.addEventListener('pointerup',e=>{
    project=d.ids.length===1?snapPartToBreadboard(project,d.ids[0]):reconcileInsertions(project);
    commit(d.before);
  }else render();
-});
+}
 window.addEventListener('keydown',e=>{
+ if(pointerInput.busy){
+   if(e.key==='Escape'){e.preventDefault();pointerInput.cancel();}
+   return;
+ }
  const t=e.target as HTMLElement;
  if(scopeOpen){
    if(e.key==='Escape'){
@@ -1263,8 +1275,7 @@ window.addEventListener('keydown',e=>{
      project=reconcileInsertions(updated);commit(before);
    }
  }else if(e.key==='Escape'){
-   if(segmentDrag?.active)project=segmentDrag.before;
-   segmentDrag=null;selectedBend=null;clearWireDraft();endpointDrag=null;bendDrag=null;drag=null;marquee=null;panDrag=null;
+   cancelCanvasGesture();
    selectedIds.clear();selection=null;connectionNotice='';render();
  }else if(e.key==='Delete'||e.key==='Backspace'){
    e.preventDefault();deleteSelection();
@@ -1273,11 +1284,19 @@ window.addEventListener('keydown',e=>{
 window.addEventListener('keyup',e=>{
  if(e.key===' '){spaceHeld=false;app.querySelector('.canvas')?.classList.remove('pan-mode')}
 });
-window.addEventListener('pointercancel',e=>{
- if(wireDrag?.pointerId===e.pointerId){clearWireDraft();connectionNotice='手势已取消';render()}
- if(segmentDrag?.pointerId===e.pointerId){project=segmentDrag.before;segmentDrag=null;selectedBend=null;render()}
+function cancelCanvasGesture(){
+ // Roll back every preview, not just whole-wire segment edits. No save/commit.
+ const before=drag?.before??bendDrag?.before??segmentDrag?.before;
+ if(before)project=before;
+ if(panDrag){panX=panDrag.panX;panY=panDrag.panY;}
+ drag=null;bendDrag=null;segmentDrag=null;endpointDrag=null;marquee=null;panDrag=null;
+ selectedBend=null;spaceHeld=false;clearWireDraft();connectionNotice='';
+ render();
+}
+const pointerInput=bindCanvasPointers(app,{
+ down:handlePointerDown,move:handlePointerMove,up:handlePointerUp,tap:handleClick,
+ cancel:cancelCanvasGesture
 });
-window.addEventListener('blur',()=>{if(segmentDrag?.active)project=segmentDrag.before;segmentDrag=null;selectedBend=null;spaceHeld=false;panDrag=null;clearWireDraft();});
 // Persist the first demo or migrated workspace before browser tests and user edits.
 save();
 render();
