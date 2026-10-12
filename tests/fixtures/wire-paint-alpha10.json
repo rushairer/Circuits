@@ -1,0 +1,23 @@
+{
+  "sourceCommit": "813d676dbfa9639b77a582b9e6f884f122773392",
+  "note": "SHA-256 of JSON.stringify(paintCrossingWires(...)) using the alpha.10 algorithm; integer fixture coordinates avoid platform-specific trig formatting.",
+  "cases": {
+    "small": "3c7f5bba23e23c301c050e3a413dc97383893134357ad04583567163b934446e",
+    "sparse-600-segments": "7149a615f17ca4dad44fbe18c2a3ae384c4da93ace2c04c403e81f718a3de938",
+    "dense-720-segments": "c1492803fcf578b49a5ae5c449ae40e082ee18ec24fbce9501e3bc2f7b262a83",
+    "large-2000-wires": "2f280518e93c0c19f18e5c21469cd04268baf64366b8213bc6ae8b1f3037e9c3",
+    "max-waypoints": "05b1c6cecd1a52d2225a4e1cdd68d98f26c27032d7e08375e4bb5f93e9c99b32",
+    "empty": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "scan-255-segments": "e70ffa4a7253b0b9ea62d5d8119f75ef46305e09b796714139607d8c32dc7115",
+    "index-258-segments": "44764a7a08531e4b29b11a78b90998d80cf9373e013108ca6ba94d1151e3175a",
+    "budget-723-segments": "2fada60206aaf301de6a45dc62192b3117f60ef052d0956490b678c418e8515f",
+    "mixed-orthogonal": "ddb52acafa80cd24d12b312407364bbd24c92082a6728ec98cd6e1fd0ea4906d",
+    "reversed-order": "6469e12fde0a3e6faa6aad19fc48c79b3e7d21a953e9388d926b2dcb986f71f2",
+    "retarget-from": "e5750db97e1fb65bfa154c5d9257dfad66ce9d87facc09f73eaca26d92a072a5",
+    "retarget-to": "43f6a23280709c1a235e42c12dbfd0621c283c9ef0347e79782d6abe4be7bd01",
+    "minimum-radius": "776446c3e23bc9ff4f3f0d8704c4f9ff45e9203f3d6f38eba5fc6119f6de1577",
+    "maximum-radius": "ae190e19c68b1c7dccbf9589ce07f462efd4332fa32a3539915021421f646321",
+    "legacy-auto": "102acd39332cb175e0bb3a1ba68f38cad1393d409748c2407f6dcb1778f4e1b2",
+    "routed-auto": "1b9fe20bb25c9e4ed6a93be6740623deced719566f21cf475fd3e2bdf1801d40"
+  }
+}

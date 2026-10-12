@@ -1,5 +1,5 @@
 import type { Part, Wire } from '../model.js';
-import { orthogonalRoute, wirePath, wirePoints, type Point } from './geometry.js';
+import { createPinResolver, orthogonalRoute, type Point } from './geometry.js';
 
 /**
  * A jumper wire is physically above/below another at an interior crossing,
@@ -61,6 +61,57 @@ function crossing(over:Segment,under:Segment,radius:number):{t:number;at:Point}|
  if(Math.min(u,1-u)*under.length<radius+2)return null;
  return {t,at:at(over.from,over.to,t)};
 }
+interface SegmentBounds { minX:number;maxX:number;minY:number;maxY:number }
+interface SegmentTree extends SegmentBounds {
+ firstWire:number;
+ entries:readonly Segment[];
+ children:readonly SegmentTree[];
+}
+function overlaps(a:SegmentBounds,b:SegmentBounds):boolean {
+ return !(a.maxX<b.minX-EPS||a.minX>b.maxX+EPS||
+          a.maxY<b.minY-EPS||a.minY>b.maxY+EPS);
+}
+/** Bounded broad phase; exact intersection and painter-order rules stay unchanged. */
+function segmentTree(entries:readonly Segment[]):SegmentTree|null {
+ if(!entries.length)return null;
+ let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,firstWire=Infinity;
+ for(const s of entries){
+   minX=Math.min(minX,s.minX);maxX=Math.max(maxX,s.maxX);
+   minY=Math.min(minY,s.minY);maxY=Math.max(maxY,s.maxY);
+   firstWire=Math.min(firstWire,s.wireIndex);
+ }
+ const bounds={minX,maxX,minY,maxY,firstWire};
+ if(entries.length<=8)return {...bounds,entries,children:[]};
+ const horizontal=maxX-minX>=maxY-minY;
+ const sorted=[...entries].sort((a,b)=>horizontal?
+   (a.minX+a.maxX)-(b.minX+b.maxX):(a.minY+a.maxY)-(b.minY+b.maxY));
+ const middle=Math.floor(sorted.length/2);
+ return {...bounds,entries:[],children:[
+   segmentTree(sorted.slice(0,middle))!,segmentTree(sorted.slice(middle))!
+ ]};
+}
+/** Dense long diagonals overlap most boxes; a tree then adds only overhead. */
+function shouldIndex(entries:readonly Segment[]):boolean {
+ if(entries.length<256)return false;
+ const sample=Array.from({length:24},(_,i)=>entries[Math.floor((i+0.5)*entries.length/24)]);
+ let checks=0,hits=0;
+ for(let i=0;i<sample.length;i++)for(let j=0;j<i;j++){
+   if(sample[i].wireIndex===sample[j].wireIndex)continue;
+   checks++;if(overlaps(sample[i],sample[j]))hits++;
+ }
+ return checks>0&&hits*4<checks;
+}
+function collectCrossings(
+ above:Segment,segmentIndex:number,node:SegmentTree|null,radius:number,matches:Intersection[]
+):void {
+ if(!node||node.firstWire>=above.wireIndex||!overlaps(above,node))return;
+ for(const below of node.entries){
+   if(below.wireIndex>=above.wireIndex)continue;
+   const hit=crossing(above,below,radius);
+   if(hit)matches.push({segmentIndex,...hit});
+ }
+ for(const child of node.children)collectCrossings(above,segmentIndex,child,radius,matches);
+}
 function normal(from:Point,to:Point):Point{
  const dx=to.x-from.x,dy=to.y-from.y,len=Math.hypot(dx,dy);
  // The hump goes toward the top of the editor for mostly horizontal legs
@@ -103,50 +154,54 @@ export function paintCrossingWires(
  wires:readonly Wire[],parts:readonly Part[],bridgeRadius=DEFAULT_RADIUS,
  preview:WireEndpointPreview|null=null
 ):PaintedWire[] {
+ if(!wires.length)return [];
+ const resolvePin=createPinResolver(parts);
  const prepared=wires.map(w=>{
-   const originalPoints=wirePoints(w,parts);
-   const points=originalPoints?.map(p=>({...p}))??null;
+   const start=resolvePin(w.from),end=resolvePin(w.to);
+   const points=start&&end?[start,...(w.bends??[]).map(p=>({...p})),end]:null;
    if(points&&preview?.id===w.id){
      const index=preview.side==='from'?0:points.length-1;
      points[index]={...preview.point};
    }
    const vertices=visualVertices(w,points);
    return {id:w.id,vertices,
-     original:points?wirePath(points,Boolean(w.bends?.length),w.routing):''};
+     original:vertices?'M'+vertices.map(coordinate).join(' L'):''};
  });
  const plain=()=>prepared.map(w=>({id:w.id,hitPath:w.original,
    displayPath:w.original,bridgeBackdrops:[],bridgeCount:0}));
  const radius=Number.isFinite(bridgeRadius)?Math.max(2,Math.min(12,bridgeRadius)):DEFAULT_RADIUS;
+ // Enforce the existing visual budget BEFORE allocating segments or the tree.
+ const count=prepared.reduce((sum,w)=>sum+Math.max(0,(w.vertices?.length??0)-1),0);
+ if(count>MAX_BRIDGE_SEGMENTS)return plain();
  const segments=prepared.map((w,i)=>w.vertices?
    w.vertices.slice(1).map((point,j)=>makeSegment(i,w.vertices![j],point)):[]);
- const count=segments.reduce((sum,list)=>sum+list.length,0);
- if(count>MAX_BRIDGE_SEGMENTS)return plain();
+ const flat=segments.flat();
+ const index=shouldIndex(flat)?segmentTree(flat):null;
  const result:PaintedWire[]=[];
  for(let i=0;i<prepared.length;i++){
    const item=prepared[i],crosses:Intersection[]=[];
    if(!item.vertices||!item.original){result.push({id:item.id,hitPath:item.original,
      displayPath:item.original,bridgeBackdrops:[],bridgeCount:0});continue;}
+   // Process visible legs in route order, stopping once the decoration budget
+   // is full. Later legs cannot displace an earlier selected arch.
    for(let segmentIndex=0;segmentIndex<segments[i].length;segmentIndex++){
-     const above=segments[i][segmentIndex];
-     for(let lower=0;lower<i;lower++){
-       for(const below of segments[lower]){
-         const hit=crossing(above,below,radius);
-         if(hit)crosses.push({segmentIndex,...hit});
-       }
+     const above=segments[i][segmentIndex],matches:Intersection[]=[];
+     if(index)collectCrossings(above,segmentIndex,index,radius,matches);
+     else for(let lower=0;lower<i;lower++)for(const below of segments[lower]){
+       const hit=crossing(above,below,radius);
+       if(hit)matches.push({segmentIndex,...hit});
      }
+     matches.sort((a,b)=>a.t-b.t);
+     for(const c of matches){
+       const prev=crosses.at(-1);
+       if(prev&&prev.segmentIndex===segmentIndex&&
+         (c.t-prev.t)*above.length<radius*2+3)continue;
+       crosses.push(c);
+       if(crosses.length===MAX_BRIDGES_PER_WIRE)break;
+     }
+     if(crosses.length===MAX_BRIDGES_PER_WIRE)break;
    }
-   // Avoid excessive SVG markup in high-density designs. Prefer earliest
-   // crossings, and never let very close arches overlap on the same leg.
-   crosses.sort((a,b)=>a.segmentIndex-b.segmentIndex||a.t-b.t);
-   const chosen:Intersection[]=[];
-   for(const c of crosses){
-     const prev=chosen.at(-1);
-     if(prev&&prev.segmentIndex===c.segmentIndex&&
-       (c.t-prev.t)*segments[i][c.segmentIndex].length<radius*2+3)continue;
-     chosen.push(c);
-     if(chosen.length===MAX_BRIDGES_PER_WIRE)break;
-   }
-   const curved=bridgePath(item.vertices,chosen,radius);
+   const curved=bridgePath(item.vertices,crosses,radius);
    result.push({id:item.id,hitPath:item.original,
      displayPath:curved?.d??item.original,
      bridgeBackdrops:curved?.backdrops??[],
