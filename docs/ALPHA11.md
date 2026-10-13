@@ -99,6 +99,20 @@ Autodesk 官方指南确认导线支持 0–9 数字快捷键。独立的历史�
 
 **边界**：这是根据官方公开文档落地的真实注释功能，不是已经对照 2026 年登录态编辑器的逐像素或弹窗布局复制。原版注释的精确字体、可变尺寸、多选/分组和触摸硬件手势仍待独立检验。
 
+## 第九批：原版连接线类型与 Shift+1～4
+
+**依据**：Autodesk 2021 年推出 Hookup/Alligator wire 类型（参见 [New Wire Options in Tinkercad Circuits 的历史引用](https://www.scoop.it/topic/tecno4/?tag=Tinkercad+Circuits)）；[公开编辑器图文教程](https://lonelyengineer.tistory.com/2086) 枚举 `Normal / Hookup / Alligator / Automatic` 及 Shift+1～4 快捷键，Automatic 会依据被连接元件选择外观。
+
+新增可选 schema-v2 `Wire.type` 字段，四种合法取值分别为 `normal`、`hookup`、`alligator`、`automatic`；不带 type 的旧导线继续使用与 alpha.10 一致的 Normal 视觉，旧 JSON 无需迁移。非法导线类型在 `validProject` 和 `appendConnection` 均会拒绝。
+
+上方导线类型选项和 Shift+1～4 可操作新导线草稿、单根选中导线以及 Shift 多根导线；已有导线变更为一次撤销记录，不变更 ID、端点、颜色、折点和布线方向。纯函数 `changeWireTypes` 实现不可变批量处理。
+
+Hookup 使用自绘的双端插接套环，Alligator 使用自绘的金属夹头；硬件装饰在导线层内绘制且 `pointer-events:none`，不拦截真实引脚或改变电子网络。Automatic **暂采用本项目保守规则**：任一端为 9V 电池部件时选择鳄鱼夹外观，否则使用普通线，并在编辑器中保留 Automatic 原始类型；这个近似算法**不代表**已逆向确认 Autodesk 原站自动匹配逻辑。
+
+`src/core/wire-types.ts` 维护选项、临时决策和原始风格装饰。新增 `tests/wire-types.test.mjs`、`e2e/wire-types.spec.ts`，验证兼容、合法性、全部快捷键、创建/变更/批量撤销、真实可见接头，以及电气端点不变。
+
+**仍待验**：原版最新版四种线的真实 SVG/贴图/弯曲方式、接头尺寸和自动匹配器件规则；目前是可操作、可保存的参考实现，而非逐像素 1:1。
+
 ## 回归与证据
 
 第一批的 `tests/wire-performance.test.mjs` 保留 25 项检查，包括 17 组 alpha.10 绘制摘要。旧版参考为提交 `813d676dbfa9639b77a582b9e6f884f122773392`；不能在新实现失败时直接重写旧版摘要来放行。

@@ -159,3 +159,13 @@
 .topbar [data-action="note-add"][aria-pressed="true"]{background:#daf4ee;border-color:#159b92;color:#087a72}
 .topbar [data-action="notes-visibility"][aria-pressed="false"]{opacity:.7}
 .note-editor{width:100%;min-height:110px;resize:vertical;line-height:1.45}
+
+
+/* Wire-type connectors are SVG-only hardware sleeves, never hit targets or nets. */
+.wire-connectors{pointer-events:none;user-select:none}
+.wire-plug{fill:#2b3e4b;stroke:#15232b;stroke-width:.8}
+.wire-plug-tip{fill:#cbd5d9;stroke:#778991;stroke-width:.7}
+.wire-clip-body{fill:#3a4248;stroke:#233037;stroke-width:1}
+.wire-clip-jaws{fill:#b9c9d0;stroke:#657882;stroke-width:1.1;stroke-linejoin:round}
+.wire-clip-teeth{fill:none;stroke:#344e5e;stroke-width:.8}
+.wire-palette:has(#wire-type){background:#f6fafc}
