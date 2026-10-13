@@ -184,3 +184,9 @@
 - Use vector-effect="non-scaling-stroke" on transparent wire pick paths so a 17 screen-pixel hit zone remains usable under zoom. Keep actual conductor thickness and stored wire geometry as before; do not change colors or wire endpoints. Real breadboard sockets retain the foreground priority from alpha.8.
 - To bound interactive costs, show no new bridge decoration if a scene exceeds 720 line segments; stop at 24 arches per wire. The unmodified SVG conductor paths still display and remain editable at this limit. Do not make the canvas freeze on large imported projects to achieve optional arch visuals.
 - Regression must check cross/over visual direction, overlap/no-contact cases, selected upper/lower wire switching, zoomed DOM hit testing and edited-waypoint recomputation. No live original authenticated UI session was available; bridge appearance is evidence-based, not independently verified pixel-identical.
+
+## Circuit annotation contract (alpha.11)
+- `Project.notes` is optional in schema-v2 for backwards compatibility and contains bounded world-space `{id,x,y,text}` only. Notes are visual education annotations with NO pins, wire identities, breadboard contacts or netlist semantics.
+- Update the validator alongside any annotation field or bound. Use `src/core/notes.ts` for immutable add/edit/move/delete and `src/ui/note-render.ts` for bounded escaped SVG text; do not render user text as raw HTML or foreignObject.
+- N arms one-shot note placement; Shift+N only toggles visual visibility. Note drag must rollback on cancellation, never accumulate pointer deltas or create multiple undo records. Annotation edits must not invalidate running electrical/Arduino previews or mutate existing component/wire JSON.
+- The official Tinkercad Circuits 2022 guide covers notes and their shortcuts; full logged-in original pixel/gesture matching remains unverified and must not be falsely claimed.
