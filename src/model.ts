@@ -4,7 +4,9 @@ export interface Endpoint { componentId:string; pinId:string }
 /** Optional orthogonal direction; absent preserves legacy SVG paths. */
 export interface Wire { id:string; from:Endpoint; to:Endpoint; color:string; bends?:{x:number;y:number}[]; routing?:'horizontal'|'vertical' }
 export interface Insertion { componentId:string; pinId:string; boardId:string; holeId:string }
-export interface Project { schemaVersion?:2; name:string; parts:Part[]; wires:Wire[]; code:string; insertions?:Insertion[] }
+/** Free-position teaching annotation. It has no terminals and never belongs to a net. */
+export interface CircuitNote { id:string; x:number; y:number; text:string }
+export interface Project { schemaVersion?:2; name:string; parts:Part[]; wires:Wire[]; code:string; insertions?:Insertion[]; notes?:CircuitNote[] }
 export const parts:Kind[] = ['battery','resistor','led','breadboard','arduino','switch','pushbutton','potentiometer','capacitor','buzzer','multimeter','ammeter','servo'];
 export const size:Record<Kind,[number,number]>={battery:[92,135],resistor:[140,60],led:[110,100],breadboard:[440,210],arduino:[205,175],switch:[140,90],pushbutton:[110,110],potentiometer:[120,115],capacitor:[95,105],buzzer:[110,110],multimeter:[145,160],ammeter:[145,160],servo:[150,120]};
 export const labels:Record<Kind,string>={battery:'9V 电池',resistor:'电阻',led:'LED',breadboard:'面包板',arduino:'Arduino Uno',switch:'拨动开关',pushbutton:'按钮开关',potentiometer:'电位器',capacitor:'电容',buzzer:'蜂鸣器',multimeter:'万用表',ammeter:'串联电流表',servo:'伺服电机'};
@@ -61,6 +63,17 @@ export function validProject(v:unknown):v is Project {
        !board||board.kind!=='breadboard'||!Object.hasOwn(pins.breadboard,insertion.holeId)||
        insertion.holeId==='plus'||insertion.holeId==='minus'||used.has(key))return false;
      used.add(key);
+   }
+ }
+ if(p.notes!==undefined){
+   if(!Array.isArray(p.notes)||p.notes.length>120)return false;
+   const noteIds=new Set<string>();
+   for(const note of p.notes){
+     if(!note||typeof note.id!=='string'||!/^[\\w-]{1,80}$/.test(note.id)||
+       noteIds.has(note.id)||typeof note.text!=='string'||note.text.length>500||
+       !Number.isFinite(note.x)||!Number.isFinite(note.y)||
+       Math.abs(note.x)>100000||Math.abs(note.y)>100000)return false;
+     noteIds.add(note.id);
    }
  }
  const wireIds=new Set<string>();
