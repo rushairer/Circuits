@@ -69,7 +69,7 @@ export function validProject(v:unknown):v is Project {
    if(!Array.isArray(p.notes)||p.notes.length>120)return false;
    const noteIds=new Set<string>();
    for(const note of p.notes){
-     if(!note||typeof note.id!=='string'||!/^[\\w-]{1,80}$/.test(note.id)||
+     if(!note||typeof note.id!=='string'||!/^[\w-]{1,80}$/.test(note.id)||
        noteIds.has(note.id)||typeof note.text!=='string'||note.text.length>500||
        !Number.isFinite(note.x)||!Number.isFinite(note.y)||
        Math.abs(note.x)>100000||Math.abs(note.y)>100000)return false;
