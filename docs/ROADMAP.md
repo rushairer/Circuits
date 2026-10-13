@@ -99,3 +99,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 eighth batch: official N note creation and Shift+N note visibility with draggable, editable world-space annotations, bounded schema-v2 import, safe SVG text and one-step undo
 - [ ] Authenticated original annotations pixel/gesture parity: card sizing, insertion cursor, label wrapping, touch/pen native devices and grouped selection
+
+- [x] Alpha.11 ninth batch: Normal/Hookup/Alligator/Automatic connector types, visible endpoint hardware, Shift+1..4 controls, persistent typed wires, and batch undo
+- [ ] Verify official connector geometries, component-specific automatic wire-type rules and appearance on the 2026 authenticated reference editor
