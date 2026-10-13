@@ -1588,6 +1588,18 @@ window.addEventListener('keydown',e=>{
    }
    return;
  }
+ if(bomOpen){
+   if(e.key==='Escape'){
+     e.preventDefault();bomOpen=false;render();
+     app.querySelector<HTMLElement>('[data-action="bom-open"]')?.focus();
+   }else if(e.key==='Tab'){
+     const controls=Array.from(app.querySelectorAll<HTMLElement>('.bom-dialog button:not([disabled])'));
+     const first=controls[0],last=controls.at(-1);
+     if(first&&last&&e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+     else if(first&&last&&!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+   }
+   return; // A read-only BOM must not trigger global pan, delete or undo.
+ }
  if(['INPUT','TEXTAREA','SELECT'].includes(t.tagName))return;
  const command=e.ctrlKey||e.metaKey;
  // Original Circuits guide: Command +/- zooms the workspace. Ctrl is the
