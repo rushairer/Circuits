@@ -6,6 +6,7 @@ import { nearestOrthogonalSegment, slideOrthogonalSegment } from './core/wire-se
 import { paintCrossingWires } from './core/wire-crossings.js';
 import { wirePickCandidates, pickWireCandidate, type WirePickCycle, type WirePickCandidate } from './core/wire-picking.js';
 import { recolorWires, removeWires } from './core/wire-batch.js';
+import { LED_COLORS, isLedColor, ledAppearance, changeLedColor } from './core/led-colors.js';
 import { WIRE_TYPES, isWireType, changeWireTypes, wireTypeForDigit, wireConnectorMarkup } from './core/wire-types.js';
 import type { WireType } from './model.js';
 import { createCircuitNote, editCircuitNote, moveCircuitNote, deleteCircuitNote } from './core/notes.js';
@@ -119,8 +120,8 @@ function openWorkspace(id:string){
  save();render();
 }
 function commit(before:Project){wirePickCycle=null;clearWireDraft();resetUnoPreview();rcConvergence=null;project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
-/** Annotation edits preserve active simulator/previews; they have no electrical effect. */
-function commitAnnotation(before:Project,refresh=true){
+/** Presentation-only edits preserve active simulator/previews; they have no electrical effect. */
+function commitVisualEdit(before:Project,refresh=true){
  undo.push(before);if(undo.length>50)undo.shift();
  redo=[];save();
  if(refresh){render();return;}
@@ -278,7 +279,13 @@ function art(c:Part){
  const ampText=currentText(ampReading??null);
  if(c.kind==='battery')return '<rect x="8" y="10" width="76" height="119" rx="12" fill="#303b43"/><rect x="8" y="10" width="76" height="32" rx="9" fill="#eca738"/><text x="46" y="86" font-size="25" text-anchor="middle" fill="white">9V</text><text x="70" y="42" fill="white">+</text><text x="70" y="108" fill="white">−</text>';
  if(c.kind==='resistor')return '<path d="M0 30H140" stroke="#b7a17d" stroke-width="5"/><rect x="36" y="13" width="68" height="35" rx="16" fill="#d7b68c" stroke="#bc936c"/><path d="M54 13v35m12-35v35m12-35v35" stroke="#9c542e" stroke-width="6"/><text x="70" y="9" font-size="13" text-anchor="middle" fill="#667988">'+(c.value??220)+'Ω</text>';
- if(c.kind==='led')return '<path d="M0 65H110" stroke="#b6c1c7" stroke-width="5"/><path d="M34 64V42a21 21 0 0 1 42 0v22z" fill="#ee525c"/><rect x="32" y="61" width="46" height="12" rx="4" fill="#d73b4a"/><path d="M45 42a11 11 0 0 1 12-12" stroke="#fff8" fill="none" stroke-width="4"/>';
+ if(c.kind==='led'){
+   const appearance=ledAppearance(c.ledColor);
+   return '<path d="M0 65H110" stroke="#b6c1c7" stroke-width="5"/>'+
+     '<path class="led-lens" d="M34 64V42a21 21 0 0 1 42 0v22z" fill="'+appearance.shell+'"/>'+
+     '<rect class="led-lens-foot" x="32" y="61" width="46" height="12" rx="4" fill="'+appearance.foot+'"/>'+
+     '<path d="M45 42a11 11 0 0 1 12-12" stroke="#fff8" fill="none" stroke-width="4"/>';
+ }
  if(c.kind==='switch')return '<path d="M0 55H30M110 55H140" stroke="#a9b2bd" stroke-width="5"/><rect x="28" y="25" width="84" height="62" rx="9" fill="#485969"/><rect x="'+(c.closed?68:37)+'" y="32" width="38" height="46" rx="7" fill="#d1dbe0"/><text x="43" y="20" font-size="12" fill="#516779">'+(c.closed?'ON':'OFF')+'</text>';
  if(c.kind==='pushbutton')return '<path d="M0 65H28M82 65H110" stroke="#a7b0b9" stroke-width="5"/><rect x="23" y="26" width="65" height="65" rx="8" fill="#59646b"/><circle cx="55" cy="57" r="22" fill="#d96153"/><circle cx="55" cy="53" r="12" fill="#ea877e"/>';
  if(c.kind==='potentiometer')return '<path d="M0 90H34M86 90H120M60 75v33" stroke="#a6b4bb" stroke-width="4"/><circle cx="60" cy="54" r="42" fill="#2d8cbb"/><circle cx="60" cy="54" r="30" fill="#4dadd2"/><path d="M60 54L82 33" stroke="white" stroke-width="5"/>';
@@ -338,9 +345,9 @@ function canvas(){
  const renderPart=(c:Part,socketsOnly=false):string=>{
     const [w,h]=size[c.kind],board=c.kind==='breadboard';
     const glow=c.kind==='led'&&isRunning&&(simulationMode==='classic'?readings?.lit:lastAnalysis?.leds[c.id]?.lit)?
-      '<circle cx="54" cy="49" r="52" fill="#ff7a74" opacity=".2"/>':'';
+      '<circle class="led-glow" cx="54" cy="49" r="52" fill="'+ledAppearance(c.ledColor).glow+'" opacity=".2"/>':'';
     const gpioGlow=c.kind==='led'&&unoPreview?.ok?
-      '<circle data-gpio-glow="'+c.id+'" cx="54" cy="49" r="52" fill="#ff7a74" opacity="'+
+      '<circle data-gpio-glow="'+c.id+'" cx="54" cy="49" r="52" fill="'+ledAppearance(c.ledColor).glow+'" opacity="'+
       (lastGpio?.ok&&lastGpio.leds[c.id]?.lit?'0.28':'0')+'"/>':'';
     // Dense board rows are spaced 9 world units: a broad hit halo would
     // cover all conductor paths on the surface. Board art itself uses
@@ -596,7 +603,11 @@ function side(){
    lastTransient.samples[rcTimeIndex]:null;
  const networkValue=c?.kind==='capacitor'&&lastNetwork?.ok?
    lastNetwork.samples[rcTimeIndex]?.capacitors[c.id]:null;
- if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+(c.kind==='resistor'||c.kind==='battery'||c.kind==='capacitor'?'<label>数值 ('+(c.kind==='resistor'?'Ω':c.kind==='capacitor'?'µF':'V')+')</label><input id="value" type="number" min="'+(c.kind==='capacitor'?'0.001':'1')+'" step="any" value="'+(c.value??(c.kind==='capacitor'?100:1))+'"/>':'')+(c.kind==='capacitor'?'<label>初始电压（V）</label><input id="rc-initial" type="number" min="-1000" max="1000" step="any" value="'+(c.initialVolts??0)+'"/><small>按 t=0 初始状态计算，不模拟电路的历史充电过程。</small>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(gpioLed?'<p id="gpio-led-inspector">D13 电流：'+gpioLed.currentMilliAmps.toFixed(3)+'mA · '+(gpioLed.status==='overcurrent'?'过流':gpioLed.lit?'点亮':'熄灭')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(rcMeter?'<p id="rc-meter-inspector">RC 采样电压：'+(rcMeter.status==='measured'&&rcMeter.volts!==null?rcMeter.volts.toFixed(3)+' V · 理想高阻表笔':'—（'+rcMeter.reason+'）')+'</p>':'')+(rcValue?'<p>RC 当前采样：'+rcValue.voltageVolts.toFixed(3)+' V · '+rcValue.currentMilliAmps.toFixed(3)+' mA</p>':'')+(networkValue?'<p id="rc-network-inspector">多电容当前采样：'+networkValue.voltageVolts.toFixed(3)+' V · '+(networkValue.currentMilliAmps===null?'未估算':networkValue.currentMilliAmps.toFixed(3)+' mA')+'</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<label for="switch-contact">闭合接触电阻（Ω）</label><input id="switch-contact" type="number" min="0" max="1000000" step="any" value="'+(c.contactOhms??0)+'"/><small>0Ω 为原来的理想闭合开关；可设置 0.1–1,000,000Ω。开路仍不导通。状态改变从 t=0 重新计算。</small><button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+
+ if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+
+   (c.kind==='led'?'<label for="led-color">LED 颜色</label><select id="led-color" aria-label="LED 颜色">'+
+     LED_COLORS.map(color=>'<option value="'+color.value+'" '+(ledAppearance(c.ledColor).value===color.value?'selected':'')+'>'+color.label+'</option>').join('')+
+     '</select><small>仅改变发光与灯罩外观，当前实验求解器尚未按波长调整器件物理模型。</small>':'')+
+   (c.kind==='resistor'||c.kind==='battery'||c.kind==='capacitor'?'<label>数值 ('+(c.kind==='resistor'?'Ω':c.kind==='capacitor'?'µF':'V')+')</label><input id="value" type="number" min="'+(c.kind==='capacitor'?'0.001':'1')+'" step="any" value="'+(c.value??(c.kind==='capacitor'?100:1))+'"/>':'')+(c.kind==='capacitor'?'<label>初始电压（V）</label><input id="rc-initial" type="number" min="-1000" max="1000" step="any" value="'+(c.initialVolts??0)+'"/><small>按 t=0 初始状态计算，不模拟电路的历史充电过程。</small>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(gpioLed?'<p id="gpio-led-inspector">D13 电流：'+gpioLed.currentMilliAmps.toFixed(3)+'mA · '+(gpioLed.status==='overcurrent'?'过流':gpioLed.lit?'点亮':'熄灭')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(rcMeter?'<p id="rc-meter-inspector">RC 采样电压：'+(rcMeter.status==='measured'&&rcMeter.volts!==null?rcMeter.volts.toFixed(3)+' V · 理想高阻表笔':'—（'+rcMeter.reason+'）')+'</p>':'')+(rcValue?'<p>RC 当前采样：'+rcValue.voltageVolts.toFixed(3)+' V · '+rcValue.currentMilliAmps.toFixed(3)+' mA</p>':'')+(networkValue?'<p id="rc-network-inspector">多电容当前采样：'+networkValue.voltageVolts.toFixed(3)+' V · '+(networkValue.currentMilliAmps===null?'未估算':networkValue.currentMilliAmps.toFixed(3)+' mA')+'</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<label for="switch-contact">闭合接触电阻（Ω）</label><input id="switch-contact" type="number" min="0" max="1000000" step="any" value="'+(c.contactOhms??0)+'"/><small>0Ω 为原来的理想闭合开关；可设置 0.1–1,000,000Ω。开路仍不导通。状态改变从 t=0 重新计算。</small><button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+
    (c.kind==='ammeter'?'<p id="ammeter-inspector">'+
      (simulationMode==='rc'?(rcAmp?.milliAmps!==null&&rcAmp?
        'RC 串联电流：'+rcAmp.milliAmps.toFixed(3)+' mA · '+rcAmp.reason:
@@ -805,7 +816,7 @@ function placeNoteAt(point:Point){
  project=next;notePlacement=false;notesVisible=true;
  selectedNoteId=id;selection=null;selectedBend=null;
  selectedIds.clear();selectedWireIds.clear();connectionNotice='';
- commitAnnotation(before);
+ commitVisualEdit(before);
  app.querySelector<HTMLTextAreaElement>('#note-text')?.focus();
 }
 
@@ -825,7 +836,7 @@ function deleteSelection(){
    const updated=deleteCircuitNote(project,selectedNoteId);
    if(updated){
      const before=copy();project=updated;selectedNoteId=null;
-     commitAnnotation(before);return;
+     commitVisualEdit(before);return;
    }
    selectedNoteId=null;
  }
@@ -1115,7 +1126,7 @@ app.addEventListener('change',async e=>{
  if(t.id==='note-text'&&selectedNoteId){
    const updated=editCircuitNote(project,selectedNoteId,t.value);
    if(updated&&updated!==project){
-     const before=copy();project=updated;commitAnnotation(before,false);
+     const before=copy();project=updated;commitVisualEdit(before,false);
    }
    return;
  }
@@ -1137,6 +1148,15 @@ app.addEventListener('change',async e=>{
  }
  if(t.id==='wire-palette'){if(WIRE_COLOR_PRESETS.some(x=>x.value===t.value))chooseWireColor(t.value);return;}
  if(t.id==='wire-type'){if(isWireType(t.value))chooseWireType(t.value);return;}
+ if(t.id==='led-color'){
+   if(!isLedColor(t.value))return;
+   const id=selection??'';
+   const updated=changeLedColor(project,id,t.value);
+   if(updated&&updated!==project){
+     const before=copy();project=updated;commitVisualEdit(before);
+   }
+   return;
+ }
  if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){chooseWireColor(t.value)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}
  if(t.id==='switch-contact'){const c=project.parts.find(p=>p.id===selection);const value=Number(t.value);if(c?.kind==='switch'&&t.value.trim()!==''&&Number.isFinite(value)&&(value===0||(value>=0.1&&value<=1e6))){const before=copy();c.contactOhms=value;rcTimeIndex=0;commit(before)}else render()}
  if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();pointerInput.cancel();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;notesVisible=true;rcTimeIndex=0;scopeOpen=false;scopeCapacitorId='';commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
@@ -1390,7 +1410,7 @@ function handlePointerUp(e:CanvasPointer){
  if(noteDrag){
    const d=noteDrag;noteDrag=null;
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
-   if(d.changed)commitAnnotation(d.before);else render();
+   if(d.changed)commitVisualEdit(d.before);else render();
    return;
  }
  if(panDrag){
@@ -1578,7 +1598,7 @@ window.addEventListener('keydown',e=>{
    const delta={x:e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0,
                 y:e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0};
    const moved=moveCircuitNote(project,selectedNoteId,delta);
-   if(moved&&moved!==project){const before=copy();project=moved;commitAnnotation(before);}
+   if(moved&&moved!==project){const before=copy();project=moved;commitVisualEdit(before);}
  }else if(!command&&selectedIds.size&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
    e.preventDefault();
    const step=e.altKey?1:gridEnabled?10:5;
