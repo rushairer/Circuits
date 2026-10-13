@@ -30,8 +30,8 @@ test('search uses native input focus and selection, handles unmatched/malicious 
  await input.fill('arduino');
  await expect(page.locator('.part[data-kind="arduino"]')).toHaveCount(1);
  await input.evaluate((node:HTMLInputElement)=>node.setSelectionRange(0,7));
- await input.press('r');
- await expect(input).toHaveValue('r');
+ await input.press('q');
+ await expect(input).toHaveValue('q');
  await expect(page.locator('.catalog-empty')).toBeVisible();
  await input.fill('<svg onload=alert(1)>');
  await expect(page.locator('.catalog-empty')).toBeVisible();
@@ -68,6 +68,7 @@ test('All selection is retained on property inspection, reload and return to com
  await expect(page.locator('.part[data-kind="servo"]')).toBeVisible();
  await page.locator('.part[data-kind="servo"]').click();
  await expect(page.locator('.item[data-part]')).toHaveCount(6);
+ await page.locator('.item[data-part]').last().click();
  await expect(page.locator('.inspector h2')).toContainText('属性');
  await page.locator('.inspector [data-action="parts"]').click();
  await expect(page.locator('#component-category')).toHaveValue('all');
