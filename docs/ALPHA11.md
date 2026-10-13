@@ -113,6 +113,16 @@ Hookup 使用自绘的双端插接套环，Alligator 使用自绘的金属夹头
 
 **仍待验**：原版最新版四种线的真实 SVG/贴图/弯曲方式、接头尺寸和自动匹配器件规则；目前是可操作、可保存的参考实现，而非逐像素 1:1。
 
+## 第十批：LED 六种原版颜色属性
+
+**参考证据**：[Tinkercad Electrical Series 教学操作手册](https://resources.finalsite.net/images/v1722986348/brightonk12com/mlrgfhesblbrombavk59/01tutorialtinkercadelectricalseriescircuit.pdf) 显示选中 LED 时右侧属性框有 Color 下拉选项，列出 Green、Yellow、Orange、Blue、Red、White 六色。当前 Circuits 实现只有固定红色灯罩与红色仿真发光，属于明显的可见功能缺口。
+
+新增可选 schema-v2 `Part.ledColor`，仅当 `kind === 'led'` 时有效，取值 `red | green | yellow | orange | blue | white`，缺省保留原有红色外观，兼容所有旧工程。面板下拉允许修改 LED 灯罩、底座与启用仿真时的光晕颜色；在工程文件中保存，作为一次 undo/redo 操作。修改颜色仅改变视觉，不改变元件 ID、引脚、物理插孔接触、其他元件、导线或求解器设置；更换颜色时保留运行中的仿真状态。
+
+`src/core/led-colors.ts` 管理六色调色板及不可变修改；`src/model.ts` 拒绝无效的颜色字符串、将该字段加到非 LED 元件及非法 JSON 对象；`tests/led-colors.test.mjs`、`e2e/led-colors.spec.ts` 检查全部六色、保存/重载、模拟器点亮视觉、单步撤销与电气网络不变。
+
+**边界**：本批的颜色色值来自独立设计，不是原版像素采样值。不同波长 LED 的真实正向压降及光电特性尚未加入求解器，仍使用原有教学近似；不宣称红/绿/蓝 LED 的物理模拟 1:1。
+
 ## 回归与证据
 
 第一批的 `tests/wire-performance.test.mjs` 保留 25 项检查，包括 17 组 alpha.10 绘制摘要。旧版参考为提交 `813d676dbfa9639b77a582b9e6f884f122773392`；不能在新实现失败时直接重写旧版摘要来放行。
