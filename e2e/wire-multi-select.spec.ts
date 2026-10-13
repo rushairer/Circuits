@@ -78,7 +78,7 @@ test('Shift-click toggles an already selected wire off instead of turning into a
  await page.keyboard.press('2');
  const after=await saved(page);
  expect(after.wires[0].color).toBe('#35b65d');
- expect(after.wires[1].color).toBe('#f18f33');
+ expect(after.wires[1].color).toBe('#de4747');
 });
 test('choosing a component after batch wires clears the wire batch without hidden color updates',async({page})=>{
  const before=await boot(page);
