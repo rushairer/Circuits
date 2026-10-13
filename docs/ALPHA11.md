@@ -149,6 +149,18 @@ Starters 分为基础电路与 Arduino 两组，复用 `exampleCatalog` 中可�
 
 **后续**：原版的自动生成 Schematic view 属另一完整功能；BOM 本地 CSV 只是教育用量统计，不包含真实元器件制造成本、供应链或贴片装配数据；不冒称 BOM 页面视觉逐像素相同。
 
+## 第十三批：原版浮动属性卡片 + 常驻组件侧栏
+
+图像参考：多份 Tinkercad Circuits 操作手册（如 [2023 原版截图](https://wajibi.net/wp-content/uploads/2023/09/%D8%AD%D9%84-%D9%83%D8%AA%D8%A7%D8%A8-%D8%A7%D9%84%D9%87%D9%86%D8%AF%D8%B3%D8%A9-%D8%AB%D8%A7%D9%86%D9%8A-%D8%AB%D8%A7%D9%86%D9%88%D9%8A-%D9%85%D8%B3%D8%A7%D8%B1%D8%A7%D8%AA-%D9%811.pdf)）显示：选中电阻/LED 时，蓝色属性卡片浮于工作台区域，右侧 Components / Basic 列表仍可搜索和添加器件。此前本项目直接用属性面板替换整个组件浏览器，导致属性编辑期间无法继续找元件。
+
+此批不触碰 Project schema 和电气模型：仅在存在真实元件、导线或注释选择且不处于 Code/Projects/Examples 模式时，将既有唯一 `.inspector` 卡片用 `.inspector-floating` 显示于组件侧栏的左侧；右侧同时创建 `.component-sidebar`，复用 `componentCatalog()` 中相同 Basic/All/Starters/搜索/拖放入口。取消选择时恢复原来的单侧栏，不创建第二份属性实例，避免现有测试选择器、编辑字段和 undo 历史发生变化。
+
+属性值编辑、选中 wire、Shift 多选、LED 颜色、注释、批量删除/撤销、真实引脚布线和 BOM 只读对话框保留既有处理。使用 CSS 响应式约束属性卡片宽度，不使它越过组件侧栏左边界；视图重新绘制不会把组件目录状态写入 JSON。
+
+`e2e/floating-inspector.spec.ts` 检查选中电阻与常驻 Basic 目录、分类切换保留属性/撤销、从常驻侧栏添加元件、浮动面板不挡真实引脚与 BOM、窄屏双栏布局，三引擎覆盖。
+
+**未完成的原版对齐**：浮动属性卡片的锚点和颜色与登录态原版并非逐像素一致；部分不同元件的原站参数配置仍缺失，必须继续补真实功能而非只模拟蓝色卡片外观。
+
 ## 回归与证据
 
 第一批的 `tests/wire-performance.test.mjs` 保留 25 项检查，包括 17 组 alpha.10 绘制摘要。旧版参考为提交 `813d676dbfa9639b77a582b9e6f884f122773392`；不能在新实现失败时直接重写旧版摘要来放行。

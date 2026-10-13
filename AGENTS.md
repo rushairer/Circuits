@@ -205,3 +205,8 @@
 - `src/core/bom.ts` computes immutable material counts from actual `Project.parts` and groups by component kind and authored physical specification (value, LED lens color), preserving IDs. Wires and Notes are separate counters, not fictitious components.
 - The BOM modal from `src/ui/bom-panel.ts` and export action must be read-only, accessible, focus-contained and never mutate project/netlist or simulation. CSV fields must be escaped/quoted and formula injection guarded; do not interpolate raw user names into HTML.
 - Tinkercad's generated Schematic is distinct from BOM and is NOT delivered by this batch. Maintain honesty about missing supplier pricing, inventory and authenticated original UI layout parity.
+
+## Reference-aligned component browser and floating properties (alpha.11)
+- Original Circuits screenshots show a persistent right Components (Basic/All/Starters) browser and a temporary floating property card on the workplane. Keep one `.inspector` for existing property selectors and a separate `.component-sidebar` using the same `componentCatalog()` filter when a real selection is active.
+- Purely visual layout changes must not rewrite project JSON, intercept real breadboard/pin targets, break the live material list, or change keyboard/pointer gesture ownership. Test responsive bounds and property edits across Chromium/Firefox/WebKit.
+- Original authenticated popup anchor geometry, exact color and physical component inventory remain unverified; avoid an ungrounded 1:1 claim.

@@ -36,3 +36,6 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 
 - The BOM toolbar opens a read-only dialog over the canvas, backed by `../core/bom.ts`. It must not persist UI state, stop simulation, alter netlist connections or add undo records. Escape/backdrop closes; Tab and Shift+Tab trap focus on dialog controls, and all global deletion/wiring hotkeys are blocked while it is open.
 - BOM export is UTF-8 CSV with quoted fields and spreadsheet formula injection neutralization; never render untrusted names or IDs without HTML escaping. Original Schematic view remains unimplemented separately.
+
+- Property selection must not replace the Tinkercad-style Basic/All/Starters component browser: `side()` retains its unique `.inspector` property DOM for existing event selectors; `componentCatalog()` renders a separate always-visible `.component-sidebar` only while the inspector floats over the canvas. Avoid duplicated IDs and duplicate property inspectors.
+- Use `.inspector-floating` as a viewport-constrained overlay to the LEFT of the palette and preserve physical pin click, pointer capture, toolbar actions, native text focus, BOM and Code/Projects/Examples modes. Search/category changes must not clear electrical selection or create undo entries.

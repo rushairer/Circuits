@@ -111,3 +111,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 twelfth batch: read-only original-reference BOM view with component/value/color grouping, stable IDs, CSV export and simulation-neutral accessible dialog
 - [ ] Build an actually generated schematic view from terminal connectivity and explicit breadboard unions; do not confuse a screenshot/visual route with an electrically correct diagram
+
+- [x] Alpha.11 thirteenth batch: persistent right-side component palette during selected-part/wire/note editing, with separate floating property inspector, responsive boundaries and safe existing inputs
+- [ ] Anchor floating inspector to selected geometry with collision avoidance after visual comparison to authenticated original; continue schematic and broader component models
