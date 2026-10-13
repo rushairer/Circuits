@@ -57,6 +57,8 @@ let wiringCursor:Point|null=null;
 let wiringHover:TerminalHit|null=null;
 let wireDrag:{from:Endpoint;clientX:number;clientY:number;pointerId:number;active:boolean}|null=null;
 let selectedIds=new Set<string>();
+/** Editor-only batch wire selection; never part of serialized circuit data. */
+let selectedWireIds=new Set<string>();
 let marquee:{start:Point;end:Point;screenX:number;screenY:number;active:boolean;additive:boolean}|null=null;
 let gridEnabled=localStorage.getItem('circuits-grid')!=='off';
 let spaceHeld=false;
@@ -103,11 +105,11 @@ function openWorkspace(id:string){
  pointerInput.cancel();
  workspace=switchProject(workspace,id);
  project=reconcileInsertions(activeProject(workspace));
- selection=null;wirePickCycle=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
+ selection=null;wirePickCycle=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
  save();render();
 }
 function commit(before:Project){wirePickCycle=null;clearWireDraft();resetUnoPreview();rcConvergence=null;project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
-function revert(stack:Project[],other:Project[]){wirePickCycle=null;pointerInput.cancel();const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;save();render()}
+function revert(stack:Project[],other:Project[]){wirePickCycle=null;pointerInput.cancel();const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();marquee=null;save();render()}
 const uid=()=>crypto.randomUUID().slice(0,8);
 const pos=(e:Endpoint):[number,number]|null=>{
  const p=pinWorld(e,project.parts);return p?[p.x,p.y]:null;
@@ -275,12 +277,13 @@ function canvas(){
  // The ordered visual stack defines which wire jumps over crossings;
  // selection changes SVG order only, never the stored electrical connections.
  const orderedWires=[...project.wires].sort((a,b)=>
-   Number(a.id===selection)-Number(b.id===selection));
+   Number(a.id===selection||selectedWireIds.has(a.id))-
+   Number(b.id===selection||selectedWireIds.has(b.id)));
  const painted=paintCrossingWires(orderedWires,project.parts,6,
    endpointDrag?{id:endpointDrag.id,side:endpointDrag.side,point:endpointDrag.preview}:null);
  const wireColors=new Map(project.wires.map(w=>[w.id,w.color]));
  const wireRoutes=painted.filter(w=>w.hitPath).map(w=>{
-   const selected=selection===w.id;
+   const selected=selection===w.id||selectedWireIds.has(w.id);
    // 17 CSS-pixel hit tolerance is stable when zoomed: no huge hit area
    // at high zoom or a target that disappears at low zoom.
    const hit='<path class="wire-hit" data-wire="'+w.id+'" d="'+w.hitPath+
@@ -526,7 +529,7 @@ function addBend(wireId:string,point:Point){
  const inserted=insertWireWaypoint(project,wireId,point,gridEnabled?10:null);
  if(!inserted)return;
  project=inserted.project;selection=w.id;
- selectedBend={id:w.id,index:inserted.index};
+ selectedWireIds=new Set([w.id]);selectedBend={id:w.id,index:inserted.index};
  commit(before);
 }
 function side(){
@@ -542,6 +545,7 @@ function side(){
    ).join('');
    return '<h2>我的电路 · '+workspace.slots.length+'/'+MAX_PROJECTS+'</h2><div class="field"><p>工程保存在当前浏览器；切换不会覆盖此前的工程。建议定期导出 JSON 备份。</p><button data-action="new">＋ 新建电路</button><button data-action="duplicate">复制当前工程</button><button data-action="projects">返回编辑器</button></div><div class="project-collection">'+rows+'</div>';
  }
+ if(selectedWireIds.size>1&&!showCode)return '<h2>已选中 '+selectedWireIds.size+' 根导线</h2><div class="field"><p>按住 Shift 单击添加或移除导线，选中线由高亮笔画标识。</p><p>使用顶部“导线颜色”可一次修改所有选中导线，作为一条撤销记录；不会改变端点、折点或电气连接。</p><button data-action="delete">删除选中导线</button><button data-action="parts">取消选择</button></div>';
  if(selectedIds.size>1&&!showCode)return '<h2>已选中 '+selectedIds.size+' 个元件</h2><div class="field"><p>拖动任意已选中元件可整体移动，所有引脚接线会自动跟随。</p><p>按住 Shift 单击添加或移除选中；在空白画布拖动可框选。</p><button data-action="rotate">分别旋转 90°</button><button data-action="delete">删除所选元件</button><button data-action="parts">取消选择</button></div>';
  const chosenWire=project.wires.find(w=>w.id===selection);
  if(chosenWire&&!showCode)return '<h2>导线属性</h2><div class="field"><p>起点：'+escape(chosenWire.from.componentId)+' / '+escape(chosenWire.from.pinId)+'</p><p>终点：'+escape(chosenWire.to.componentId)+' / '+escape(chosenWire.to.pinId)+'</p><label for="wire-color">导线颜色</label><input id="wire-color" type="color" value="'+chosenWire.color+'"/><p>折点 '+(chosenWire.bends?.length??0)+' 个。拖横线可上下平移，拖竖线可左右平移，线段两端仍接在真实引脚上；双击导线添加折点，圆形折点手柄可拖动，靠近原引脚、其他折点或网格时使用带滞回的屏幕像素吸附。</p><button data-action="wire-flip-direction" aria-label="切换已选导线的正交走线方向">↳ '+(chosenWire.routing?('走线：'+(chosenWire.routing==='horizontal'?'横向优先':'纵向优先')+' · 点击切换'):'改为直角走线 · 横向优先')+'</button><button data-action="wire-add-bend">＋ 添加折点</button><button data-action="wire-reset-bends">清除手动折点</button><p>编辑颜色和折点均不改变电气连接。交叉位置可重复点击或按住 Alt 点击切换候选导线。</p><button data-action="delete">删除导线</button><button data-action="parts">返回元件库</button></div>';
@@ -669,10 +673,10 @@ function render(){
      return '<div class="analysis-line"><span>电压表 '+escape(p.id)+'</span><strong>'+value+'</strong></div>';
    }).join(''):'<p>本电路未生成可信的仿真读数</p>')+
    '<small>仅作教学近似；不含 MCU、暂态、温升及器件容差。</small></div>':'';
- const chosenToolbarWire=project.wires.find(w=>w.id===selection);
+ const chosenToolbarWire=project.wires.find(w=>w.id===selection||selectedWireIds.has(w.id));
  const toolbarWireColor=chosenToolbarWire?.color??activeWireColor;
  const toolbarPalette='<label class="wire-palette"><span class="wire-palette-swatch" style="background:'+toolbarWireColor+'"></span>'+
-   '<span>导线颜色</span><select id="wire-palette" aria-label="导线颜色" title="选中导线后改变其颜色；数字键 0–9">'+wireColorOptions(toolbarWireColor)+'</select></label>';
+   '<span>导线颜色'+(selectedWireIds.size>1?' · 已选 '+selectedWireIds.size+' 根':'')+'</span><select id="wire-palette" aria-label="导线颜色" title="选中导线后改变其颜色；数字键 0–9">'+wireColorOptions(toolbarWireColor)+'</select></label>';
  const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastNetwork?.reason??lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
  app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="select-all">全选</button><button data-action="rotate" title="R · 旋转">⟳ 旋转</button><button data-action="delete">删除</button>'+toolbarPalette+'<button data-action="code">〈/〉 代码</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+'">'+canvas()+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){
@@ -694,7 +698,7 @@ function finishConnection(from:Endpoint,to:Endpoint,bends:readonly Point[]){
  }
  const previous=copy();
  project=result;
- selectedIds.clear();selection=null; // Do not cover connected pins with endpoint retarget handles.
+ selectedIds.clear();selectedWireIds.clear();selection=null; // Do not cover connected pins with endpoint retarget handles.
  connectionNotice='连线成功：'+from.componentId+'/'+from.pinId+' → '+to.componentId+'/'+to.pinId;
  commit(previous);
 }
@@ -707,15 +711,19 @@ function flipDraftDirection(){
 function chooseWireColor(color:string){
  if(!/^#[0-9a-f]{6}$/i.test(color))return;
  activeWireColor=color;
- const selected=project.wires.find(w=>w.id===selection);
- if(selected&&selected.color.toLowerCase()!==color.toLowerCase()){
-   const before=copy();selected.color=color;commit(before);
+ const ids=new Set(selectedWireIds);
+ if(!ids.size&&selection&&project.wires.some(w=>w.id===selection))ids.add(selection);
+ if(project.wires.some(w=>ids.has(w.id)&&w.color.toLowerCase()!==color.toLowerCase())){
+   const before=copy();
+   project={...project,wires:project.wires.map(w=>
+     ids.has(w.id)?{...w,color}:w)};
+   commit(before);
  }else render();
 }
 function connect(a:Endpoint){
  if(!wiring){
    clearWireDraft();connectionNotice='';
-   wiring={...a};selectedIds.clear();selection=null;
+   wiring={...a};selectedIds.clear();selectedWireIds.clear();selection=null;
    wiringCursor=pinWorld(a,project.parts);
    render();return;
  }
@@ -727,6 +735,7 @@ function connect(a:Endpoint){
 }
 
 function selectAllParts(){
+ selectedWireIds.clear();
  selectedIds=new Set(project.parts.map(p=>p.id));
  selection=selectedIds.size===1?[...selectedIds][0]:null;render();
 }
@@ -751,12 +760,15 @@ function deleteSelection(){
  if(selectedIds.size){
    const next=removeComponents(project,[...selectedIds]);
    if(next!==project){project=reconcileInsertions(next);changed=true}
+ }else if(selectedWireIds.size){
+   const wires=project.wires.filter(w=>!selectedWireIds.has(w.id));
+   if(wires.length!==project.wires.length){project={...project,wires};changed=true}
  }else if(selection){
    const wires=project.wires.filter(w=>w.id!==selection);
    if(wires.length!==project.wires.length){project={...project,wires};changed=true}
  }
  if(!changed)return;
- selectedIds.clear();selection=null;selectedBend=null;commit(before);
+ selectedIds.clear();selectedWireIds.clear();selection=null;selectedBend=null;commit(before);
 }
 function download(text:string,name:string){const url=URL.createObjectURL(new Blob([text]));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
 function handleClick(e:CanvasClick){
@@ -769,7 +781,7 @@ function handleClick(e:CanvasClick){
  if(pin){wirePickCycle=null;connect(pin.endpoint);return}
  const part=t.closest<SVGGElement>('[data-part]');
  if(part){
-   wirePickCycle=null;connectionNotice='';selectedBend=null;
+   wirePickCycle=null;selectedWireIds.clear();connectionNotice='';selectedBend=null;
    const id=part.dataset.part!;
    if(e.shiftKey||e.ctrlKey||e.metaKey){
      selectedIds=new Set(selectedIds);
@@ -784,21 +796,34 @@ function handleClick(e:CanvasClick){
    wirePickCycle=null;
    const id=bend.getAttribute('data-wire')!,index=Number(bend.getAttribute('data-bend-index'));
    if(project.wires.find(w=>w.id===id)?.bends?.[index]){
-     selection=id;selectedIds.clear();selectedBend={id,index};render();
+     selection=id;selectedIds.clear();selectedWireIds=new Set([id]);selectedBend={id,index};render();
    }
    return;
  }
  if(t.closest('#board')){
    const candidates=wireCandidatesAt(e.clientX,e.clientY,t);
    if(candidates.length){
-     const picked=pickWireCandidate(candidates,wirePickCycle,{
+     const picked=pickWireCandidate(candidates,e.shiftKey?null:wirePickCycle,{
        x:e.clientX,y:e.clientY,at:e.timeStamp,altKey:e.altKey,detail:e.detail
      });
-     wirePickCycle=picked.cycle;
+     wirePickCycle=e.shiftKey?null:picked.cycle;
      selectedBend=null;connectionNotice='';
-     if(selection!==picked.id||selectedIds.size){
-       selectedIds.clear();selection=picked.id;render();
+     if(e.shiftKey){
+       const ids=new Set(selectedWireIds);
+       if(!ids.size&&selection&&project.wires.some(w=>w.id===selection))ids.add(selection);
+       if(picked.id){
+         if(ids.has(picked.id))ids.delete(picked.id);
+         else ids.add(picked.id);
+       }
+       selectedWireIds=ids;selectedIds.clear();
+       selection=ids.size===1?[...ids][0]:null;
+       render();return;
      }
+     const unchanged=selection===picked.id&&!selectedIds.size&&
+       selectedWireIds.size===1&&selectedWireIds.has(picked.id!);
+     selectedWireIds=picked.id?new Set([picked.id]):new Set();
+     selectedIds.clear();selection=picked.id;
+     if(!unchanged)render();
      return;
    }
  }
@@ -849,7 +874,7 @@ function handleClick(e:CanvasClick){
    openWorkspace(id);break;
  }
  case 'projects':showProjects=!showProjects;showExamples=false;showCode=false;render();break;
- case 'sample':showExamples=!showExamples;showProjects=false;showCode=false;selectedIds.clear();selection=null;render();break;
+ case 'sample':showExamples=!showExamples;showProjects=false;showCode=false;selectedIds.clear();selectedWireIds.clear();selection=null;render();break;
  case 'undo':revert(undo,redo);break;case 'redo':revert(redo,undo);break;
  case 'select-all':selectAllParts();break;
  case 'grid':gridEnabled=!gridEnabled;localStorage.setItem('circuits-grid',gridEnabled?'on':'off');render();break;
@@ -891,7 +916,7 @@ function handleClick(e:CanvasClick){
    break;
  }
  case 'cancel-wire':clearWireDraft();connectionNotice='已取消接线';render();break;
- case 'parts':selection=null;selectedIds.clear();showCode=false;showProjects=false;showExamples=false;render();break;
+ case 'parts':selection=null;selectedIds.clear();selectedWireIds.clear();showCode=false;showProjects=false;showExamples=false;render();break;
  case 'run':connectionNotice='';if(!isRunning)resetUnoPreview();isRunning=!isRunning;if(!isRunning)rcConvergence=null;render();break;
  case 'solver-mode':connectionNotice='';simulationMode=simulationMode==='classic'?'nonlinear':simulationMode==='nonlinear'?'rc':'classic';rcTimeIndex=0;rcTraceId='';scopeOpen=false;rcConvergence=null;render();break;
  case 'rc-accuracy':if(lastNetwork?.ok&&isRunning){rcConvergence=assessRcConvergence(project,{durationSeconds:rcWindowSeconds});render()}break;
@@ -985,7 +1010,7 @@ app.addEventListener('change',async e=>{
  if(t.id==='wire-palette'){if(WIRE_COLOR_PRESETS.some(x=>x.value===t.value))chooseWireColor(t.value);return;}
  if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){chooseWireColor(t.value)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}
  if(t.id==='switch-contact'){const c=project.parts.find(p=>p.id===selection);const value=Number(t.value);if(c?.kind==='switch'&&t.value.trim()!==''&&Number.isFinite(value)&&(value===0||(value>=0.1&&value<=1e6))){const before=copy();c.contactOhms=value;rcTimeIndex=0;commit(before)}else render()}
- if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();pointerInput.cancel();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();rcTimeIndex=0;scopeOpen=false;scopeCapacitorId='';commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
+ if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();pointerInput.cancel();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();selectedWireIds.clear();rcTimeIndex=0;scopeOpen=false;scopeCapacitorId='';commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
 app.addEventListener('dragstart',e=>{const p=(e.target as Element).closest<HTMLElement>('[data-kind]');if(p)e.dataTransfer?.setData('text/circuit-kind',p.dataset.kind!)});
 app.addEventListener('dragover',e=>{if((e.target as Element).closest('.canvas'))e.preventDefault()});
 app.addEventListener('drop',e=>{const svg=app.querySelector<SVGSVGElement>('#board');const kind=e.dataTransfer?.getData('text/circuit-kind') as Kind;if(!svg||!parts.includes(kind)||!(e.target as Element).closest('.canvas'))return;e.preventDefault();const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM();if(!m)return;const p=pt.matrixTransform(m.inverse());add(kind,(p.x-panX)/zoom-size[kind][0]/2,(p.y-panY)/zoom-size[kind][1]/2)});
@@ -1034,7 +1059,7 @@ function handlePointerDown(e:CanvasPointer){
  if(handle){
    const w=project.wires.find(x=>x.id===handle.getAttribute('data-wire')),index=Number(handle.getAttribute('data-bend-index'));
    if(w?.bends?.[index]){
-   selection=w.id;selectedBend={id:w.id,index};
+   selection=w.id;selectedWireIds=new Set([w.id]);selectedBend={id:w.id,index};
    bendDrag={id:w.id,index,before:copy(),guides:waypointGuides(w.id,index),snap:null};return;
  }
  }
@@ -1075,6 +1100,7 @@ function handlePointerDown(e:CanvasPointer){
  const id=component.dataset.part!;
  if(!project.parts.some(p=>p.id===id))return;
  if(!selectedIds.has(id))selectedIds=new Set([id]);
+ selectedWireIds.clear();
  const ids=[...selectedIds];
  selection=ids.length===1?id:null;
  drag={ids,x:e.clientX,y:e.clientY,before:copy()};
@@ -1112,7 +1138,7 @@ function handlePointerMove(e:CanvasPointer){
    if(!wireDrag.active&&e.dragged){
      wireDrag.active=true;
      if(!wiring){wiring={...wireDrag.from};wiringBends=[];}
-     selectedIds.clear();selection=null;connectionNotice='';
+     selectedIds.clear();selectedWireIds.clear();selection=null;connectionNotice='';
      render();
    }
    if(wireDrag.active&&pointerTarget.closest('#board')){
@@ -1125,7 +1151,7 @@ function handlePointerMove(e:CanvasPointer){
    const gesture=segmentDrag,point=canvasPoint(e.clientX,e.clientY);
    if(!point)return;
    if(!gesture.active&&e.dragged){
-     gesture.active=true;selection=gesture.id;selectedIds.clear();
+     gesture.active=true;selection=gesture.id;selectedIds.clear();selectedWireIds=new Set([gesture.id]);
    }
    if(gesture.active){
      if(gesture.routeIndex!==null){
@@ -1207,7 +1233,7 @@ function handlePointerUp(e:CanvasPointer){
    const gesture=panDrag;panDrag=null;
    // A tap on empty canvas clears selection, whereas a real pan keeps it.
    if(e.button===0&&!spaceHeld&&!e.dragged){
-     selectedIds.clear();selection=null;selectedBend=null;connectionNotice='';
+     selectedIds.clear();selectedWireIds.clear();selection=null;selectedBend=null;connectionNotice='';
    }
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
    render();return;
@@ -1288,8 +1314,9 @@ function handlePointerUp(e:CanvasPointer){
      const ids=componentsWithinRect(project,box.start,box.end);
      selectedIds=box.additive?new Set([...selectedIds,...ids]):new Set(ids);
      selection=selectedIds.size===1?[...selectedIds][0]:null;
+     selectedWireIds.clear();
      ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
-   }else if(!box.additive){selectedIds.clear();selection=null}
+   }else if(!box.additive){selectedIds.clear();selectedWireIds.clear();selection=null}
    render();return;
  }
  if(!drag)return;
@@ -1339,7 +1366,7 @@ window.addEventListener('keydown',e=>{
  if(!command&&!e.altKey&&!wiring&&e.key.toLowerCase()==='r'&&selectedIds.size){
    e.preventDefault();rotateSelectedParts();return;
  }
- if(!command&&!e.altKey&&/^[0-9]$/.test(e.key)&&(wiring||project.wires.some(w=>w.id===selection))){
+ if(!command&&!e.altKey&&/^[0-9]$/.test(e.key)&&(wiring||selectedWireIds.size>0||project.wires.some(w=>w.id===selection))){
    const color=wireColorForDigit(e.key);
    if(color){e.preventDefault();chooseWireColor(color);return;}
  }
@@ -1375,7 +1402,7 @@ window.addEventListener('keydown',e=>{
    }
  }else if(e.key==='Escape'){
    cancelCanvasGesture();
-   selectedIds.clear();selection=null;connectionNotice='';render();
+   selectedIds.clear();selectedWireIds.clear();selection=null;connectionNotice='';render();
  }else if(e.key==='Delete'||e.key==='Backspace'){
    e.preventDefault();deleteSelection();
  }
