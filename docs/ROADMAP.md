@@ -84,3 +84,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 - [x] Alpha.11 second batch: unified pointer ownership and cancel rollback for mouse, touch and pen; three-engine E2E
 - [x] Alpha.11 third batch (phase 1): route-centerline ranking, repeated-click candidate cycling and stable drag target across crossover/overlap
 - [ ] Alpha.11 next: waypoint snap hysteresis, alignment priorities, native device parity, browser input-to-paint latency/FPS evidence
+
+- [x] Alpha.11 fourth batch: screen-pixel hysteresis for existing waypoint dragging, terminal/bend alignment, grid capture bounds, transient guides and atomic undo
+- [ ] Extend snapping to new-wire authoring/whole-leg edits, and measure touch input-to-paint latency in real browsers/devices

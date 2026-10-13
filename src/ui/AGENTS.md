@@ -14,3 +14,5 @@ Read the root AGENTS.md first. These rules supplement, never replace, electrical
 Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (capture, cancellation, click dispatch and touch-action). Do not assume preventDefault(pointerdown) by itself suppresses click.
 
 - Wire strokes in intersections/overlaps are picked via `../core/wire-picking.ts` geometry in CSS-pixel distance, not transient SVG z-order or broad invisible hit paths. Preserve pin, socket, selected endpoint and bend-handle priorities; keep candidate cycling out of project JSON and undo. Pointerdown drag and click must resolve the same visually selected wire.
+
+- Existing waypoint dragging uses `../core/waypoint-snap.ts` only as transient gesture state, with per-axis CSS-pixel enter/release hysteresis, terminal/bend-guide priority over grid and pointer-transparent alignment lines. Never persist snap memory or conflate visual alignment with electrical connection.
