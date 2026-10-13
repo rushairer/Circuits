@@ -143,3 +143,6 @@
 /* Alpha.10 crossing bridges: view-only insulating outline, not a junction. */
 .wire-bridge-clear{stroke:#f5f7f7;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 [data-layer="wires"] .wire-hit{vector-effect:non-scaling-stroke}
+
+/* Transient waypoint alignment guides never intercept socket or wire gestures. */
+.bend-snap-guide{stroke:#27a9c5;stroke-width:1.5;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;pointer-events:none}
