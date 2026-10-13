@@ -1,4 +1,5 @@
-import type { Part, Project, Wire } from '../model.js';
+import type { Part, Project, Wire, WireType } from '../model.js';
+export type { WireType } from '../model.js';
 import { orthogonalRoute, wirePoints, type Point } from './geometry.js';
 
 export const WIRE_TYPES=[
@@ -7,7 +8,6 @@ export const WIRE_TYPES=[
  {value:'alligator',label:'鳄鱼夹线',shortcut:'Shift+3'},
  {value:'automatic',label:'自动匹配',shortcut:'Shift+4'}
 ] as const;
-export type WireType=(typeof WIRE_TYPES)[number]['value'];
 export const isWireType=(value:unknown):value is WireType=>
  value==='normal'||value==='hookup'||value==='alligator'||value==='automatic';
 
