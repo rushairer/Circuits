@@ -751,6 +751,32 @@ function connect(a:Endpoint){
  finishConnection(first,a,bends);
 }
 
+function armNotePlacement(){
+ notePlacement=!notePlacement;
+ if(notePlacement){
+   clearWireDraft();notesVisible=true;
+   selection=null;selectedBend=null;selectedIds.clear();selectedWireIds.clear();
+   selectedNoteId=null;connectionNotice='';
+ }
+ render();
+}
+function toggleNotesVisibility(){
+ notesVisible=!notesVisible;notePlacement=false;
+ if(!notesVisible)selectedNoteId=null;
+ render();
+}
+function placeNoteAt(point:Point){
+ const id='note-'+uid();
+ const next=createCircuitNote(project,id,point);
+ if(!next){connectionNotice='注释数量已达上限或坐标无效';render();return;}
+ const before=copy();
+ project=next;notePlacement=false;notesVisible=true;
+ selectedNoteId=id;selection=null;selectedBend=null;
+ selectedIds.clear();selectedWireIds.clear();connectionNotice='';
+ commitAnnotation(before);
+ app.querySelector<HTMLTextAreaElement>('#note-text')?.focus();
+}
+
 function selectAllParts(){
  selectedWireIds.clear();
  selectedIds=new Set(project.parts.map(p=>p.id));
@@ -891,8 +917,10 @@ function handleClick(e:CanvasClick){
    openWorkspace(id);break;
  }
  case 'projects':showProjects=!showProjects;showExamples=false;showCode=false;render();break;
- case 'sample':showExamples=!showExamples;showProjects=false;showCode=false;selectedIds.clear();selectedWireIds.clear();selection=null;render();break;
+ case 'sample':showExamples=!showExamples;showProjects=false;showCode=false;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;selection=null;render();break;
  case 'undo':revert(undo,redo);break;case 'redo':revert(redo,undo);break;
+ case 'note-add':armNotePlacement();break;
+ case 'notes-visibility':toggleNotesVisibility();break;
  case 'select-all':selectAllParts();break;
  case 'grid':gridEnabled=!gridEnabled;localStorage.setItem('circuits-grid',gridEnabled?'on':'off');render();break;
  case 'wire-direction':flipDraftDirection();break;
@@ -933,7 +961,7 @@ function handleClick(e:CanvasClick){
    break;
  }
  case 'cancel-wire':clearWireDraft();connectionNotice='已取消接线';render();break;
- case 'parts':selection=null;selectedIds.clear();selectedWireIds.clear();showCode=false;showProjects=false;showExamples=false;render();break;
+ case 'parts':selection=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;showCode=false;showProjects=false;showExamples=false;render();break;
  case 'run':connectionNotice='';if(!isRunning)resetUnoPreview();isRunning=!isRunning;if(!isRunning)rcConvergence=null;render();break;
  case 'solver-mode':connectionNotice='';simulationMode=simulationMode==='classic'?'nonlinear':simulationMode==='nonlinear'?'rc':'classic';rcTimeIndex=0;rcTraceId='';scopeOpen=false;rcConvergence=null;render();break;
  case 'rc-accuracy':if(lastNetwork?.ok&&isRunning){rcConvergence=assessRcConvergence(project,{durationSeconds:rcWindowSeconds});render()}break;
@@ -1008,6 +1036,13 @@ app.addEventListener('input',e=>{
  }});
 app.addEventListener('change',async e=>{
  const t=e.target as HTMLInputElement;
+ if(t.id==='note-text'&&selectedNoteId){
+   const updated=editCircuitNote(project,selectedNoteId,t.value);
+   if(updated&&updated!==project){
+     const before=copy();project=updated;commitAnnotation(before);
+   }
+   return;
+ }
  if(t.id==='scope-channel'&&scopeOpen&&lastScopeCapture){
    if(lastScopeCapture.capacitorIds.includes(t.value)){
      scopeCapacitorId=t.value;render();
@@ -1027,7 +1062,7 @@ app.addEventListener('change',async e=>{
  if(t.id==='wire-palette'){if(WIRE_COLOR_PRESETS.some(x=>x.value===t.value))chooseWireColor(t.value);return;}
  if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){chooseWireColor(t.value)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}
  if(t.id==='switch-contact'){const c=project.parts.find(p=>p.id===selection);const value=Number(t.value);if(c?.kind==='switch'&&t.value.trim()!==''&&Number.isFinite(value)&&(value===0||(value>=0.1&&value<=1e6))){const before=copy();c.contactOhms=value;rcTimeIndex=0;commit(before)}else render()}
- if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();pointerInput.cancel();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();selectedWireIds.clear();rcTimeIndex=0;scopeOpen=false;scopeCapacitorId='';commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
+ if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();pointerInput.cancel();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;notesVisible=true;rcTimeIndex=0;scopeOpen=false;scopeCapacitorId='';commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
 app.addEventListener('dragstart',e=>{const p=(e.target as Element).closest<HTMLElement>('[data-kind]');if(p)e.dataTransfer?.setData('text/circuit-kind',p.dataset.kind!)});
 app.addEventListener('dragover',e=>{if((e.target as Element).closest('.canvas'))e.preventDefault()});
 app.addEventListener('drop',e=>{const svg=app.querySelector<SVGSVGElement>('#board');const kind=e.dataTransfer?.getData('text/circuit-kind') as Kind;if(!svg||!parts.includes(kind)||!(e.target as Element).closest('.canvas'))return;e.preventDefault();const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM();if(!m)return;const p=pt.matrixTransform(m.inverse());add(kind,(p.x-panX)/zoom-size[kind][0]/2,(p.y-panY)/zoom-size[kind][1]/2)});
