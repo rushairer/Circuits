@@ -37,6 +37,7 @@ export function nearestTerminal(
 /** Connections are defined by pin identities, not by where the wire is drawn. */
 export function appendConnection(project:Project,wire:Wire):Project|null {
  if((wire.routing!==undefined&&wire.routing!=='horizontal'&&wire.routing!=='vertical')||
+    (wire.type!==undefined&&wire.type!=='normal'&&wire.type!=='hookup'&&wire.type!=='alligator'&&wire.type!=='automatic')||
     (wire.bends!==undefined&&(!Array.isArray(wire.bends)||wire.bends.length>32||
       wire.bends.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||Math.abs(p.x)>100000||Math.abs(p.y)>100000)))||
     !validTerminal(project,wire.from)||!validTerminal(project,wire.to)||
