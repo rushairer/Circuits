@@ -23,3 +23,6 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 - Shift-clicking actual wire strokes builds a UI-only `selectedWireIds` batch. Recolor/delete through `../core/wire-batch.ts` as one undo entry; never infer electrical junctions or mutate endpoint IDs. Toggling to a component or blank canvas clears this selection; initiating segment drag edits exactly one wire, not a batch.
 
 - The Tinkercad historical wire-color shortcut keys use digits 1..9 for the first nine swatches and 0 for Brown (tenth swatch). Preserve default Green and actual persisted six-digit colors. Display keyboard labels in the color chooser; never shift a saved wire's color while migrating.
+
+- Annotation mode (N or toolbar) is a one-shot pointer-safe canvas placement. Shift+N toggles visibility without deleting persisted notes. A note drag is owned by one pointer; Escape, loss of capture, second contact and blur restore the pointer-down snapshot. Note movement is world-space, must not create electrical connections, and uses its own immutable edit path.
+- SVG note text is always escaped and bounded (never foreignObject/innerHTML from user text). Changes to the editor textarea may update DOM using textContent, but must save once on change/blur with one undo record. Suppress global N shortcuts in all native text input controls.
