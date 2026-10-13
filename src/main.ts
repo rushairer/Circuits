@@ -1467,6 +1467,11 @@ window.addEventListener('keydown',e=>{
  if(command&&!e.altKey&&['-','_','Subtract'].includes(e.key)){
    e.preventDefault();changeZoom(1/1.15);return;
  }
+ if(!command&&!e.altKey&&e.key.toLowerCase()==='n'){
+   e.preventDefault();
+   if(e.shiftKey)toggleNotesVisibility();else armNotePlacement();
+   return;
+ }
  if(!command&&!e.altKey&&!wiring&&e.key.toLowerCase()==='f'){
    e.preventDefault();fitView();return;
  }
@@ -1478,9 +1483,18 @@ window.addEventListener('keydown',e=>{
    const color=wireColorForDigit(e.key);
    if(color){e.preventDefault();chooseWireColor(color);return;}
  }
+ const focusedNote=t.closest<SVGElement>('.circuit-note[data-note]');
+ if(focusedNote&&(e.key==='Enter'||e.key===' ')){
+   const id=focusedNote.getAttribute('data-note');
+   if(id&&project.notes?.some(n=>n.id===id)){
+     e.preventDefault();
+     selectedNoteId=id;selection=null;selectedIds.clear();selectedWireIds.clear();
+     render();app.querySelector<HTMLTextAreaElement>('#note-text')?.focus();return;
+   }
+ }
  const focusedPart=t.closest<SVGElement>('.item[data-part]');
  if(focusedPart&&(e.key==='Enter'||e.key===' ')){
-   e.preventDefault();
+   e.preventDefault();selectedNoteId=null;
    const id=focusedPart.getAttribute('data-part')!;
    if(e.shiftKey){
      selectedIds=new Set(selectedIds);
@@ -1498,6 +1512,13 @@ window.addEventListener('keydown',e=>{
    e.preventDefault();selectAllParts();
  }else if(command&&e.key.toLowerCase()==='z'){
    e.preventDefault();revert(e.shiftKey?redo:undo,e.shiftKey?undo:redo);
+ }else if(!command&&selectedNoteId&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+   e.preventDefault();
+   const step=e.altKey?1:gridEnabled?10:5;
+   const delta={x:e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0,
+                y:e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0};
+   const moved=moveCircuitNote(project,selectedNoteId,delta);
+   if(moved&&moved!==project){const before=copy();project=moved;commitAnnotation(before);}
  }else if(!command&&selectedIds.size&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
    e.preventDefault();
    const step=e.altKey?1:gridEnabled?10:5;
@@ -1510,7 +1531,7 @@ window.addEventListener('keydown',e=>{
    }
  }else if(e.key==='Escape'){
    cancelCanvasGesture();
-   selectedIds.clear();selectedWireIds.clear();selection=null;connectionNotice='';render();
+   selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;selection=null;connectionNotice='';render();
  }else if(e.key==='Delete'||e.key==='Backspace'){
    e.preventDefault();deleteSelection();
  }
@@ -1520,12 +1541,12 @@ window.addEventListener('keyup',e=>{
 });
 function cancelCanvasGesture(){
  // Do not replace a native file input or an unfinished text edit on idle blur.
- if(!drag&&!bendDrag&&!segmentDrag&&!endpointDrag&&!marquee&&!panDrag&&!wireDrag&&!wiring&&!spaceHeld)return;
+ if(!drag&&!noteDrag&&!notePlacement&&!bendDrag&&!segmentDrag&&!endpointDrag&&!marquee&&!panDrag&&!wireDrag&&!wiring&&!spaceHeld)return;
  // Roll back every preview, not just whole-wire segment edits. No save/commit.
- const before=drag?.before??bendDrag?.before??segmentDrag?.before;
+ const before=drag?.before??noteDrag?.before??bendDrag?.before??segmentDrag?.before;
  if(before)project=before;
  if(panDrag){panX=panDrag.panX;panY=panDrag.panY;}
- drag=null;bendDrag=null;segmentDrag=null;endpointDrag=null;marquee=null;panDrag=null;
+ drag=null;noteDrag=null;notePlacement=false;bendDrag=null;segmentDrag=null;endpointDrag=null;marquee=null;panDrag=null;
  selectedBend=null;spaceHeld=false;clearWireDraft();connectionNotice='';
  render();
 }
