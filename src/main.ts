@@ -4,7 +4,7 @@ import { DEFAULT_WIRE_COLOR, WIRE_COLOR_PRESETS, wireColorForDigit, wireColorOpt
 import { insertWireWaypoint, moveWireWaypoint, removeWireWaypoint } from './core/wire-edit.js';
 import { nearestOrthogonalSegment, slideOrthogonalSegment } from './core/wire-segments.js';
 import { paintCrossingWires } from './core/wire-crossings.js';
-import { wirePickCandidates, pickWireCandidate, type WirePickCycle } from './core/wire-picking.js';
+import { wirePickCandidates, pickWireCandidate, type WirePickCycle, type WirePickCandidate } from './core/wire-picking.js';
 import { snapWireWaypoint, type WaypointGuide, type WaypointSnapMemory } from './core/waypoint-snap.js';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
@@ -409,15 +409,33 @@ function wireRadius(pixels=17):number {
  const scale=matrix?Math.hypot(matrix.a,matrix.b):0;
  return scale>0?pixels/scale:pixels;
 }
-/** Pick from the route centerline in world coordinates with a CSS-pixel tolerance.
- * The painter order and transparent SVG target stacking must not decide which
- * overlapping conductor is selected or which wire segment is dragged.
+/** In a crossover arch, the colored conductor curves away from its stored
+ * centerline. Use the directly visible curved stroke only at that offset,
+ * never a transparent .wire-hit target or painter order for straight wires.
  */
-function wireCandidatesAt(clientX:number,clientY:number){
+function visibleBridgeAt(target:Element|undefined,candidates:readonly WirePickCandidate[]):string|null {
+ const stroke=target?.closest<SVGPathElement>('.wire[data-crossovers]');
+ if(!stroke||Number(stroke.getAttribute('data-crossovers'))<1)return null;
+ const id=stroke.getAttribute('data-wire');
+ if(!id||!project.wires.some(w=>w.id===id))return null;
+ const base=candidates.find(c=>c.id===id);
+ // A non-decorated portion is at most half the 5px stroke width from its
+ // centerline; more displacement means the Q bridge is what was clicked.
+ return !base||base.distancePx>3?id:null;
+}
+/** Rank real route centerlines in world coordinates using CSS-pixel distance.
+ * Only an actually hit, displaced decorative arch gets visual precedence.
+ */
+function wireCandidatesAt(clientX:number,clientY:number,target?:Element){
  const world=canvasPoint(clientX,clientY);
  if(!world)return [];
  const onePixel=wireRadius(1);
- return wirePickCandidates(project.wires,project.parts,world,1/onePixel,9);
+ const candidates=wirePickCandidates(project.wires,project.parts,world,1/onePixel,9);
+ const bridge=visibleBridgeAt(target,candidates);
+ if(!bridge)return candidates;
+ const onRoute=candidates.find(c=>c.id===bridge);
+ return [{id:bridge,distancePx:0,legIndex:onRoute?.legIndex??0},
+   ...candidates.filter(c=>c.id!==bridge)];
 }
 /** Board artwork may be clicked near a hole; choose the nearest real pin of that part. */
 function pinFromPointer(target:Element,x:number,y:number):TerminalHit|null {
@@ -771,7 +789,7 @@ function handleClick(e:CanvasClick){
    return;
  }
  if(t.closest('#board')){
-   const candidates=wireCandidatesAt(e.clientX,e.clientY);
+   const candidates=wireCandidatesAt(e.clientX,e.clientY,t);
    if(candidates.length){
      const picked=pickWireCandidate(candidates,wirePickCycle,{
        x:e.clientX,y:e.clientY,at:e.timeStamp,altKey:e.altKey,detail:e.detail
@@ -975,8 +993,10 @@ app.addEventListener('dblclick',e=>{
  const target=e.target as Element;
  if(target.closest('[data-bend-index]'))return;
  if(!target.closest('#board'))return;
- const candidates=wireCandidatesAt(e.clientX,e.clientY);
- const nearSelected=candidates.find(c=>c.id===selection&&c.distancePx<=candidates[0].distancePx+3);
+ const candidates=wireCandidatesAt(e.clientX,e.clientY,target);
+ const onBridge=target.closest<SVGPathElement>('.wire[data-crossovers]');
+ const preferPainted=onBridge&&Number(onBridge.getAttribute('data-crossovers'))>0&&candidates[0]?.id===onBridge.getAttribute('data-wire');
+ const nearSelected=preferPainted?undefined:candidates.find(c=>c.id===selection&&c.distancePx<=candidates[0].distancePx+3);
  const id=nearSelected?.id??candidates[0]?.id;
  const point=canvasPoint(e.clientX,e.clientY);
  if(id&&point){e.preventDefault();addBend(id,point)}
@@ -1027,10 +1047,12 @@ function handlePointerDown(e:CanvasPointer){
  if(!svg)return;
  const component=target.closest<SVGGElement>('[data-part]');
  if(!component){
-   const candidates=!wiring?wireCandidatesAt(e.clientX,e.clientY):[];
+   const candidates=!wiring?wireCandidatesAt(e.clientX,e.clientY,target):[];
    if(candidates.length){
      const at=canvasPoint(e.clientX,e.clientY);
-     const preferred=candidates.find(c=>c.id===selection&&c.distancePx<=candidates[0].distancePx+3);
+     const onBridge=target.closest<SVGPathElement>('.wire[data-crossovers]');
+     const preferred=onBridge&&Number(onBridge.getAttribute('data-crossovers'))>0?undefined:
+       candidates.find(c=>c.id===selection&&c.distancePx<=candidates[0].distancePx+3);
      const wire=project.wires.find(w=>w.id===(preferred?.id??candidates[0].id));
      if(at&&wire){
        const leg=nearestOrthogonalSegment(wire,project.parts,at);
