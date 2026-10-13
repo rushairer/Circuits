@@ -33,3 +33,6 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 
 - Component browser category is UI-only and validated with `src/core/component-browser.ts`; persist only its enum to a separate localStorage preference, never `Project`. Basic displays supported common parts; All displays every implemented kind; a search in Basic may find implemented All kinds. Native select/search preserve focus and caret, do not capture global keyboard shortcuts.
 - Starter categories must call the existing independent-workspace example loader, never overwrite the active circuit, invent unsupported Autodesk examples, or add netlist identities by browsing. Restore the chosen category after closing a selected-part inspector.
+
+- The BOM toolbar opens a read-only dialog over the canvas, backed by `../core/bom.ts`. It must not persist UI state, stop simulation, alter netlist connections or add undo records. Escape/backdrop closes; Tab and Shift+Tab trap focus on dialog controls, and all global deletion/wiring hotkeys are blocked while it is open.
+- BOM export is UTF-8 CSV with quoted fields and spreadsheet formula injection neutralization; never render untrusted names or IDs without HTML escaping. Original Schematic view remains unimplemented separately.
