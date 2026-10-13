@@ -16,3 +16,6 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 - Wire strokes in intersections/overlaps are picked via `../core/wire-picking.ts` geometry in CSS-pixel distance, not transient SVG z-order or broad invisible hit paths. Preserve pin, socket, selected endpoint and bend-handle priorities; keep candidate cycling out of project JSON and undo. Pointerdown drag and click must resolve the same visually selected wire.
 
 - Existing waypoint dragging uses `../core/waypoint-snap.ts` only as transient gesture state, with per-axis CSS-pixel enter/release hysteresis, terminal/bend-guide priority over grid and pointer-transparent alignment lines. Never persist snap memory or conflate visual alignment with electrical connection.
+
+- A wire gesture released over blank *canvas* remains an uncommitted wire draft; the next blank click adds a waypoint and an actual terminal completes it. The gesture released on toolbar/inspector cancels; Escape, pointercancel, capture loss, blur and hidden document still discard drafts. Do not persist unfinished wiring or count it as undo.
+- Command/Ctrl +/− zoom is view-only; native inputs/selects/textareas retain keyboard shortcuts. Keep documentation honest about authenticated Tinkercad parity verification.
