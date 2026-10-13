@@ -1,7 +1,7 @@
 import { PointerSession, type PointerContact } from '../core/pointer-session.js';
 
 export type CanvasClick = Pick<MouseEvent,
-  'clientX' | 'clientY' | 'timeStamp' | 'shiftKey' | 'ctrlKey' | 'metaKey' | 'target'>;
+  'clientX' | 'clientY' | 'timeStamp' | 'shiftKey' | 'ctrlKey' | 'metaKey' | 'altKey' | 'detail' | 'target'>;
 export interface CanvasPointer extends CanvasClick {
   target: Element;
   pointerId: number;
@@ -37,7 +37,7 @@ export function bindCanvasPointers(root: HTMLElement, hooks: Hooks) {
     target, dragged, pointerId:e.pointerId, pointerType:e.pointerType,
     button:e.button, buttons:e.buttons, clientX:e.clientX, clientY:e.clientY,
     timeStamp:e.timeStamp, shiftKey:e.shiftKey, ctrlKey:e.ctrlKey,
-    metaKey:e.metaKey, altKey:e.altKey, preventDefault:() => e.preventDefault()
+    metaKey:e.metaKey, altKey:e.altKey, detail:e.detail, preventDefault:() => e.preventDefault()
   });
   const suppress = (p: Pick<PointerContact,'pointerId'|'clientX'|'clientY'>, now: number) => {
     for (const [id, click] of clicks) if (click.until < now) clicks.delete(id);
