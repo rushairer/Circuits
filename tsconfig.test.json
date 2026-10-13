@@ -15,6 +15,7 @@
   "include": [
     "src/core/**/*.ts",
     "src/ui/circuit-layers.ts",
+    "src/ui/note-render.ts",
     "src/model.ts"
   ]
 }
