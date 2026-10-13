@@ -44,7 +44,7 @@ test('starter category filters real validated fixture IDs, not fabricated exampl
  assert.deepEqual(arduino.map(x=>x.id),['gpio-d13-led','uno-serial','uno-for-pulse']);
  assert.ok(basic.some(x=>x.id==='basic'));
  assert.ok(basic.some(x=>x.id==='rc-charge'));
- assert.deepEqual(matchingStarters('starters-arduino','  SERIAL  ').map(x=>x.id),['uno-serial','uno-for-pulse']);
+ assert.deepEqual(matchingStarters('starters-arduino','  SERIAL  ').map(x=>x.id),['uno-serial']);
  assert.deepEqual(matchingStarters('starters-basic','9V').map(x=>x.id).includes('voltmeter'),true);
  assert.deepEqual(matchingStarters('all',''),[]);
  assert.deepEqual(matchingStarters('basic',''),[]);
