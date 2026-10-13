@@ -32,7 +32,7 @@ test('visual LED color edits preserve project netlist terminals, wires, geometry
    assert.strictEqual(changed.parts[1],p.parts[1]);
    assert.strictEqual(changed.parts[3],p.parts[3]);
    assert.equal(changed.parts.find(part=>part.id==='l1').id,'l1');
-   assert.equal(changed.parts.find(part=>part.id==='l1').ledColor,color.value);
+   assert.equal(changed.parts.find(part=>part.id==='l1').ledColor,color.value==='red'?undefined:color.value);
    const nets=buildNetlist(changed);
    for(const wire of p.wires){
      assert.equal(nets.netOf(wire.from),baseline.netOf(wire.from));
