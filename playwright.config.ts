@@ -7,7 +7,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   timeout: 30_000,
   // Three engines plus bounded retries can exceed the old global cap after adding regressions.
-  globalTimeout: process.env.CI ? 360_000 : 180_000,
+  // Full three-engine coverage now exceeds six minutes on shared runners.
+  // Keep each test's 30-second timeout and retries; only extend the suite cap.
+  globalTimeout: process.env.CI ? 720_000 : 180_000,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: 'http://127.0.0.1:4173',
