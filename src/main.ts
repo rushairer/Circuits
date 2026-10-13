@@ -6,6 +6,8 @@ import { nearestOrthogonalSegment, slideOrthogonalSegment } from './core/wire-se
 import { paintCrossingWires } from './core/wire-crossings.js';
 import { wirePickCandidates, pickWireCandidate, type WirePickCycle, type WirePickCandidate } from './core/wire-picking.js';
 import { recolorWires, removeWires } from './core/wire-batch.js';
+import { createCircuitNote, editCircuitNote, moveCircuitNote, deleteCircuitNote } from './core/notes.js';
+import { renderCircuitNotes } from './ui/note-render.js';
 import { snapWireWaypoint, type WaypointGuide, type WaypointSnapMemory } from './core/waypoint-snap.js';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
@@ -60,6 +62,10 @@ let wireDrag:{from:Endpoint;clientX:number;clientY:number;pointerId:number;activ
 let selectedIds=new Set<string>();
 /** Editor-only batch wire selection; never part of serialized circuit data. */
 let selectedWireIds=new Set<string>();
+let notesVisible=true;
+let notePlacement=false;
+let selectedNoteId:string|null=null;
+let noteDrag:{id:string;clientX:number;clientY:number;before:Project;changed:boolean}|null=null;
 let marquee:{start:Point;end:Point;screenX:number;screenY:number;active:boolean;additive:boolean}|null=null;
 let gridEnabled=localStorage.getItem('circuits-grid')!=='off';
 let spaceHeld=false;
@@ -106,11 +112,16 @@ function openWorkspace(id:string){
  pointerInput.cancel();
  workspace=switchProject(workspace,id);
  project=reconcileInsertions(activeProject(workspace));
- selection=null;wirePickCycle=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
+ selection=null;wirePickCycle=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;notesVisible=true;noteDrag=null;marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
  save();render();
 }
 function commit(before:Project){wirePickCycle=null;clearWireDraft();resetUnoPreview();rcConvergence=null;project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
-function revert(stack:Project[],other:Project[]){wirePickCycle=null;pointerInput.cancel();const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();marquee=null;save();render()}
+/** Annotation edits preserve active simulator/previews; they have no electrical effect. */
+function commitAnnotation(before:Project){
+ undo.push(before);if(undo.length>50)undo.shift();
+ redo=[];save();render();
+}
+function revert(stack:Project[],other:Project[]){wirePickCycle=null;pointerInput.cancel();const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;noteDrag=null;marquee=null;save();render()}
 const uid=()=>crypto.randomUUID().slice(0,8);
 const pos=(e:Endpoint):[number,number]|null=>{
  const p=pinWorld(e,project.parts);return p?[p.x,p.y]:null;
@@ -371,13 +382,14 @@ function canvas(){
      return '<circle class="endpoint-handle" data-wire="'+w.id+'" data-wire-end="'+side+'" cx="'+point.x+'" cy="'+point.y+'" r="10" fill="white" stroke="#0e9e95" stroke-width="3"><title>拖动重接 '+(side==='from'?'起点':'终点')+'</title></circle>';
    }).join('');
  }).join('');
+ const noteLayer=notesVisible?renderCircuitNotes(project.notes??[],selectedNoteId):'';
  const hoverMarkup='<g id="pin-hover" aria-hidden="true" pointer-events="none" opacity="0"><rect x="-6" y="-6" width="12" height="12" rx="2"/>'+
     '<g transform="translate(13 -13)"><rect id="pin-hover-backdrop" x="0" y="-14" width="50" height="20" rx="2"/>'+
     '<text id="pin-hover-label" x="6" y="0"></text></g></g>';
   const layers=composeCircuitLayers({
     substrate,wires,'board-sockets':boardSockets,components,
     'wire-controls':bendHandles+terminalHandles,
-    overlays:marqueeMarkup+snapLines+draftWire+hoverMarkup
+    overlays:noteLayer+marqueeMarkup+snapLines+draftWire+hoverMarkup
   });
   return '<svg id="board" viewBox="0 0 1100 800"><defs><pattern id="dot" width="21" height="21" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c5cfd3"/></pattern></defs><rect width="1100" height="800" fill="#f3f5f6"/><rect width="1100" height="800" fill="url(#dot)"/><g id="scene" transform="translate('+panX+' '+panY+') scale('+zoom+')">'+layers+'</g></svg>';
 }
@@ -546,6 +558,12 @@ function side(){
    ).join('');
    return '<h2>我的电路 · '+workspace.slots.length+'/'+MAX_PROJECTS+'</h2><div class="field"><p>工程保存在当前浏览器；切换不会覆盖此前的工程。建议定期导出 JSON 备份。</p><button data-action="new">＋ 新建电路</button><button data-action="duplicate">复制当前工程</button><button data-action="projects">返回编辑器</button></div><div class="project-collection">'+rows+'</div>';
  }
+ const selectedNote=project.notes?.find(n=>n.id===selectedNoteId);
+ if(selectedNote&&!showCode)return '<h2>注释内容</h2><div class="field">'+
+   '<label for="note-text">电路注释</label><textarea id="note-text" class="note-editor" maxlength="500" rows="5" aria-label="编辑注释内容">'+
+     escape(selectedNote.text)+'</textarea>'+
+   '<p>在画布上拖动注释调整位置。注释不会修改导线连接或仿真结果。</p>'+
+   '<button data-action="delete">删除注释</button><button data-action="parts">返回元件库</button></div>';
  if(selectedWireIds.size>1&&!showCode)return '<h2>已选中 '+selectedWireIds.size+' 根导线</h2><div class="field"><p>按住 Shift 单击添加或移除导线，选中线由高亮笔画标识。</p><p>使用顶部“导线颜色”可一次修改所有选中导线，作为一条撤销记录；不会改变端点、折点或电气连接。</p><button data-action="delete">删除选中导线</button><button data-action="parts">取消选择</button></div>';
  if(selectedIds.size>1&&!showCode)return '<h2>已选中 '+selectedIds.size+' 个元件</h2><div class="field"><p>拖动任意已选中元件可整体移动，所有引脚接线会自动跟随。</p><p>按住 Shift 单击添加或移除选中；在空白画布拖动可框选。</p><button data-action="rotate">分别旋转 90°</button><button data-action="delete">删除所选元件</button><button data-action="parts">取消选择</button></div>';
  const chosenWire=project.wires.find(w=>w.id===selection);
