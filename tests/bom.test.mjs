@@ -66,7 +66,8 @@ test('BOM renderer escapes project names and row values, while CSV quotes and ne
  const html=renderBomPanel(createBom(p));
  assert.match(html,/&lt;img/);
  assert.match(html,/&amp;/);
- assert.doesNotMatch(html,/<img|onerror=/i);
+ assert.doesNotMatch(html,/<img/i);
+ assert.match(html,/&lt;img src=x onerror=alert\(1\)&gt;/);
  assert.match(html,/<table class="bom-table">/);
  const csv=bomCSV({title:'unsafe',totalComponents:1,totalWires:0,totalAnnotations:0,
   rows:[{kind:'resistor',label:'"resistor",\nnew',specification:'=1+1',quantity:1,ids:['-SUM(A1)']}]});
