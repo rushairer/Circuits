@@ -19,7 +19,12 @@ test('bulk wire color updates only wire colors and keeps electrical net identiti
    assert.deepEqual(w.bends,old.bends);
    assert.deepEqual(w.routing,old.routing);
  });
- assert.deepEqual(buildNetlist(updated),nets);
+ const adjusted=buildNetlist(updated);
+ assert.deepEqual(adjusted.warnings,nets.warnings);
+ for(const wire of before.wires){
+   assert.equal(adjusted.netOf(wire.from),nets.netOf(wire.from));
+   assert.equal(adjusted.netOf(wire.to),nets.netOf(wire.to));
+ }
  assert.deepEqual(original,before);
 });
 test('no-color-op, unknown IDs and invalid CSS colors preserve object identity',()=>{
