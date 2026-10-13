@@ -154,3 +154,21 @@ test('N/Shift+N shortcuts never hijack note textarea editing',async({page})=>{
  await page.locator('#note-text').press('Tab');
  expect((await saved(page)).notes[0].text).toBe(typed);
 });
+
+
+test('blur-committing edited note text does not swallow the following toolbar visibility click',async({page})=>{
+ await page.goto('/');
+ await create(page);
+ const before=await saved(page);
+ await page.locator('#note-text').fill('编辑后直接点击工具栏');
+ await page.locator('[data-action="notes-visibility"]').click();
+ await expect(page.locator('[data-action="notes-visibility"]')).toHaveAttribute('aria-pressed','false');
+ await expect(page.locator('#circuit-notes')).toHaveCount(0);
+ expect((await saved(page)).notes[0].text).toBe('编辑后直接点击工具栏');
+ await page.locator('[data-action="undo"]').click();
+ expect((await saved(page)).notes).toEqual(before.notes);
+ await page.locator('[data-action="redo"]').click();
+ expect((await saved(page)).notes[0].text).toBe('编辑后直接点击工具栏');
+ await page.locator('[data-action="notes-visibility"]').click();
+ await expect(page.locator('.circuit-note')).toHaveCount(1);
+});
