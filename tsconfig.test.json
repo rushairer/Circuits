@@ -16,6 +16,7 @@
     "src/core/**/*.ts",
     "src/ui/circuit-layers.ts",
     "src/ui/note-render.ts",
+    "src/ui/bom-panel.ts",
     "src/model.ts"
   ]
 }

@@ -137,6 +137,18 @@ Starters 分为基础电路与 Arduino 两组，复用 `exampleCatalog` 中可�
 
 **仍有差异**：原版 Starters 还包含 Micro:bit、Circuit Assemblies 及可直接拖入画布的原版练习模板；这些不在目前的 15 个示例内。选中组件时仍以当前独立属性侧栏代替原版浮动弹窗，留给后续布局改造，不宣称视觉 1:1。
 
+## 第十二批：原版 BOM 物料清单视图
+
+**参考来源**：[DigiKey《Getting Started with Tinkercad Circuits》](https://www.digikey.com/en/maker/tutorials/2022/getting-started-with-tinkercad-circuits) 将 Simulator / Schematic / BOM 明确列为原版三种视图，BOM 是自动生成的全部电路器件材料清单。此批只实现 **BOM**，不是原版原理图功能，更不是自动购买清单。
+
+本项目新增 `src/core/bom.ts` 从当前 schema-v2 `Project.parts` 生成**只读、稳定的物料统计**：按照元件种类与真实作者设置的可见规格聚合，例如 220Ω 与 1kΩ 电阻分行，红色与绿色 LED 分行，显示数量和稳定组件 ID。旧工程 LED 无颜色默认为红、普通电阻无值按目前默认 220Ω、旧电容无值按当前默认 100µF 统计；元件名称从当前已经实现的 `labels` 得到。导线条数与注释条数另行统计，不把它们混成元器件计数。当前不维护报价或供应商库存，不推断线长、用量或接头规格。
+
+顶栏增加 BOM 按钮，打开无需切换电路的只读、可滚动列表弹窗。支持 Esc 关闭、Tab/Shift+Tab 焦点闭环、背景点击返回，以及 UTF-8 BOM + CSV 导出。导出字段使用 CSV 标准引号/双引号，阻止 spreadsheet formula 注入；工程名及组件 ID 按 XML/HTML 转义。打开或关闭 BOM 不会改变 Project、连接网络、正在运行的仿真、已有 undo/redo 历史。
+
+`tests/bom.test.mjs` 验证规格分组、统计准确性、输出确定性、Netlist 无副作用、字符转义及 CSV 公式防护。`e2e/bom.spec.ts` 在 Chromium/Firefox/WebKit 验证打开/关闭、空工程、组合规格、键盘焦点、导出及运行中仿真不被打断。
+
+**后续**：原版的自动生成 Schematic view 属另一完整功能；BOM 本地 CSV 只是教育用量统计，不包含真实元器件制造成本、供应链或贴片装配数据；不冒称 BOM 页面视觉逐像素相同。
+
 ## 回归与证据
 
 第一批的 `tests/wire-performance.test.mjs` 保留 25 项检查，包括 17 组 alpha.10 绘制摘要。旧版参考为提交 `813d676dbfa9639b77a582b9e6f884f122773392`；不能在新实现失败时直接重写旧版摘要来放行。

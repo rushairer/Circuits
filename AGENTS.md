@@ -200,3 +200,8 @@
 - `Part.ledColor` is an optional schema-v2 field for `kind==='led'` only, with the six Tinkercad inspector color labels. Missing must render old Red exactly and import unchanged.
 - LED colors affect lens and visual glow only, not diode forward voltage, GPIO current, netlist, insertion identities or transient/solver state. Use `src/core/led-colors.ts` immutable operations, keep one undo record, and preserve active simulation without recomputing a physics model on mere color change.
 - Validate non-LED/invalid `ledColor` imports, test all six colors in the browser plus legacy color and exposed LED pins. Original physical LED optics and wavelength parameters remain out of scope for this visual fidelity batch.
+
+## Reference editor BOM (alpha.11)
+- `src/core/bom.ts` computes immutable material counts from actual `Project.parts` and groups by component kind and authored physical specification (value, LED lens color), preserving IDs. Wires and Notes are separate counters, not fictitious components.
+- The BOM modal from `src/ui/bom-panel.ts` and export action must be read-only, accessible, focus-contained and never mutate project/netlist or simulation. CSV fields must be escaped/quoted and formula injection guarded; do not interpolate raw user names into HTML.
+- Tinkercad's generated Schematic is distinct from BOM and is NOT delivered by this batch. Maintain honesty about missing supplier pricing, inventory and authenticated original UI layout parity.
