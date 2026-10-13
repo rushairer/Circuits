@@ -190,3 +190,8 @@
 - Update the validator alongside any annotation field or bound. Use `src/core/notes.ts` for immutable add/edit/move/delete and `src/ui/note-render.ts` for bounded escaped SVG text; do not render user text as raw HTML or foreignObject.
 - N arms one-shot note placement; Shift+N only toggles visual visibility. Note drag must rollback on cancellation, never accumulate pointer deltas or create multiple undo records. Annotation edits must not invalidate running electrical/Arduino previews or mutate existing component/wire JSON.
 - The official Tinkercad Circuits 2022 guide covers notes and their shortcuts; full logged-in original pixel/gesture matching remains unverified and must not be falsely claimed.
+
+## Wire hardware styles (alpha.11)
+- `Wire.type` is optional schema-v2 metadata, limited to normal/hookup/alligator/automatic. Absent must preserve exact old Normal paths. Validate import and append via `src/model.ts` and `src/core/connections.ts`.
+- Connector sleeves/jaws in `src/core/wire-types.ts` are original, pointer-transparent SVG embellishments in the wires layer; they never create terminals or change netlist conductivity. Type changes on one or multiple wires use immutable edits and a single undo.
+- Shift+1..4 switches connector types, distinct from unshifted digit color shortcuts. The Automatic endpoint heuristic is local, not authenticated original Tinkercad behavior: document and test its limits, do not claim visual or rule equivalence.
