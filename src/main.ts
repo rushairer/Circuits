@@ -5,6 +5,7 @@ import { insertWireWaypoint, moveWireWaypoint, removeWireWaypoint } from './core
 import { nearestOrthogonalSegment, slideOrthogonalSegment } from './core/wire-segments.js';
 import { paintCrossingWires } from './core/wire-crossings.js';
 import { wirePickCandidates, pickWireCandidate, type WirePickCycle } from './core/wire-picking.js';
+import { snapWireWaypoint, type WaypointGuide, type WaypointSnapMemory } from './core/waypoint-snap.js';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
 import { compileUnoPreview, sampleUnoPreview, sampleUnoSerial, type UnoPreviewResult, type UnoSerialSnapshot } from './core/uno-preview.js';
@@ -60,7 +61,7 @@ let marquee:{start:Point;end:Point;screenX:number;screenY:number;active:boolean;
 let gridEnabled=localStorage.getItem('circuits-grid')!=='off';
 let spaceHeld=false;
 let panDrag:{x:number;y:number;panX:number;panY:number}|null=null;
-let bendDrag:{id:string;index:number;before:Project}|null=null;
+let bendDrag:{id:string;index:number;before:Project;guides:WaypointGuide[];snap:WaypointSnapMemory|null}|null=null;
 let selectedBend:{id:string;index:number}|null=null;
 let segmentDrag:{id:string;start:Point;screenX:number;screenY:number;pointerId:number;
  before:Project;active:boolean;index:number;routeIndex:number|null;changed:boolean}|null=null;
@@ -71,6 +72,19 @@ let connectionNotice='';
 let activeWireColor:string=DEFAULT_WIRE_COLOR;
 let undo:Project[]=[],redo:Project[]=[],drag:{ids:string[];x:number;y:number;before:Project}|null=null;
 const copy=():Project=>structuredClone(project);
+/** Only align to this wire's existing endpoints/bends; no hidden junctions. */
+function waypointGuides(wireId:string,excludeIndex:number):WaypointGuide[]{
+ const wire=project.wires.find(w=>w.id===wireId);
+ if(!wire)return [];
+ const from=pinWorld(wire.from,project.parts),to=pinWorld(wire.to,project.parts);
+ const guides:WaypointGuide[]=[];
+ if(from)guides.push({id:'terminal-from',kind:'terminal',point:from});
+ if(to)guides.push({id:'terminal-to',kind:'terminal',point:to});
+ for(let i=0;i<(wire.bends?.length??0);i++){
+   if(i!==excludeIndex)guides.push({id:'bend-'+i,kind:'bend',point:{...wire.bends![i]}});
+ }
+ return guides;
+}
 const save=()=>{
  workspace=saveCurrent(workspace,project,Date.now());
  try{
@@ -333,6 +347,16 @@ function canvas(){
    '<rect id="wire-preview-target" class="wire-preview-target" x="'+(wireEnd.x-7)+'" y="'+(wireEnd.y-7)+'" width="14" height="14" rx="2" opacity="'+(wiringHover?'1':'0')+'" data-valid="'+(wiringHover&&validWireTarget(wiring!,wiringHover.endpoint)?'true':'false')+'"/>'+
    '<g id="wire-target-label" class="wire-target-label" transform="translate('+(wireEnd.x+12)+' '+(wireEnd.y-16)+')" opacity="'+(wiringHover?'1':'0')+'"><rect x="0" y="-15" width="'+Math.max(48,endLabel.length*8+12)+'" height="22" rx="3"/><text x="7" y="0">'+escape(endLabel)+'</text></g>'+
    '</g>':'';
+ const activeBend=bendDrag;
+ const guidePoint=activeBend&&project.wires.find(w=>w.id===activeBend.id)?.bends?.[activeBend.index];
+ const snapMemory=bendDrag?.snap;
+ const snapLines=guidePoint&&snapMemory?
+   '<g id="bend-snap-guides" aria-hidden="true" pointer-events="none">'+
+   (snapMemory.x?.kind==='alignment'||snapMemory.terminal?
+     '<line class="bend-snap-guide" x1="'+guidePoint.x+'" y1="-500" x2="'+guidePoint.x+'" y2="1500"/>':'')+
+   (snapMemory.y?.kind==='alignment'||snapMemory.terminal?
+     '<line class="bend-snap-guide" x1="-500" y1="'+guidePoint.y+'" x2="1500" y2="'+guidePoint.y+'"/>':'')+
+   '</g>':'';
  const marqueeMarkup=marquee?.active?'<rect class="marquee-box" x="'+Math.min(marquee.start.x,marquee.end.x)+'" y="'+Math.min(marquee.start.y,marquee.end.y)+'" width="'+Math.abs(marquee.start.x-marquee.end.x)+'" height="'+Math.abs(marquee.start.y-marquee.end.y)+'"/>':'';
  const terminalHandles=project.wires.filter(w=>w.id===selection).map(w=>{
    const coords=wirePoints(w,project.parts);
@@ -349,7 +373,7 @@ function canvas(){
   const layers=composeCircuitLayers({
     substrate,wires,'board-sockets':boardSockets,components,
     'wire-controls':bendHandles+terminalHandles,
-    overlays:marqueeMarkup+draftWire+hoverMarkup
+    overlays:marqueeMarkup+snapLines+draftWire+hoverMarkup
   });
   return '<svg id="board" viewBox="0 0 1100 800"><defs><pattern id="dot" width="21" height="21" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c5cfd3"/></pattern></defs><rect width="1100" height="800" fill="#f3f5f6"/><rect width="1100" height="800" fill="url(#dot)"/><g id="scene" transform="translate('+panX+' '+panY+') scale('+zoom+')">'+layers+'</g></svg>';
 }
@@ -502,7 +526,7 @@ function side(){
  }
  if(selectedIds.size>1&&!showCode)return '<h2>已选中 '+selectedIds.size+' 个元件</h2><div class="field"><p>拖动任意已选中元件可整体移动，所有引脚接线会自动跟随。</p><p>按住 Shift 单击添加或移除选中；在空白画布拖动可框选。</p><button data-action="rotate">分别旋转 90°</button><button data-action="delete">删除所选元件</button><button data-action="parts">取消选择</button></div>';
  const chosenWire=project.wires.find(w=>w.id===selection);
- if(chosenWire&&!showCode)return '<h2>导线属性</h2><div class="field"><p>起点：'+escape(chosenWire.from.componentId)+' / '+escape(chosenWire.from.pinId)+'</p><p>终点：'+escape(chosenWire.to.componentId)+' / '+escape(chosenWire.to.pinId)+'</p><label for="wire-color">导线颜色</label><input id="wire-color" type="color" value="'+chosenWire.color+'"/><p>折点 '+(chosenWire.bends?.length??0)+' 个。拖横线可上下平移，拖竖线可左右平移，线段两端仍接在真实引脚上；双击导线添加折点，圆形折点手柄可拖动。</p><button data-action="wire-flip-direction" aria-label="切换已选导线的正交走线方向">↳ '+(chosenWire.routing?('走线：'+(chosenWire.routing==='horizontal'?'横向优先':'纵向优先')+' · 点击切换'):'改为直角走线 · 横向优先')+'</button><button data-action="wire-add-bend">＋ 添加折点</button><button data-action="wire-reset-bends">清除手动折点</button><p>编辑颜色和折点均不改变电气连接。交叉位置可重复点击或按住 Alt 点击切换候选导线。</p><button data-action="delete">删除导线</button><button data-action="parts">返回元件库</button></div>';
+ if(chosenWire&&!showCode)return '<h2>导线属性</h2><div class="field"><p>起点：'+escape(chosenWire.from.componentId)+' / '+escape(chosenWire.from.pinId)+'</p><p>终点：'+escape(chosenWire.to.componentId)+' / '+escape(chosenWire.to.pinId)+'</p><label for="wire-color">导线颜色</label><input id="wire-color" type="color" value="'+chosenWire.color+'"/><p>折点 '+(chosenWire.bends?.length??0)+' 个。拖横线可上下平移，拖竖线可左右平移，线段两端仍接在真实引脚上；双击导线添加折点，圆形折点手柄可拖动，靠近原引脚、其他折点或网格时使用带滞回的屏幕像素吸附。</p><button data-action="wire-flip-direction" aria-label="切换已选导线的正交走线方向">↳ '+(chosenWire.routing?('走线：'+(chosenWire.routing==='horizontal'?'横向优先':'纵向优先')+' · 点击切换'):'改为直角走线 · 横向优先')+'</button><button data-action="wire-add-bend">＋ 添加折点</button><button data-action="wire-reset-bends">清除手动折点</button><p>编辑颜色和折点均不改变电气连接。交叉位置可重复点击或按住 Alt 点击切换候选导线。</p><button data-action="delete">删除导线</button><button data-action="parts">返回元件库</button></div>';
  if(showCode)return '<h2>Arduino 代码 · 实验预览</h2><div class="field"><p>代码可继续编辑和导出。受限 D13 Blink 可按接线驱动外部 LED，串口白名单支持字面量输出及最多 16 次的静态 for 循环；不编译通用 C++ 或模拟完整 AVR。</p><textarea id="code" maxlength="300000">'+escape(project.code)+'</textarea><button data-action="uno-preview-run">▶ 解析并预览 Arduino</button><button data-action="uno-preview-stop" '+(!unoPreview?'disabled':'')+'>关闭预览</button><button data-action="download-code">下载 .ino</button>'+unoPreviewMarkup()+'<button data-action="code">返回元件库</button></div>';
  const c=project.parts.find(p=>p.id===selection);
  const ledReading=c?.kind==='led'?lastAnalysis?.leds[c.id]:null;
@@ -991,7 +1015,7 @@ function handlePointerDown(e:CanvasPointer){
    const w=project.wires.find(x=>x.id===handle.getAttribute('data-wire')),index=Number(handle.getAttribute('data-bend-index'));
    if(w?.bends?.[index]){
    selection=w.id;selectedBend={id:w.id,index};
-   bendDrag={id:w.id,index,before:copy()};return;
+   bendDrag={id:w.id,index,before:copy(),guides:waypointGuides(w.id,index),snap:null};return;
  }
  }
  const startPin=pinFromPointer(target,e.clientX,e.clientY);
@@ -1122,7 +1146,12 @@ function handlePointerMove(e:CanvasPointer){
  if(bendDrag){
    if(!e.dragged)return;
    const point=canvasPoint(e.clientX,e.clientY);
-   const moved=point&&moveWireWaypoint(bendDrag.before,bendDrag.id,bendDrag.index,point,gridEnabled?10:null);
+   const result=point&&snapWireWaypoint(point,bendDrag.snap,{
+     pixelsPerWorldUnit:1/wireRadius(1),
+     guides:bendDrag.guides,gridPitch:gridEnabled?10:null
+   });
+   if(result)bendDrag.snap=result.memory;
+   const moved=result&&moveWireWaypoint(bendDrag.before,bendDrag.id,bendDrag.index,result.point,null);
    if(moved){project=moved;refreshScene();}
    return;
  }
