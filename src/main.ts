@@ -403,7 +403,7 @@ function canvas(){
  if(latest)original.innerHTML=latest.innerHTML;
 }
 function fitView(){
- const next=fitCircuit(project.parts,project.wires);
+ const next=fitCircuit(project.parts,project.wires,1100,800,55,notesVisible?(project.notes??[]):[]);
  zoom=next.zoom;panX=next.panX;panY=next.panY;
  render();
 }
