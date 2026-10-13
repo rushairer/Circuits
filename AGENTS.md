@@ -195,3 +195,8 @@
 - `Wire.type` is optional schema-v2 metadata, limited to normal/hookup/alligator/automatic. Absent must preserve exact old Normal paths. Validate import and append via `src/model.ts` and `src/core/connections.ts`.
 - Connector sleeves/jaws in `src/core/wire-types.ts` are original, pointer-transparent SVG embellishments in the wires layer; they never create terminals or change netlist conductivity. Type changes on one or multiple wires use immutable edits and a single undo.
 - Shift+1..4 switches connector types, distinct from unshifted digit color shortcuts. The Automatic endpoint heuristic is local, not authenticated original Tinkercad behavior: document and test its limits, do not claim visual or rule equivalence.
+
+## LED visual property (alpha.11)
+- `Part.ledColor` is an optional schema-v2 field for `kind==='led'` only, with the six Tinkercad inspector color labels. Missing must render old Red exactly and import unchanged.
+- LED colors affect lens and visual glow only, not diode forward voltage, GPIO current, netlist, insertion identities or transient/solver state. Use `src/core/led-colors.ts` immutable operations, keep one undo record, and preserve active simulation without recomputing a physics model on mere color change.
+- Validate non-LED/invalid `ledColor` imports, test all six colors in the browser plus legacy color and exposed LED pins. Original physical LED optics and wavelength parameters remain out of scope for this visual fidelity batch.
