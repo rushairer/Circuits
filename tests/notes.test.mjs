@@ -4,6 +4,7 @@ import {demo,blankProject,validProject} from '../.test-dist/model.js';
 import {buildNetlist} from '../.test-dist/core/netlist.js';
 import {createCircuitNote,editCircuitNote,moveCircuitNote,deleteCircuitNote,MAX_NOTES,MAX_NOTE_TEXT} from '../.test-dist/core/notes.js';
 import {renderCircuitNotes,notePreviewLines} from '../.test-dist/ui/note-render.js';
+import {fitCircuit,viewportToWorld} from '../.test-dist/core/viewport.js';
 
 test('notes are optional in schema-v2 projects and do not alter any existing nets',()=>{
  const original=demo(),snapshot=structuredClone(original);
@@ -105,4 +106,14 @@ test('SVG notes escape HTML/SVG injection and limit preview without rewriting fu
  assert.equal(lines.length,4);
  assert.ok(lines[3].endsWith('…'));
  assert.equal(p.notes[0].text,value);
+});
+
+test('zoom-to-fit includes visible notes even in note-only projects',()=>{
+ const note={id:'n1',x:1200,y:800,text:'far away'};
+ const visible=fitCircuit([],[],1100,800,55,[note]);
+ const center=viewportToWorld(visible,{x:550,y:400});
+ assert.ok(Math.abs(center.x-(note.x+94))<1e-6);
+ assert.ok(Math.abs(center.y-(note.y+47))<1e-6);
+ assert.deepEqual(fitCircuit([],[]),{zoom:1,panX:0,panY:0});
+ assert.deepEqual(fitCircuit([],[],1100,800,55,[]),{zoom:1,panX:0,panY:0});
 });
