@@ -87,3 +87,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 fourth batch: screen-pixel hysteresis for existing waypoint dragging, terminal/bend alignment, grid capture bounds, transient guides and atomic undo
 - [ ] Extend snapping to new-wire authoring/whole-leg edits, and measure touch input-to-paint latency in real browsers/devices
+
+- [x] Alpha.11 fifth batch: preserve unfinished manual wiring after pin-to-blank release, add temporary waypoint and final pin completion, Cmd/Ctrl +/- zoom with native text input protection
+- [ ] Compare manual wire corner orientation, simulation editing lock and visual fidelity against authenticated Tinkercad original, then add device/frame performance QA
