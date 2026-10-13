@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-test('workbench loads 13 parts and the sample LED circuit lights', async ({page})=>{
+test('workbench loads Basic 9 / All 13 supported parts and the demo LED lights', async ({page})=>{
   await page.goto('/');
   await expect(page).toHaveTitle(/Circuits/);
   await expect(page.locator('#component-category')).toHaveValue('basic');
