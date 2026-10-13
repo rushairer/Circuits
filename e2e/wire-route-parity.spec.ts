@@ -37,7 +37,7 @@ test('dragging from a real pin to blank canvas leaves a route for manual bends a
  await expect(page.locator('#wire-preview-path')).toHaveCount(1);
  await expect(page.locator('[data-action="cancel-wire"]')).toBeVisible();
  expect((await saved(page)).wires).toEqual(before.wires);
- const elbow=await world(page,425,190);
+ const elbow=await world(page,427,190); // Avoid the 425 half-grid tie across browser coordinate transforms.
  await page.mouse.click(elbow.x,elbow.y);
  await expect(page.locator('.wire-preview-bend')).toHaveCount(1);
  expect((await saved(page)).wires).toHaveLength(0);
