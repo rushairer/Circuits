@@ -102,3 +102,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 ninth batch: Normal/Hookup/Alligator/Automatic connector types, visible endpoint hardware, Shift+1..4 controls, persistent typed wires, and batch undo
 - [ ] Verify official connector geometries, component-specific automatic wire-type rules and appearance on the 2026 authenticated reference editor
+
+- [x] Alpha.11 tenth batch: LED Red/Green/Yellow/Orange/Blue/White inspector colors and visual simulation glow, backward-compatible optional field, undo/persistence and netlist safety tests
+- [ ] Verify original LED colors visually and extend wavelength-dependent diode models separately with measured/public reference curves; do not equate color matching with accurate SPICE
