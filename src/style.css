@@ -185,3 +185,36 @@
 .catalog-empty{grid-column:1/-1;font-size:12px;line-height:1.7;text-align:center;padding:24px 5px;color:#849ca7}
 .part svg{pointer-events:none}
 .part>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
+
+/* Read-only bill of materials view; modal never edits project geometry. */
+.bom-shade{position:absolute;inset:0;z-index:20;background:#112e3891}
+.bom-dialog{position:absolute;z-index:21;top:50%;left:50%;transform:translate(-50%,-50%);
+ width:min(780px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;
+ background:#fff;border:1px solid #c5dae0;border-radius:12px;
+ box-shadow:0 20px 56px #081f2b55;color:#294655;padding:18px 20px}
+.bom-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.bom-heading h2{font-size:20px;margin:0 0 6px;color:#164b56}
+.bom-heading p{font-size:12px;color:#6d8691;margin:0}
+.bom-heading button,.bom-actions button{border:1px solid #bfd6d9;border-radius:7px;
+ background:#fff;color:#285f68;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer}
+.bom-heading button:hover,.bom-actions button:hover{background:#eaf8f6}
+.bom-overview{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 16px}
+.bom-overview span{display:flex;gap:6px;align-items:center;background:#f2f8f9;border:1px solid #deeaec;
+ border-radius:7px;padding:9px 13px;font-size:12px;color:#506d7a}
+.bom-overview strong{color:#0d817d;font-size:16px}
+.bom-table-scroller{max-height:45vh;overflow:auto;border:1px solid #dfe9eb;border-radius:8px}
+.bom-table{width:100%;border-collapse:collapse;min-width:540px;font-size:12px}
+.bom-table th{position:sticky;top:0;background:#eef6f8;color:#385666;text-align:left;padding:10px;
+ border-bottom:1px solid #cddfe4;white-space:nowrap}
+.bom-table td{padding:9px 10px;border-bottom:1px solid #e9eff0;vertical-align:top;overflow-wrap:anywhere}
+.bom-table tbody tr:last-child td{border:0}
+.bom-quantity{font-weight:800;color:#137f7d;font-variant-numeric:tabular-nums}
+.bom-empty{text-align:center;padding:28px!important;color:#8195a0}
+.bom-disclaimer{font-size:11px;color:#708893;line-height:1.6;margin:14px 0}
+.bom-actions{display:flex;justify-content:flex-end;gap:10px}
+.bom-actions [data-action="bom-export"]{color:white;background:#0b958d;border-color:#0b958d}
+.bom-actions [data-action="bom-export"]:hover{background:#08786f}
+.bom-dialog button:focus-visible{outline:2px solid #159f91;outline-offset:3px}
+@media(max-width:750px){.bom-dialog{padding:12px}.bom-heading h2{font-size:17px}
+ .bom-overview span{padding:6px 9px}.bom-table-scroller{max-height:43vh}}
