@@ -96,3 +96,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 seventh batch: Tinkercad reference 1–9,0 wire shortcut order (black through brown), palette labels and batch-selection regressions
 - [ ] Verify 2026 authenticated original wire-type shortcuts, 12 swatch visual color values and current wire-color shortcut order
+
+- [x] Alpha.11 eighth batch: official N note creation and Shift+N note visibility with draggable, editable world-space annotations, bounded schema-v2 import, safe SVG text and one-step undo
+- [ ] Authenticated original annotations pixel/gesture parity: card sizing, insertion cursor, label wrapping, touch/pen native devices and grouped selection

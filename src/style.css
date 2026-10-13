@@ -146,3 +146,16 @@
 
 /* Transient waypoint alignment guides never intercept socket or wire gestures. */
 .bend-snap-guide{stroke:#27a9c5;stroke-width:1.5;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;pointer-events:none}
+
+
+/* Circuit teaching notes: uppermost selectable annotations; no net contacts. */
+.circuit-note{cursor:move;touch-action:none}
+.circuit-note-body{fill:#fff;stroke:#d7e2e4;stroke-width:1.2;filter:drop-shadow(0 2px 4px #2039453b)}
+.circuit-note:hover .circuit-note-body{stroke:#6ab6b2}
+.circuit-note.selected .circuit-note-body,.circuit-note:focus-visible .circuit-note-body{stroke:#159b92;stroke-width:2.5}
+.circuit-note-text{fill:#344f5c;font:13px/1.4 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;user-select:none}
+.canvas.note-mode #board,.canvas.note-mode #board *{cursor:crosshair!important}
+.note-mode .circuit-note{pointer-events:none}
+.topbar [data-action="note-add"][aria-pressed="true"]{background:#daf4ee;border-color:#159b92;color:#087a72}
+.topbar [data-action="notes-visibility"][aria-pressed="false"]{opacity:.7}
+.note-editor{width:100%;min-height:110px;resize:vertical;line-height:1.45}
