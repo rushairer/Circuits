@@ -11,6 +11,11 @@ async function world(page:Page,x:number,y:number){
   return {x:screen.x,y:screen.y};
  },{x,y});
 }
+async function shiftClick(page:Page,position:{x:number;y:number}){
+ await page.keyboard.down('Shift');
+ try{await page.mouse.click(position.x,position.y);}
+ finally{await page.keyboard.up('Shift');}
+}
 async function boot(page:Page){
  await page.goto('/');
  const p=await saved(page);
@@ -29,7 +34,7 @@ async function selectTwo(page:Page){
  const a=await world(page,485,320),b=await world(page,370,290);
  await page.mouse.click(a.x,a.y);
  await expect(page.locator('.endpoint-handle[data-wire="w1"]')).toHaveCount(2);
- await page.mouse.click(b.x,b.y,{modifiers:['Shift']});
+ await shiftClick(page,b);
  await expect(page.locator('.inspector')).toContainText('已选中 2 根导线');
  await expect(page.locator('.wire[data-wire="w1"]')).toHaveAttribute('stroke-width','8');
  await expect(page.locator('.wire[data-wire="w2"]')).toHaveAttribute('stroke-width','8');
@@ -66,7 +71,7 @@ test('Shift-click toggles an already selected wire off instead of turning into a
  await boot(page);
  await selectTwo(page);
  const a=await world(page,485,320);
- await page.mouse.click(a.x,a.y,{modifiers:['Shift']});
+ await shiftClick(page,a);
  await expect(page.locator('.inspector')).toContainText('导线属性');
  await expect(page.locator('.endpoint-handle[data-wire="w2"]')).toHaveCount(2);
  await expect(page.locator('.endpoint-handle[data-wire="w1"]')).toHaveCount(0);
