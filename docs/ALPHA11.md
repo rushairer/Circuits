@@ -123,6 +123,20 @@ Hookup 使用自绘的双端插接套环，Alligator 使用自绘的金属夹头
 
 **边界**：本批的颜色色值来自独立设计，不是原版像素采样值。不同波长 LED 的真实正向压降及光电特性尚未加入求解器，仍使用原有教学近似；不宣称红/绿/蓝 LED 的物理模拟 1:1。
 
+## 第十一批：Tinkercad 风格组件分类和可搜索 Starter
+
+原版参考：Autodesk 官方《[Circuits Guide](https://images.tinkercad.com/jl5ii4oqrdmc/4sMFqe3rDlbUymJt0I4yh/85a4487f7fe274e74c19870ae4679fc1/tinkercad-guides_circuits-Printable.pdf)》第 4–5 页明确记录右侧组件面板默认 Basic、可选 All Components、搜索栏以及分类 Starters（Basic、Arduino、Micro:bit、Circuit Assemblies）。原项目只有 13 件元件的单页列表，没有分类或 Starter 搜索。
+
+本批新增独立 UI 目录模块 `src/core/component-browser.ts`：保留当前支持的 13 种实体，默认 Basic 显示其中 9 种常用组件，All 显示全部 13 种。Basic 状态下输入关键字可以扩展查询全部**已实现**组件，支持本地化名称、英文名称及 Arduino/UNO、Piezo 等别名，不在项目里凭空显示未实现的元件。
+
+Starters 分为基础电路与 Arduino 两组，复用 `exampleCatalog` 中可验证的 **15 个本项目教学范例**（12 个基础，3 个 Arduino）；搜索按照示例标题/描述筛选。点击 Starter 沿用现有 `createExample` 的独立工程创建流程，保留原工程和项目数量上限；不误写为 Autodesk 原版 Starters，也不假装所有原版组件/Starter 已实现。
+
+筛选分类只存为浏览器级 UI 偏好 `circuits-component-category`，绝不写入 schema-v2 电路 JSON、netlist、undo/redo。原生 select 及搜索输入框不触发画布快捷键；切换分类后光标可见，文本搜索保持插入位置。现有元件选中后的属性面板、已有示例浏览器、组件拖放及真实接线操作保持不变。
+
+`tests/component-browser.test.mjs` 检查分组、同义词和实例 ID。 `e2e/component-browser.spec.ts` 在 Chromium / Firefox / WebKit 检查默认 Basic、All、跨分类搜索、注入文本安全、Starter 不覆盖当前工程、类别偏好、属性切换后的回到组件库和快捷键焦点保护。
+
+**仍有差异**：原版 Starters 还包含 Micro:bit、Circuit Assemblies 及可直接拖入画布的原版练习模板；这些不在目前的 15 个示例内。选中组件时仍以当前独立属性侧栏代替原版浮动弹窗，留给后续布局改造，不宣称视觉 1:1。
+
 ## 回归与证据
 
 第一批的 `tests/wire-performance.test.mjs` 保留 25 项检查，包括 17 组 alpha.10 绘制摘要。旧版参考为提交 `813d676dbfa9639b77a582b9e6f884f122773392`；不能在新实现失败时直接重写旧版摘要来放行。
