@@ -1,11 +1,9 @@
 import type { CircuitNote } from '../model.js';
+import { NOTE_WIDTH, NOTE_HEIGHT } from '../core/notes.js';
 
 const xml=(value:string)=>value.replace(/[&<>"']/g,char=>({
  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 }[char]!));
-
-export const NOTE_WIDTH=188;
-export const NOTE_HEIGHT=94;
 
 /**
  * Render a bounded, selectable visual annotation above circuit components.
