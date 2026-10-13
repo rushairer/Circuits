@@ -4,6 +4,7 @@ import { DEFAULT_WIRE_COLOR, WIRE_COLOR_PRESETS, wireColorForDigit, wireColorOpt
 import { insertWireWaypoint, moveWireWaypoint, removeWireWaypoint } from './core/wire-edit.js';
 import { nearestOrthogonalSegment, slideOrthogonalSegment } from './core/wire-segments.js';
 import { paintCrossingWires } from './core/wire-crossings.js';
+import { wirePickCandidates, pickWireCandidate, type WirePickCycle, type WirePickCandidate } from './core/wire-picking.js';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
 import { compileUnoPreview, sampleUnoPreview, sampleUnoSerial, type UnoPreviewResult, type UnoSerialSnapshot } from './core/uno-preview.js';
@@ -65,6 +66,7 @@ let segmentDrag:{id:string;start:Point;screenX:number;screenY:number;pointerId:n
  before:Project;active:boolean;index:number;routeIndex:number|null;changed:boolean}|null=null;
 let endpointDrag:{id:string;side:'from'|'to';preview:Point}|null=null;
 let ignoredClick:{x:number;y:number;until:number}|null=null;
+let wirePickCycle:WirePickCycle|null=null;
 let connectionNotice='';
 let activeWireColor:string=DEFAULT_WIRE_COLOR;
 let undo:Project[]=[],redo:Project[]=[],drag:{ids:string[];x:number;y:number;before:Project}|null=null;
@@ -87,11 +89,11 @@ function openWorkspace(id:string){
  pointerInput.cancel();
  workspace=switchProject(workspace,id);
  project=reconcileInsertions(activeProject(workspace));
- selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
+ selection=null;wirePickCycle=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
  save();render();
 }
-function commit(before:Project){clearWireDraft();resetUnoPreview();rcConvergence=null;project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
-function revert(stack:Project[],other:Project[]){pointerInput.cancel();const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;save();render()}
+function commit(before:Project){wirePickCycle=null;clearWireDraft();resetUnoPreview();rcConvergence=null;project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
+function revert(stack:Project[],other:Project[]){wirePickCycle=null;pointerInput.cancel();const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();marquee=null;save();render()}
 const uid=()=>crypto.randomUUID().slice(0,8);
 const pos=(e:Endpoint):[number,number]|null=>{
  const p=pinWorld(e,project.parts);return p?[p.x,p.y]:null;
@@ -383,6 +385,34 @@ function wireRadius(pixels=17):number {
  const scale=matrix?Math.hypot(matrix.a,matrix.b):0;
  return scale>0?pixels/scale:pixels;
 }
+/** In a crossover arch, the colored conductor curves away from its stored
+ * centerline. Use the directly visible curved stroke only at that offset,
+ * never a transparent .wire-hit target or painter order for straight wires.
+ */
+function visibleBridgeAt(target:Element|undefined,candidates:readonly WirePickCandidate[]):string|null {
+ const stroke=target?.closest<SVGPathElement>('.wire[data-crossovers]');
+ if(!stroke||Number(stroke.getAttribute('data-crossovers'))<1)return null;
+ const id=stroke.getAttribute('data-wire');
+ if(!id||!project.wires.some(w=>w.id===id))return null;
+ const base=candidates.find(c=>c.id===id);
+ // A non-decorated portion is at most half the 5px stroke width from its
+ // centerline; more displacement means the Q bridge is what was clicked.
+ return !base||base.distancePx>3?id:null;
+}
+/** Rank real route centerlines in world coordinates using CSS-pixel distance.
+ * Only an actually hit, displaced decorative arch gets visual precedence.
+ */
+function wireCandidatesAt(clientX:number,clientY:number,target?:Element){
+ const world=canvasPoint(clientX,clientY);
+ if(!world)return [];
+ const onePixel=wireRadius(1);
+ const candidates=wirePickCandidates(project.wires,project.parts,world,1/onePixel,9);
+ const bridge=visibleBridgeAt(target,candidates);
+ if(!bridge)return candidates;
+ const onRoute=candidates.find(c=>c.id===bridge);
+ return [{id:bridge,distancePx:0,legIndex:onRoute?.legIndex??0},
+   ...candidates.filter(c=>c.id!==bridge)];
+}
 /** Board artwork may be clicked near a hole; choose the nearest real pin of that part. */
 function pinFromPointer(target:Element,x:number,y:number):TerminalHit|null {
  const component=target.closest<SVGGElement>('.item[data-part], .breadboard-sockets[data-part]');
@@ -490,7 +520,7 @@ function side(){
  }
  if(selectedIds.size>1&&!showCode)return '<h2>已选中 '+selectedIds.size+' 个元件</h2><div class="field"><p>拖动任意已选中元件可整体移动，所有引脚接线会自动跟随。</p><p>按住 Shift 单击添加或移除选中；在空白画布拖动可框选。</p><button data-action="rotate">分别旋转 90°</button><button data-action="delete">删除所选元件</button><button data-action="parts">取消选择</button></div>';
  const chosenWire=project.wires.find(w=>w.id===selection);
- if(chosenWire&&!showCode)return '<h2>导线属性</h2><div class="field"><p>起点：'+escape(chosenWire.from.componentId)+' / '+escape(chosenWire.from.pinId)+'</p><p>终点：'+escape(chosenWire.to.componentId)+' / '+escape(chosenWire.to.pinId)+'</p><label for="wire-color">导线颜色</label><input id="wire-color" type="color" value="'+chosenWire.color+'"/><p>折点 '+(chosenWire.bends?.length??0)+' 个。拖横线可上下平移，拖竖线可左右平移，线段两端仍接在真实引脚上；双击导线添加折点，圆形折点手柄可拖动。</p><button data-action="wire-flip-direction" aria-label="切换已选导线的正交走线方向">↳ '+(chosenWire.routing?('走线：'+(chosenWire.routing==='horizontal'?'横向优先':'纵向优先')+' · 点击切换'):'改为直角走线 · 横向优先')+'</button><button data-action="wire-add-bend">＋ 添加折点</button><button data-action="wire-reset-bends">清除手动折点</button><p>编辑颜色和折点均不改变电气连接。</p><button data-action="delete">删除导线</button><button data-action="parts">返回元件库</button></div>';
+ if(chosenWire&&!showCode)return '<h2>导线属性</h2><div class="field"><p>起点：'+escape(chosenWire.from.componentId)+' / '+escape(chosenWire.from.pinId)+'</p><p>终点：'+escape(chosenWire.to.componentId)+' / '+escape(chosenWire.to.pinId)+'</p><label for="wire-color">导线颜色</label><input id="wire-color" type="color" value="'+chosenWire.color+'"/><p>折点 '+(chosenWire.bends?.length??0)+' 个。拖横线可上下平移，拖竖线可左右平移，线段两端仍接在真实引脚上；双击导线添加折点，圆形折点手柄可拖动。</p><button data-action="wire-flip-direction" aria-label="切换已选导线的正交走线方向">↳ '+(chosenWire.routing?('走线：'+(chosenWire.routing==='horizontal'?'横向优先':'纵向优先')+' · 点击切换'):'改为直角走线 · 横向优先')+'</button><button data-action="wire-add-bend">＋ 添加折点</button><button data-action="wire-reset-bends">清除手动折点</button><p>编辑颜色和折点均不改变电气连接。交叉位置可重复点击或按住 Alt 点击切换候选导线。</p><button data-action="delete">删除导线</button><button data-action="parts">返回元件库</button></div>';
  if(showCode)return '<h2>Arduino 代码 · 实验预览</h2><div class="field"><p>代码可继续编辑和导出。受限 D13 Blink 可按接线驱动外部 LED，串口白名单支持字面量输出及最多 16 次的静态 for 循环；不编译通用 C++ 或模拟完整 AVR。</p><textarea id="code" maxlength="300000">'+escape(project.code)+'</textarea><button data-action="uno-preview-run">▶ 解析并预览 Arduino</button><button data-action="uno-preview-stop" '+(!unoPreview?'disabled':'')+'>关闭预览</button><button data-action="download-code">下载 .ino</button>'+unoPreviewMarkup()+'<button data-action="code">返回元件库</button></div>';
  const c=project.parts.find(p=>p.id===selection);
  const ledReading=c?.kind==='led'?lastAnalysis?.leds[c.id]:null;
@@ -712,10 +742,10 @@ function handleClick(e:CanvasClick){
  ignoredClick=null;
  const t=e.target as Element;
  const pin=pinFromPointer(t,e.clientX,e.clientY);
- if(pin){connect(pin.endpoint);return}
+ if(pin){wirePickCycle=null;connect(pin.endpoint);return}
  const part=t.closest<SVGGElement>('[data-part]');
  if(part){
-   connectionNotice='';selectedBend=null;
+   wirePickCycle=null;connectionNotice='';selectedBend=null;
    const id=part.dataset.part!;
    if(e.shiftKey||e.ctrlKey||e.metaKey){
      selectedIds=new Set(selectedIds);
@@ -727,13 +757,28 @@ function handleClick(e:CanvasClick){
  }
  const bend=t.closest<SVGElement>('[data-bend-index]');
  if(bend){
+   wirePickCycle=null;
    const id=bend.getAttribute('data-wire')!,index=Number(bend.getAttribute('data-bend-index'));
    if(project.wires.find(w=>w.id===id)?.bends?.[index]){
      selection=id;selectedIds.clear();selectedBend={id,index};render();
    }
    return;
  }
- const wire=t.closest<SVGElement>('[data-wire]');if(wire){selectedBend=null;connectionNotice='';const next=wire.getAttribute('data-wire');if(selection!==next||selectedIds.size){selectedIds.clear();selection=next;render()}return}
+ if(t.closest('#board')){
+   const candidates=wireCandidatesAt(e.clientX,e.clientY,t);
+   if(candidates.length){
+     const picked=pickWireCandidate(candidates,wirePickCycle,{
+       x:e.clientX,y:e.clientY,at:e.timeStamp,altKey:e.altKey,detail:e.detail
+     });
+     wirePickCycle=picked.cycle;
+     selectedBend=null;connectionNotice='';
+     if(selection!==picked.id||selectedIds.size){
+       selectedIds.clear();selection=picked.id;render();
+     }
+     return;
+   }
+ }
+ wirePickCycle=null;
  const k=t.closest<HTMLElement>('[data-kind]');if(k){add(k.dataset.kind as Kind);return}
  const example=t.closest<HTMLElement>('[data-load-example]');
  if(example){
@@ -923,10 +968,14 @@ app.addEventListener('drop',e=>{const svg=app.querySelector<SVGSVGElement>('#boa
 app.addEventListener('dblclick',e=>{
  const target=e.target as Element;
  if(target.closest('[data-bend-index]'))return;
- const wire=target.closest<SVGElement>('[data-wire]');
- if(!wire)return;
+ if(!target.closest('#board'))return;
+ const candidates=wireCandidatesAt(e.clientX,e.clientY,target);
+ const onBridge=target.closest<SVGPathElement>('.wire[data-crossovers]');
+ const preferPainted=onBridge&&Number(onBridge.getAttribute('data-crossovers'))>0&&candidates[0]?.id===onBridge.getAttribute('data-wire');
+ const nearSelected=preferPainted?undefined:candidates.find(c=>c.id===selection&&c.distancePx<=candidates[0].distancePx+3);
+ const id=nearSelected?.id??candidates[0]?.id;
  const point=canvasPoint(e.clientX,e.clientY);
- if(point){e.preventDefault();addBend(wire.getAttribute('data-wire')!,point)}
+ if(id&&point){e.preventDefault();addBend(id,point)}
 });
 app.addEventListener('wheel',e=>{
  if(!(e.target as Element).closest('.canvas')||e.deltaY===0||scopeOpen)return;
@@ -974,10 +1023,13 @@ function handlePointerDown(e:CanvasPointer){
  if(!svg)return;
  const component=target.closest<SVGGElement>('[data-part]');
  if(!component){
-   const segment=target.closest<SVGElement>('[data-wire]');
-   if(segment&&!wiring){
+   const candidates=!wiring?wireCandidatesAt(e.clientX,e.clientY,target):[];
+   if(candidates.length){
      const at=canvasPoint(e.clientX,e.clientY);
-     const wire=project.wires.find(w=>w.id===segment.getAttribute('data-wire'));
+     const onBridge=target.closest<SVGPathElement>('.wire[data-crossovers]');
+     const preferred=onBridge&&Number(onBridge.getAttribute('data-crossovers'))>0?undefined:
+       candidates.find(c=>c.id===selection&&c.distancePx<=candidates[0].distancePx+3);
+     const wire=project.wires.find(w=>w.id===(preferred?.id??candidates[0].id));
      if(at&&wire){
        const leg=nearestOrthogonalSegment(wire,project.parts,at);
        segmentDrag={id:wire.id,start:at,
