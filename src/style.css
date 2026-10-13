@@ -218,3 +218,27 @@
 .bom-dialog button:focus-visible{outline:2px solid #159f91;outline-offset:3px}
 @media(max-width:750px){.bom-dialog{padding:12px}.bom-heading h2{font-size:17px}
  .bom-overview span{padding:6px 9px}.bom-table-scroller{max-height:43vh}}
+
+
+/* Original-reference property card stays over the 2D workplane while the
+   right component library remains searchable and draggable. */
+.workspace{position:relative}
+.component-sidebar{width:300px;flex:0 0 300px;min-width:0;background:#fff;
+ border-left:1px solid #e3eaed;display:flex;flex-direction:column;overflow:auto}
+.component-sidebar>h2{font-size:15px;padding:20px 18px;border-bottom:1px solid #e9eef0;margin:0}
+.inspector.inspector-floating{position:absolute;z-index:8;top:22px;right:316px;
+ width:320px;max-width:calc(100% - 340px);max-height:calc(100% - 44px);
+ overflow:auto;border:1px solid #b9d5dc;border-top:4px solid #36a8d1;
+ border-radius:10px;background:#fff;box-shadow:0 11px 33px #172e4140}
+.inspector-floating>h2{position:sticky;top:0;z-index:1;background:#f2fbfd;
+ color:#226276;border-bottom:1px solid #c6e2ea}
+@media(max-width:860px){
+ .component-sidebar{width:230px;flex-basis:230px}
+ .inspector.inspector-floating{right:241px;width:270px;max-width:calc(100% - 250px);
+  top:12px;max-height:calc(100% - 24px)}
+}
+@media(max-width:600px){
+ .inspector.inspector-floating{right:calc(40% + 4px);width:210px;
+  max-width:calc(60% - 16px);max-height:70%}
+ .component-sidebar{width:40%;flex-basis:40%}
+}
