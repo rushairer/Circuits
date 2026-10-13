@@ -721,6 +721,7 @@ function add(kind:Kind,x?:number,y?:number){
 function finishConnection(from:Endpoint,to:Endpoint,bends:readonly Point[]){
  const id=uid();
  const result=appendConnection(project,{id,from,to,color:activeWireColor,routing:wiringDirection,
+   ...(activeWireType==='normal'?{}:{type:activeWireType}),
    ...(bends.length?{bends:bends.map(p=>({...p}))}:{})});
  clearWireDraft();
  if(!result){
@@ -747,6 +748,16 @@ function chooseWireColor(color:string){
  const recolored=recolorWires(project,ids,color);
  if(recolored!==project){
    const before=copy();project=recolored;commit(before);
+ }else render();
+}
+function chooseWireType(type:WireType){
+ if(!isWireType(type))return;
+ activeWireType=type;
+ const ids=new Set(selectedWireIds);
+ if(!ids.size&&selection&&project.wires.some(w=>w.id===selection))ids.add(selection);
+ const changed=changeWireTypes(project,ids,type);
+ if(changed!==project){
+   const before=copy();project=changed;commit(before);
  }else render();
 }
 function connect(a:Endpoint){
@@ -1115,6 +1126,7 @@ app.addEventListener('change',async e=>{
    return;
  }
  if(t.id==='wire-palette'){if(WIRE_COLOR_PRESETS.some(x=>x.value===t.value))chooseWireColor(t.value);return;}
+ if(t.id==='wire-type'){if(isWireType(t.value))chooseWireType(t.value);return;}
  if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){chooseWireColor(t.value)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}
  if(t.id==='switch-contact'){const c=project.parts.find(p=>p.id===selection);const value=Number(t.value);if(c?.kind==='switch'&&t.value.trim()!==''&&Number.isFinite(value)&&(value===0||(value>=0.1&&value<=1e6))){const before=copy();c.contactOhms=value;rcTimeIndex=0;commit(before)}else render()}
  if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();pointerInput.cancel();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;notesVisible=true;rcTimeIndex=0;scopeOpen=false;scopeCapacitorId='';commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
@@ -1512,6 +1524,10 @@ window.addEventListener('keydown',e=>{
  // Tinkercad's R rotates components. The routing direction uses its labeled button.
  if(!command&&!e.altKey&&!wiring&&e.key.toLowerCase()==='r'&&selectedIds.size){
    e.preventDefault();rotateSelectedParts();return;
+ }
+ if(!command&&!e.altKey&&e.shiftKey&&/^Digit[1-4]$/.test(e.code)){
+   const type=wireTypeForDigit(e.code.slice(-1));
+   if(type){e.preventDefault();chooseWireType(type);return;}
  }
  if(!command&&!e.altKey&&/^[0-9]$/.test(e.key)&&(wiring||selectedWireIds.size>0||project.wires.some(w=>w.id===selection))){
    const color=wireColorForDigit(e.key);
