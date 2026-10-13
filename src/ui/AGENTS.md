@@ -26,3 +26,5 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 
 - Annotation mode (N or toolbar) is a one-shot pointer-safe canvas placement. Shift+N toggles visibility without deleting persisted notes. A note drag is owned by one pointer; Escape, loss of capture, second contact and blur restore the pointer-down snapshot. Note movement is world-space, must not create electrical connections, and uses its own immutable edit path.
 - SVG note text is always escaped and bounded (never foreignObject/innerHTML from user text). Changes to the editor textarea may update DOM using textContent, but must save once on change/blur with one undo record. Suppress global N shortcuts in all native text input controls.
+
+- Connector type selector and Shift+1..4 shortcut apply to a draft or selected wire batch. Keep legacy type-less wires identical to prior painter goldens and ensure `wireConnectorMarkup` shrouds/clips are pointer-transparent and sit behind actual physical component/pin layers. Changing type is one history item; Automatic resolution must never synthesize an electrical connection.
