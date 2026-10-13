@@ -789,6 +789,14 @@ function rotateSelectedParts(){
  commit(before);
 }
 function deleteSelection(){
+ if(selectedNoteId){
+   const updated=deleteCircuitNote(project,selectedNoteId);
+   if(updated){
+     const before=copy();project=updated;selectedNoteId=null;
+     commitAnnotation(before);return;
+   }
+   selectedNoteId=null;
+ }
  if(selectedBend){
    const restored=removeWireWaypoint(project,selectedBend.id,selectedBend.index);
    if(restored){
@@ -820,6 +828,23 @@ function handleClick(e:CanvasClick){
  }
  ignoredClick=null;
  const t=e.target as Element;
+ if(notePlacement&&t.closest('#board')){
+   const point=canvasPoint(e.clientX,e.clientY);
+   if(point)placeNoteAt(point);
+   return;
+ }
+ const clickedNote=t.closest<SVGElement>('.circuit-note[data-note]');
+ if(clickedNote&&notesVisible){
+   const id=clickedNote.getAttribute('data-note');
+   if(id&&project.notes?.some(n=>n.id===id)){
+     selectedNoteId=id;selection=null;selectedBend=null;wirePickCycle=null;
+     selectedIds.clear();selectedWireIds.clear();
+     showCode=false;showProjects=false;showExamples=false;
+     render();
+   }
+   return;
+ }
+ if(t.closest('#board'))selectedNoteId=null;
  const pin=pinFromPointer(t,e.clientX,e.clientY);
  if(pin){wirePickCycle=null;connect(pin.endpoint);return}
  const part=t.closest<SVGGElement>('[data-part]');
@@ -1099,6 +1124,18 @@ function handlePointerDown(e:CanvasPointer){
    e.preventDefault();return;
  }
  if(e.button!==0)return;
+ if(notePlacement)return; // only a completed click places a note; drag cannot create one
+ const noteTarget=target.closest<SVGElement>('.circuit-note[data-note]');
+ if(noteTarget&&notesVisible){
+   const id=noteTarget.getAttribute('data-note')??'';
+   if(project.notes?.some(n=>n.id===id)){
+     noteDrag={id,clientX:e.clientX,clientY:e.clientY,before:copy(),changed:false};
+     selectedNoteId=id;selection=null;selectedBend=null;
+     selectedIds.clear();selectedWireIds.clear();
+     showCode=false;showProjects=false;showExamples=false;
+     render();return;
+   }
+ }
  const terminalHandle=target.closest<SVGElement>('[data-wire-end]');
  if(terminalHandle){
    const id=terminalHandle.getAttribute('data-wire')!,side=terminalHandle.getAttribute('data-wire-end');
@@ -1152,7 +1189,7 @@ function handlePointerDown(e:CanvasPointer){
  const id=component.dataset.part!;
  if(!project.parts.some(p=>p.id===id))return;
  if(!selectedIds.has(id))selectedIds=new Set([id]);
- selectedWireIds.clear();
+ selectedNoteId=null;selectedWireIds.clear();
  const ids=[...selectedIds];
  selection=ids.length===1?id:null;
  drag={ids,x:e.clientX,y:e.clientY,before:copy()};
@@ -1173,6 +1210,19 @@ function handlePointerMove(e:CanvasPointer){
      }
    }
  }else app.querySelector('#pin-hover')?.setAttribute('opacity','0');
+ if(noteDrag){
+   if(!e.dragged)return;
+   const d=noteDrag,pixelsToWorld=wireRadius(1);
+   const moved=moveCircuitNote(d.before,d.id,{
+     x:(e.clientX-d.clientX)*pixelsToWorld,
+     y:(e.clientY-d.clientY)*pixelsToWorld
+   });
+   if(moved){
+     project=moved;d.changed=moved!==d.before;
+     refreshScene();
+   }
+   return;
+ }
  if(panDrag){
    if(!e.dragged)return;
    const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
@@ -1281,11 +1331,17 @@ function handlePointerMove(e:CanvasPointer){
  refreshScene();
 }
 function handlePointerUp(e:CanvasPointer){
+ if(noteDrag){
+   const d=noteDrag;noteDrag=null;
+   ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
+   if(d.changed)commitAnnotation(d.before);else render();
+   return;
+ }
  if(panDrag){
    const gesture=panDrag;panDrag=null;
    // A tap on empty canvas clears selection, whereas a real pan keeps it.
    if(e.button===0&&!spaceHeld&&!e.dragged){
-     selectedIds.clear();selectedWireIds.clear();selection=null;selectedBend=null;connectionNotice='';
+     selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;selection=null;selectedBend=null;connectionNotice='';
    }
    ignoredClick={x:e.clientX,y:e.clientY,until:e.timeStamp+200};
    render();return;
