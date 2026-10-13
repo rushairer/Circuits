@@ -87,6 +87,18 @@ Autodesk 官方指南确认导线支持 0–9 数字快捷键。独立的历史�
 
 [历史参考：Tinkercad Circuit 界面操作记录](https://lonelyengineer.tistory.com/2086)（2021）。现代登录态原版是否有调整键位仍需要人工核验；不得把历史资料充当 2026 年的认证像素/快捷键比对。
 
+## 第八批：与原版对齐的注释工具（N / Shift+N）
+
+**来源**：Autodesk 官方《[Guide to Tinkercad Circuits](https://allpathengineering.org/wp-content/uploads/2023/08/tinkercad-guides_circuits-Printable.pdf)》第 20–21 页明确记录：N 创建 Note、Shift+N 隐藏/显示 Note，注释可在电路图中移动，不应遮挡重要元件。原版截图呈现为电路上方的浅色圆角文本标签。
+
+此批实现工具栏的“注释”与显隐按钮及键盘 N / Shift+N，选中后右侧文字编辑（自动焦点）、实时 SVG 纯文本预览、双击回到编辑器、鼠标/触控笔单指拖动、Delete 与键盘方向键微移。单击画布放置一张注释，拖动注释保持世界坐标，Escape / Pointer Cancel / 多指介入必须丢弃临时拖动。显示开关仅为瞬态 UI 状态，不覆盖或删除已有注释，且应影响 F 自动适应视口中的可见注释范围。
+
+工程继续为 schema-v2，新增**可选** `notes: {id,x,y,text}[]`，旧 JSON 无需迁移。每个文本最长 500 UTF-16 字符，最多 120 条，ID 独立且无重复，坐标有限且落在 ±100000 世界单位之内；导入不合规直接拒绝。文本始终是纯文本，SVG 不执行任何 HTML、外部脚本。所有注释操作通过不可变快照写入同一套 undo/redo；一次移动或文字编辑只增加一条历史，未完成移动不入工程。注释不是元件，也没有 terminal/net 身份，`buildNetlist`、电气求解与 Arduino 受限预览不应受注释创建或修改影响。
+
+`src/core/notes.ts` 为纯数据操作，`src/ui/note-render.ts` 为有界、安全转义的视觉渲染；`tests/notes.test.mjs` 检查校验、XSS 字符串、原有网络关系、缩放适应和不可变操作；`e2e/notes.spec.ts` 跑 Chromium / Firefox / WebKit 的放置、编辑、显隐、撤销、跨事件取消、仿真保持及恶意导入拒绝。
+
+**边界**：这是根据官方公开文档落地的真实注释功能，不是已经对照 2026 年登录态编辑器的逐像素或弹窗布局复制。原版注释的精确字体、可变尺寸、多选/分组和触摸硬件手势仍待独立检验。
+
 ## 回归与证据
 
 第一批的 `tests/wire-performance.test.mjs` 保留 25 项检查，包括 17 组 alpha.10 绘制摘要。旧版参考为提交 `813d676dbfa9639b77a582b9e6f884f122773392`；不能在新实现失败时直接重写旧版摘要来放行。
