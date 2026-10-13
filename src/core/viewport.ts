@@ -1,5 +1,6 @@
 import type { Point } from './geometry.js';
-import { size, type Part, type Wire } from '../model.js';
+import { size, type Part, type Wire, type CircuitNote } from '../model.js';
+import { NOTE_WIDTH, NOTE_HEIGHT } from './notes.js';
 
 export interface Viewport { zoom:number; panX:number; panY:number }
 export const MIN_ZOOM=0.4;
@@ -27,9 +28,10 @@ export function panBy(view:Viewport,delta:Point):Viewport {
 
 /** Zoom-to-fit actual component bounds and user-defined wire waypoints. */
 export function fitCircuit(
- parts:readonly Part[],wires:readonly Wire[]=[],canvasWidth=1100,canvasHeight=800,padding=55
+ parts:readonly Part[],wires:readonly Wire[]=[],canvasWidth=1100,canvasHeight=800,padding=55,
+ notes:readonly CircuitNote[]=[]
 ):Viewport {
- if(!parts.length)return {zoom:1,panX:0,panY:0};
+ if(!parts.length&&!notes.length)return {zoom:1,panX:0,panY:0};
  const coords:Point[]=[];
  for(const p of parts){
    const [w,h]=size[p.kind],angle=p.rotation*Math.PI/180;
@@ -40,6 +42,8 @@ export function fitCircuit(
      {x:midX+extentW/2,y:midY+extentH/2});
  }
  for(const wire of wires)for(const p of wire.bends??[])coords.push(p);
+ for(const note of notes)coords.push({x:note.x,y:note.y},
+   {x:note.x+NOTE_WIDTH,y:note.y+NOTE_HEIGHT});
  const minX=Math.min(...coords.map(p=>p.x)),maxX=Math.max(...coords.map(p=>p.x));
  const minY=Math.min(...coords.map(p=>p.y)),maxY=Math.max(...coords.map(p=>p.y));
  const availableX=Math.max(1,canvasWidth-padding*2),availableY=Math.max(1,canvasHeight-padding*2);
