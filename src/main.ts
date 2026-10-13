@@ -28,6 +28,7 @@ import { snap, pinWorld, wirePoints, wirePath, type Point, type WireDirection } 
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
 import { blankProject } from './model.js';
 import { createExample, exampleCatalog } from './core/examples.js';
+import { COMPONENT_CATEGORIES, isComponentCategory, isStarterCategory, matchingComponents, matchingStarters, type ComponentCategory } from './core/component-browser.js';
 import { zoomAt, panBy, fitCircuit } from './core/viewport.js';
 import { translateComponents, removeComponents, rotateComponents, componentsWithinRect } from './core/selection.js';
 import { appendConnection, reconnectEndpoint, nearestTerminal, identicalConnection, type TerminalHit } from './core/connections.js';
@@ -54,6 +55,8 @@ let lastGpio:GpioD13Analysis|null=null;
 let persistOK=true;
 let showProjects=false;
 let showExamples=false;
+const rememberedCategory=localStorage.getItem('circuits-component-category');
+let componentCategory:ComponentCategory=isComponentCategory(rememberedCategory)?rememberedCategory:'basic';
 let selection:string|null=null, wiring:Endpoint|null=null, isRunning=false, search='',showCode=false, zoom=1,panX=0,panY=0;
 let wiringBends:Point[]=[];
 let wiringDirection:WireDirection='horizontal';
@@ -617,7 +620,32 @@ function side(){
        '尚未获得有效电流读数'):
        '请切换到非线性 DC 或 RC 暂态模式')+
      '</p><p>本电流表通过 0.1Ω 分流电阻串入回路，正端流向负端为正电流；超过 ±200mA 会提示超量程，不模拟保险丝损坏。不可并接替代电压表。</p>':'') +(c.kind==='capacitor'?'<p>RC 暂态支持单电容解析及 2–6 只电容线性数值积分；非线性/电感未模拟。</p>':'')+(!['battery','resistor','led','breadboard','switch','capacitor','multimeter','ammeter'].includes(c.kind)?'<p>该元件仅支持可视化与接线，暂未接入电气仿真。</p>':'')+'<button data-action="rotate">旋转 90°</button><button data-action="delete">删除元件</button><button data-action="parts">返回元件库</button></div>';
- return '<h2>▦ 组件库</h2><div class="search"><input id="search" placeholder="搜索组件..." value="'+escape(search)+'"/></div><div class="parts">'+parts.filter(k=>labels[k].toLowerCase().includes(search.toLowerCase())).map(kind=>'<button class="part" draggable="true" data-kind="'+kind+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg>'+labels[kind]+'</button>').join('')+'</div><div class="field"><p>从引脚拖线到目标引脚；单击空白增加转角，拖动已有线段可垂直于该线段调整走线。默认绿色；数字键 0–9 改色，R 旋转元件。</p></div>'}
+ const componentOptions=COMPONENT_CATEGORIES.map(item=>
+   '<option value="'+item.value+'" '+(componentCategory===item.value?'selected':'')+'>'+
+   escape(item.label)+'</option>').join('');
+ const header='<h2>▦ 组件</h2><div class="catalog-controls">'+
+   '<label for="component-category">组件与示例分类</label>'+
+   '<select id="component-category" aria-label="组件与示例分类">'+componentOptions+'</select>'+
+   '<label class="catalog-search-label" for="search">搜索组件或示例</label>'+
+   '<div class="search"><input id="search" type="search" autocomplete="off" placeholder="搜索全部可用组件..." value="'+escape(search)+'"/></div></div>';
+ if(isStarterCategory(componentCategory)){
+   const filtered=matchingStarters(componentCategory,search);
+   const cards=filtered.map(item=>
+     '<button class="example-card" data-load-example="'+item.id+'"><strong>'+escape(item.title)+
+     '</strong><small>'+escape(item.description)+'</small></button>').join('');
+   return header+'<div class="catalog-count" role="status">'+filtered.length+' 个可用的教学示例</div>'+
+     '<p class="catalog-explanation">打开示例将创建一个新的独立工程，不会覆盖当前电路。</p>'+
+     '<div class="example-list">'+(cards||'<p class="catalog-empty">没有找到匹配的示例</p>')+'</div>';
+ }
+ const filtered=matchingComponents(componentCategory,search);
+ const cards=filtered.map(kind=>'<button class="part" draggable="true" data-kind="'+kind+
+   '" aria-label="添加 '+escape(labels[kind])+'"><svg viewBox="0 0 '+size[kind][0]+' '+size[kind][1]+'">'+
+   art({kind,id:'sample',x:0,y:0,rotation:0})+'</svg><span>'+escape(labels[kind])+'</span></button>').join('');
+ return header+'<div class="catalog-count" role="status">'+filtered.length+' 个可用组件'+
+   (componentCategory==='basic'?' · 输入关键词可搜索全部已支持组件':'')+'</div>'+
+   '<div class="parts">'+(cards||'<p class="catalog-empty">没有找到匹配的组件</p>')+'</div>'+
+   '<div class="field"><p>拖入或点击组件添加到画布。导线从真实引脚开始，点击空白可添加转角；R 旋转元件。</p></div>';
+}
 function rcBounds(samples:readonly RcSample[]){
  const values=samples.map(p=>p.voltageVolts),minimum=Math.min(...values),maximum=Math.max(...values);
  const pad=Math.max(0.25,(maximum-minimum)*0.1);
@@ -1111,7 +1139,14 @@ app.addEventListener('input',e=>{
    updateRcMeterReadouts();updateRcAmmeterReadouts();
    return;
  }
- if(t.id==='search'){search=t.value;render();app.querySelector<HTMLInputElement>('#search')?.focus()}if(t.id==='code'){
+ if(t.id==='search'){
+   const start=t.selectionStart,end=t.selectionEnd;
+   search=t.value;render();
+   const input=app.querySelector<HTMLInputElement>('#search');
+   input?.focus();
+   if(input&&start!==null&&end!==null)input.setSelectionRange(start,end);
+ }
+ if(t.id==='code'){
    project.code=t.value;
    resetUnoPreview();
    app.querySelector('#uno-preview')?.remove();
@@ -1123,6 +1158,14 @@ app.addEventListener('input',e=>{
  }});
 app.addEventListener('change',async e=>{
  const t=e.target as HTMLInputElement;
+ if(t.id==='component-category'){
+   if(!isComponentCategory(t.value))return;
+   componentCategory=t.value;
+   try{localStorage.setItem('circuits-component-category',componentCategory)}catch{}
+   search='';showExamples=false;showProjects=false;
+   render();app.querySelector<HTMLSelectElement>('#component-category')?.focus();
+   return;
+ }
  if(t.id==='note-text'&&selectedNoteId){
    const updated=editCircuitNote(project,selectedNoteId,t.value);
    if(updated&&updated!==project){
