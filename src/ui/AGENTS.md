@@ -21,3 +21,5 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 - Command/Ctrl +/− zoom is view-only; native inputs/selects/textareas retain keyboard shortcuts. Keep documentation honest about authenticated Tinkercad parity verification.
 
 - Shift-clicking actual wire strokes builds a UI-only `selectedWireIds` batch. Recolor/delete through `../core/wire-batch.ts` as one undo entry; never infer electrical junctions or mutate endpoint IDs. Toggling to a component or blank canvas clears this selection; initiating segment drag edits exactly one wire, not a batch.
+
+- The Tinkercad historical wire-color shortcut keys use digits 1..9 for the first nine swatches and 0 for Brown (tenth swatch). Preserve default Green and actual persisted six-digit colors. Display keyboard labels in the color chooser; never shift a saved wire's color while migrating.

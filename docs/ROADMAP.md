@@ -93,3 +93,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 sixth batch: Shift-select multiple wires, shared palette batch recolor, atomic batch delete/undo and netlist-preserving immutable operations
 - [ ] Compare multiwire selection UI and feedback pixel-by-pixel with a logged-in original; do not claim exact parity from public tutorials alone
+
+- [x] Alpha.11 seventh batch: Tinkercad reference 1–9,0 wire shortcut order (black through brown), palette labels and batch-selection regressions
+- [ ] Verify 2026 authenticated original wire-type shortcuts, 12 swatch visual color values and current wire-color shortcut order

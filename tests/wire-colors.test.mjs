@@ -8,7 +8,15 @@ test('default wiring matches standard green with a bounded fixed palette',()=>{
  for(const p of WIRE_COLOR_PRESETS)assert.match(p.value,/^#[0-9a-f]{6}$/);
 });
 test('number keys address 0 through 9 without touching digits elsewhere',()=>{
- for(let i=0;i<10;i++)assert.equal(wireColorForDigit(String(i)),WIRE_COLOR_PRESETS[i].value);
+ for(let i=1;i<=9;i++)assert.equal(wireColorForDigit(String(i)),WIRE_COLOR_PRESETS[i-1].value);
+ assert.equal(wireColorForDigit('0'),WIRE_COLOR_PRESETS[9].value);
+ assert.equal(wireColorForDigit('1'),'#252525');
+ assert.equal(wireColorForDigit('2'),'#de4747');
+ assert.equal(wireColorForDigit('3'),'#f18f33');
+ assert.equal(wireColorForDigit('0'),'#946344');
+ for(const [key,color] of [['1','黑色'],['2','红色'],['3','橙色'],['0','棕色']]){
+   assert.equal(wireColorOptions(WIRE_COLOR_PRESETS[0].value).includes(key+' · '+color),true);
+ }
  for(const key of ['-1','10','R','a','','1x'])assert.equal(wireColorForDigit(key),null);
 });
 test('color selection does not interpolate untrusted wire color into HTML',()=>{

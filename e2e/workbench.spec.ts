@@ -935,11 +935,11 @@ test('original shortcuts: R rotates a part; number keys change selected wire col
  await page.locator('.wire[data-wire="w1"]').click();
  await page.keyboard.press('1');
  let saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1'));
- expect(saved.color).toBe('#de4747');
- await expect(page.locator('#wire-palette')).toHaveValue('#de4747');
+ expect(saved.color).toBe('#252525');
+ await expect(page.locator('#wire-palette')).toHaveValue('#252525');
  await page.keyboard.press('0');
  saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1'));
- expect(saved.color).toBe('#252525');
+ expect(saved.color).toBe('#946344');
  await page.locator('#wire-palette').selectOption('#3b86d1');
  saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')||'{}').wires.find((w:{id:string})=>w.id==='w1'));
  expect(saved.color).toBe('#3b86d1');

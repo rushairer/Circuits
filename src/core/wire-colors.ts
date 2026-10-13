@@ -1,4 +1,7 @@
-/** Tinkercad Circuits-style wire swatches. Shortcut ordering is local to Circuits. */
+/** Tinkercad Circuits swatches. Historical original's shortcut labels are
+ * 1 Black, 2 Red, ... 9 Pink, 0 Brown; Gray/White have no digit shortcut.
+ * See docs/ALPHA11.md for reference and authenticated-modern caveat.
+ */
 export const WIRE_COLOR_PRESETS=[
  {name:'黑色',value:'#252525'},
  {name:'红色',value:'#de4747'},
@@ -14,13 +17,14 @@ export const WIRE_COLOR_PRESETS=[
  {name:'白色',value:'#f6f6f6'}
 ] as const;
 export const DEFAULT_WIRE_COLOR=WIRE_COLOR_PRESETS[4].value;
+/** 0 maps to the TENTH swatch, not the first. */
 export function wireColorForDigit(digit:string):string|null {
  if(!/^[0-9]$/.test(digit))return null;
- return WIRE_COLOR_PRESETS[Number(digit)].value;
+ return WIRE_COLOR_PRESETS[digit==='0'?9:Number(digit)-1].value;
 }
 export function wireColorOptions(selected:string):string {
  return WIRE_COLOR_PRESETS.map(({name,value},i)=>
    '<option value="'+value+'"'+(selected.toLowerCase()===value?' selected':'')+'>'+
-   (i<10?i+' · ':'')+name+'</option>').join('')+
+   (i<10?((i+1)%10)+' · ':'')+name+'</option>').join('')+
    (WIRE_COLOR_PRESETS.some(v=>v.value===selected.toLowerCase())?'':'<option selected disabled value="">自定义</option>');
 }
