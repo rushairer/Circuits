@@ -79,6 +79,14 @@ Autodesk 官方《Tinkercad Circuits Guide》在 General Tips 中确认 Shift �
 
 `tests/wire-batch.test.mjs` 检查不可变更新、netlist 端点归属、空操作与删除边界；`e2e/wire-multi-select.spec.ts` 检查真实画布 Shift 组合、高亮、颜色快捷键、删除与单步撤销。原站登录态的具体高亮颜色与 Inspector 版式仍待视觉比对。
 
+## 第七批：原版导线颜色键位顺序
+
+Autodesk 官方指南确认导线支持 0–9 数字快捷键。独立的历史原版编辑器操作记录具体说明了键位顺序：**1 黑、2 红、3 橙、4 黄、5 绿、6 青、7 蓝、8 紫、9 粉、0 棕**；灰、白可从下拉菜单选择但无数字标签。原实现误将 0 设为黑、1 设为红，整列偏移。
+
+调整 `src/core/wire-colors.ts` 的数字键查表与 12 色下拉显示标签，不改变已有工程中的颜色十六进制值、默认绿色、其他用户自定义值、端点 ID、线路几何或撤销语义。键盘快捷键仍只在选中导线（单根或 Shift 批量）或绘制草稿期间生效，输入/文本框不劫持。
+
+[历史参考：Tinkercad Circuit 界面操作记录](https://lonelyengineer.tistory.com/2086)（2021）。现代登录态原版是否有调整键位仍需要人工核验；不得把历史资料充当 2026 年的认证像素/快捷键比对。
+
 ## 回归与证据
 
 第一批的 `tests/wire-performance.test.mjs` 保留 25 项检查，包括 17 组 alpha.10 绘制摘要。旧版参考为提交 `813d676dbfa9639b77a582b9e6f884f122773392`；不能在新实现失败时直接重写旧版摘要来放行。
