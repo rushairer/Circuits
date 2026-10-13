@@ -175,7 +175,7 @@
    Category changes only the palette view, never the live circuit. */
 .catalog-controls{display:flex;flex-direction:column;gap:7px;padding:12px 14px 8px}
 .catalog-controls>label{font-size:11px;font-weight:700;color:#657d88}
-.catalog-controls>select{width:100%;min-height:38px;padding:8px 10px;border:1px solid #cfdde2;border-radius:7px;background:#fff;color:#284c5a;font:600 13px/1.3 inherit;cursor:pointer}
+.catalog-controls>select{width:100%;min-height:38px;padding:8px 10px;border:1px solid #cfdde2;border-radius:7px;background:#fff;color:#284c5a;font-family:inherit;font-size:13px;font-weight:600;line-height:1.3;cursor:pointer}
 .catalog-controls>select:focus-visible{outline:2px solid #14a596;outline-offset:2px}
 .catalog-controls .catalog-search-label{margin-top:7px}
 .catalog-controls .search{padding:0}
