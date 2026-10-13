@@ -7,7 +7,7 @@ import { paintCrossingWires } from './core/wire-crossings.js';
 import { wirePickCandidates, pickWireCandidate, type WirePickCycle, type WirePickCandidate } from './core/wire-picking.js';
 import { recolorWires, removeWires } from './core/wire-batch.js';
 import { createCircuitNote, editCircuitNote, moveCircuitNote, deleteCircuitNote } from './core/notes.js';
-import { renderCircuitNotes } from './ui/note-render.js';
+import { renderCircuitNotes, notePreviewLines } from './ui/note-render.js';
 import { snapWireWaypoint, type WaypointGuide, type WaypointSnapMemory } from './core/waypoint-snap.js';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
@@ -1001,6 +1001,24 @@ function handleClick(e:CanvasClick){
 app.addEventListener('click',handleClick);
 app.addEventListener('input',e=>{
  const t=e.target as HTMLInputElement;
+ if(t.id==='note-text'&&selectedNoteId){
+   // Live plain-text SVG preview; persist as ONE undoable change on blur.
+   const group=Array.from(app.querySelectorAll<SVGGElement>('.circuit-note[data-note]'))
+     .find(node=>node.getAttribute('data-note')===selectedNoteId);
+   const label=group?.querySelector<SVGTextElement>('.circuit-note-text');
+   if(label){
+     const rows=notePreviewLines(t.value);
+     const snippets=(rows.length?rows:['（空注释）']).map((line,index)=>{
+       const tspan=document.createElementNS('http://www.w3.org/2000/svg','tspan');
+       tspan.setAttribute('x','12');tspan.setAttribute('dy',index===0?'0':'18');
+       tspan.textContent=line;return tspan;
+     });
+     label.replaceChildren(...snippets);
+   }
+   const title=group?.querySelector('title');
+   if(title)title.textContent=t.value;
+   return;
+ }
  if(t.id==='uno-time'&&unoPreview?.ok){
    const ms=Number(t.value);
    if(Number.isFinite(ms)){
@@ -1093,6 +1111,10 @@ app.addEventListener('dragover',e=>{if((e.target as Element).closest('.canvas'))
 app.addEventListener('drop',e=>{const svg=app.querySelector<SVGSVGElement>('#board');const kind=e.dataTransfer?.getData('text/circuit-kind') as Kind;if(!svg||!parts.includes(kind)||!(e.target as Element).closest('.canvas'))return;e.preventDefault();const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=svg.getScreenCTM();if(!m)return;const p=pt.matrixTransform(m.inverse());add(kind,(p.x-panX)/zoom-size[kind][0]/2,(p.y-panY)/zoom-size[kind][1]/2)});
 app.addEventListener('dblclick',e=>{
  const target=e.target as Element;
+ if(target.closest('.circuit-note[data-note]')){
+   app.querySelector<HTMLTextAreaElement>('#note-text')?.focus();
+   return;
+ }
  if(target.closest('[data-bend-index]'))return;
  if(!target.closest('#board'))return;
  const candidates=wireCandidatesAt(e.clientX,e.clientY,target);
