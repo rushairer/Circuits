@@ -3,6 +3,8 @@ import type { Point } from './geometry.js';
 
 export const MAX_NOTES=120;
 export const MAX_NOTE_TEXT=500;
+export const NOTE_WIDTH=188;
+export const NOTE_HEIGHT=94;
 const coordinate=(n:number)=>Number.isFinite(n)&&Math.abs(n)<=100000;
 const rounded=(n:number)=>Math.round(n*10000)/10000;
 const noteId=(id:string)=>/^[\w-]{1,80}$/.test(id);
