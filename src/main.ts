@@ -5,6 +5,7 @@ import { insertWireWaypoint, moveWireWaypoint, removeWireWaypoint } from './core
 import { nearestOrthogonalSegment, slideOrthogonalSegment } from './core/wire-segments.js';
 import { paintCrossingWires } from './core/wire-crossings.js';
 import { wirePickCandidates, pickWireCandidate, type WirePickCycle, type WirePickCandidate } from './core/wire-picking.js';
+import { recolorWires, removeWires } from './core/wire-batch.js';
 import { snapWireWaypoint, type WaypointGuide, type WaypointSnapMemory } from './core/waypoint-snap.js';
 import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
 import { evaluate } from './core/simulator.js';
@@ -713,11 +714,9 @@ function chooseWireColor(color:string){
  activeWireColor=color;
  const ids=new Set(selectedWireIds);
  if(!ids.size&&selection&&project.wires.some(w=>w.id===selection))ids.add(selection);
- if(project.wires.some(w=>ids.has(w.id)&&w.color.toLowerCase()!==color.toLowerCase())){
-   const before=copy();
-   project={...project,wires:project.wires.map(w=>
-     ids.has(w.id)?{...w,color}:w)};
-   commit(before);
+ const recolored=recolorWires(project,ids,color);
+ if(recolored!==project){
+   const before=copy();project=recolored;commit(before);
  }else render();
 }
 function connect(a:Endpoint){
@@ -761,8 +760,8 @@ function deleteSelection(){
    const next=removeComponents(project,[...selectedIds]);
    if(next!==project){project=reconcileInsertions(next);changed=true}
  }else if(selectedWireIds.size){
-   const wires=project.wires.filter(w=>!selectedWireIds.has(w.id));
-   if(wires.length!==project.wires.length){project={...project,wires};changed=true}
+   const next=removeWires(project,selectedWireIds);
+   if(next!==project){project=next;changed=true}
  }else if(selection){
    const wires=project.wires.filter(w=>w.id!==selection);
    if(wires.length!==project.wires.length){project={...project,wires};changed=true}
