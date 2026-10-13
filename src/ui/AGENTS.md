@@ -28,3 +28,5 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 - SVG note text is always escaped and bounded (never foreignObject/innerHTML from user text). Changes to the editor textarea may update DOM using textContent, but must save once on change/blur with one undo record. Suppress global N shortcuts in all native text input controls.
 
 - Connector type selector and Shift+1..4 shortcut apply to a draft or selected wire batch. Keep legacy type-less wires identical to prior painter goldens and ensure `wireConnectorMarkup` shrouds/clips are pointer-transparent and sit behind actual physical component/pin layers. Changing type is one history item; Automatic resolution must never synthesize an electrical connection.
+
+- The LED Color inspector is an original-reference visual property of real LED parts only. Editing it must preserve simulation state and undo history, change lens/foot/glow together, and never alter electrical topology. Imported projects without `ledColor` stay Red. Do not hijack shortcuts while its native select has focus.
