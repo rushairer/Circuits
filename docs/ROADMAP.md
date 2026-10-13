@@ -108,3 +108,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 eleventh batch: right-hand Basic/All component categories plus Basic/Arduino Starters, bilingual search, empty states and independent-project examples
 - [ ] Match authenticated original floating component properties, 2026 Starter categories, missing component families and palette icon artwork
+
+- [x] Alpha.11 twelfth batch: read-only original-reference BOM view with component/value/color grouping, stable IDs, CSV export and simulation-neutral accessible dialog
+- [ ] Build an actually generated schematic view from terminal connectivity and explicit breadboard unions; do not confuse a screenshot/visual route with an electrically correct diagram
