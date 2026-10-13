@@ -105,3 +105,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 tenth batch: LED Red/Green/Yellow/Orange/Blue/White inspector colors and visual simulation glow, backward-compatible optional field, undo/persistence and netlist safety tests
 - [ ] Verify original LED colors visually and extend wavelength-dependent diode models separately with measured/public reference curves; do not equate color matching with accurate SPICE
+
+- [x] Alpha.11 eleventh batch: right-hand Basic/All component categories plus Basic/Arduino Starters, bilingual search, empty states and independent-project examples
+- [ ] Match authenticated original floating component properties, 2026 Starter categories, missing component families and palette icon artwork

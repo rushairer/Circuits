@@ -1,8 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 
-test('workbench loads 13 parts and the sample LED circuit lights', async ({page})=>{
+test('workbench loads Basic 9 / All 13 supported parts and the demo LED lights', async ({page})=>{
   await page.goto('/');
   await expect(page).toHaveTitle(/Circuits/);
+  await expect(page.locator('#component-category')).toHaveValue('basic');
+  await expect(page.locator('.part[data-kind]')).toHaveCount(9);
+  await page.locator('#component-category').selectOption('all');
   await expect(page.locator('.part[data-kind]')).toHaveCount(13);
   await expect(page.locator('.item[data-part]')).toHaveCount(5);
   await page.locator('button[data-action="run"]').click();
