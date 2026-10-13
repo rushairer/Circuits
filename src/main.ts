@@ -117,9 +117,18 @@ function openWorkspace(id:string){
 }
 function commit(before:Project){wirePickCycle=null;clearWireDraft();resetUnoPreview();rcConvergence=null;project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
 /** Annotation edits preserve active simulator/previews; they have no electrical effect. */
-function commitAnnotation(before:Project){
+function commitAnnotation(before:Project,refresh=true){
  undo.push(before);if(undo.length>50)undo.shift();
- redo=[];save();render();
+ redo=[];save();
+ if(refresh){render();return;}
+ // Textarea "change" fires on blur *before* the next button click.
+ // Preserve that click's live DOM target; only update history/status controls.
+ const undoButton=app.querySelector<HTMLButtonElement>('[data-action="undo"]');
+ const redoButton=app.querySelector<HTMLButtonElement>('[data-action="redo"]');
+ if(undoButton)undoButton.disabled=false;
+ if(redoButton)redoButton.disabled=true;
+ const status=app.querySelector<HTMLElement>('header .status');
+ if(status)status.textContent=persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON';
 }
 function revert(stack:Project[],other:Project[]){wirePickCycle=null;pointerInput.cancel();const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;noteDrag=null;marquee=null;save();render()}
 const uid=()=>crypto.randomUUID().slice(0,8);
@@ -1017,6 +1026,7 @@ app.addEventListener('input',e=>{
    }
    const title=group?.querySelector('title');
    if(title)title.textContent=t.value;
+   if(group)group.setAttribute('aria-label','注释：'+(t.value.slice(0,70)||'空白'));
    return;
  }
  if(t.id==='uno-time'&&unoPreview?.ok){
@@ -1082,7 +1092,7 @@ app.addEventListener('change',async e=>{
  if(t.id==='note-text'&&selectedNoteId){
    const updated=editCircuitNote(project,selectedNoteId,t.value);
    if(updated&&updated!==project){
-     const before=copy();project=updated;commitAnnotation(before);
+     const before=copy();project=updated;commitAnnotation(before,false);
    }
    return;
  }
