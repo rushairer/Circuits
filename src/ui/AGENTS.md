@@ -19,3 +19,5 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 
 - A wire gesture released over blank *canvas* remains an uncommitted wire draft; the next blank click adds a waypoint and an actual terminal completes it. The gesture released on toolbar/inspector cancels; Escape, pointercancel, capture loss, blur and hidden document still discard drafts. Do not persist unfinished wiring or count it as undo.
 - Command/Ctrl +/− zoom is view-only; native inputs/selects/textareas retain keyboard shortcuts. Keep documentation honest about authenticated Tinkercad parity verification.
+
+- Shift-clicking actual wire strokes builds a UI-only `selectedWireIds` batch. Recolor/delete through `../core/wire-batch.ts` as one undo entry; never infer electrical junctions or mutate endpoint IDs. Toggling to a component or blank canvas clears this selection; initiating segment drag edits exactly one wire, not a batch.

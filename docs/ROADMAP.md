@@ -90,3 +90,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 fifth batch: preserve unfinished manual wiring after pin-to-blank release, add temporary waypoint and final pin completion, Cmd/Ctrl +/- zoom with native text input protection
 - [ ] Compare manual wire corner orientation, simulation editing lock and visual fidelity against authenticated Tinkercad original, then add device/frame performance QA
+
+- [x] Alpha.11 sixth batch: Shift-select multiple wires, shared palette batch recolor, atomic batch delete/undo and netlist-preserving immutable operations
+- [ ] Compare multiwire selection UI and feedback pixel-by-pixel with a logged-in original; do not claim exact parity from public tutorials alone
