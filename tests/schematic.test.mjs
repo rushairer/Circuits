@@ -4,6 +4,7 @@ import { blankProject, demo } from '../.test-dist/model.js';
 import { buildNetlist } from '../.test-dist/core/netlist.js';
 import { createSchematic,SCHEMATIC_MAX_COMPONENTS } from '../.test-dist/core/schematic.js';
 import { renderSchematicPanel,schematicSvg } from '../.test-dist/ui/schematic-panel.js';
+import { routeSchematic } from '../.test-dist/core/schematic-routing.js';
 
 const terminal=(diagram,id,pin)=>
  diagram.components.find(c=>c.id===id)?.terminals.find(t=>t.pinId===pin);
@@ -134,6 +135,9 @@ test('SVG viewer escapes all project names and endpoint metadata and keeps no ex
  assert.match(markup,/class="schematic-svg sch-root"/);
  assert.equal((markup.match(/class="sch-net"/g)||[]).length,d.nets.length);
  assert.equal((markup.match(/class="sch-link"/g)||[]).length,6);
+ assert.match(markup,/data-schematic-route-mode="orthogonal"/);
+ assert.match(markup,/class="sch-bus"/);
+ assert.doesNotMatch(markup,/ C[0-9.]+ /);
  assert.equal((markup.match(/class="sch-terminal"/g)||[]).length,9);
  const panel=renderSchematicPanel(d);
  assert.match(panel,/role="dialog" aria-modal="true"/);
@@ -174,4 +178,60 @@ test('large collections of breadboards reject before creating expensive internal
  assert.equal(d.ok,false);
  assert.match(d.reason,/面包板数量超过/);
  assert.equal(p.parts.length,25);
+});
+
+test('schematic orthogonal trunks share only real net identities and retain deterministic reference designators',()=>{
+ const p=demo(),d=createSchematic(p);
+ assert.equal(d.ok,true);
+ const routes=routeSchematic(d);
+ assert.equal(routes.mode,'orthogonal');
+ assert.equal(routes.links.length,6);
+ assert.equal(routes.buses.length,3);
+ assert.equal(d.components.find(c=>c.id==='r1').reference,'R1');
+ assert.equal(d.components.find(c=>c.id==='l1').reference,'D1');
+ for(const link of routes.links){
+   assert.equal(typeof link.x1,'number');
+   assert.ok(link.x2>link.x1);
+   assert.ok(d.nets.some(n=>n.id===link.netId));
+ }
+ const markup=schematicSvg(d);
+ assert.match(markup,/d="M\d+ \d+ H\d+"/);
+ assert.match(markup,/class="sch-junction"/);
+ assert.doesNotMatch(markup,/ C\d+ \d+ /);
+});
+
+test('different-net trunk crossings are bridged visually without assigning a junction or changing Netlist',()=>{
+ const p=blankProject();
+ p.parts=['r1','r2','r3','r4'].map((id,i)=>({
+   id,kind:'resistor',x:80+i*170,y:50,rotation:0,value:220
+ }));
+ p.wires=[
+  {id:'w1',from:{componentId:'r1',pinId:'a'},to:{componentId:'r4',pinId:'a'},color:'#00ff00'},
+  {id:'w2',from:{componentId:'r2',pinId:'a'},to:{componentId:'r3',pinId:'a'},color:'#000000'}
+ ];
+ const before=structuredClone(p),d=createSchematic(p);
+ assert.equal(d.ok,true);
+ const routed=routeSchematic(d);
+ assert.equal(routed.mode,'orthogonal');
+ assert.ok(routed.crossings.length>=1);
+ assert.ok(routed.crossings.every(c=>c.horizontalNet!==c.verticalNet));
+ const svg=schematicSvg(d);
+ assert.match(svg,/class="sch-crossover"/);
+ assert.notEqual(terminal(d,'r1','a').netId,terminal(d,'r2','a').netId);
+ assert.deepEqual(p,before);
+});
+
+test('schematic view has read-only bounded zoom controls and safe large-scene label fallback',()=>{
+ const result=createSchematic(demo());
+ assert.equal(result.ok,true);
+ const panel=renderSchematicPanel(result,1.5);
+ assert.match(panel,/data-action="schematic-zoom-in"/);
+ assert.match(panel,/data-action="schematic-zoom-out"/);
+ assert.match(panel,/150%/);
+ assert.match(panel,/class="schematic-sheet" style="width:1485px/);
+ const crowded=structuredClone(result);
+ crowded.nets=Array.from({length:32},(_,i)=>({
+   id:'N'+(i+1),x:1000,y:110+i*56,endpointKeys:[],boardContacts:[]
+ }));
+ assert.equal(routeSchematic(crowded).mode,'orthogonal');
 });

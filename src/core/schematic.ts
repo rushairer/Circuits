@@ -20,6 +20,7 @@ export interface SchematicComponent {
  id:string;
  kind:Kind;
  label:string;
+ reference:string;
  specification:string;
  switchClosed?:boolean;
  switchContactOhms?:number;
@@ -59,6 +60,8 @@ export type SchematicResult=SchematicDiagram|SchematicUnavailable;
 const COMPONENT_X=38;
 const COMPONENT_WIDTH=405;
 const NET_X=770;
+const BUS_START=490;
+const BUS_STEP=14;
 const NET_Y=118;
 const NET_ROW=56;
 const PIN_ROW=23;
@@ -67,6 +70,11 @@ const PINS_START=62;
 const MAX_BOARD_CONTACTS=350;
 
 const order=new Map(PART_KINDS.map((kind,i)=>[kind,i]));
+const referencePrefix:Record<Kind,string>={
+ battery:'BT',resistor:'R',led:'D',breadboard:'BB',arduino:'U',
+ switch:'S',pushbutton:'SW',potentiometer:'RV',capacitor:'C',
+ buzzer:'BZ',multimeter:'VM',ammeter:'AM',servo:'M'
+};
 const endpointString=(e:Endpoint)=>terminalKey(e);
 
 /** Generated presentation of Netlist equivalence classes, not a new solver.
@@ -136,6 +144,7 @@ export function createSchematic(project:Project):SchematicResult {
      x:NET_X,y:NET_Y+index*NET_ROW
    };
  });
+ const references=new Map<Kind,number>();
  const specification=new Map<string,string>();
  for(const row of createBom(project).rows)for(const id of row.ids)
    specification.set(id,row.specification);
@@ -145,8 +154,11 @@ export function createSchematic(project:Project):SchematicResult {
    const height=Math.max(92,PINS_START+entries.length*PIN_ROW+12);
    const x=COMPONENT_X,y=nextY;
    nextY+=height+18;
+   const index=(references.get(device.kind)??0)+1;
+   references.set(device.kind,index);
    return {
      id:device.id,kind:device.kind,label:labels[device.kind],
+     reference:referencePrefix[device.kind]+index,
      specification:device.kind==='switch'?
        (device.closed?'闭合':'断开')+
        (device.closed&&device.contactOhms?' · '+device.contactOhms+' Ω':''):
@@ -162,9 +174,31 @@ export function createSchematic(project:Project):SchematicResult {
      }))
    };
  });
- const height=Math.max(340,nextY+28,NET_Y+nets.length*NET_ROW+65);
+ // Place net names near the median vertical position of their actual pins.
+ // The identifiers themselves remain sorted by terminal identity, not geometry.
+ const members=new Map<string,number[]>();
+ for(const c of components)for(const terminal of c.terminals)if(terminal.netId){
+   const ys=members.get(terminal.netId)??[];
+   ys.push(terminal.y);members.set(terminal.netId,ys);
+ }
+ const middle=(net:SchematicNet)=>{
+   const ys=[...(members.get(net.id)??[])].sort((a,b)=>a-b);
+   return ys.length?ys[Math.floor((ys.length-1)/2)]:NET_Y+Number(net.id.slice(1))*NET_ROW;
+ };
+ const ordered=[...nets].sort((a,b)=>middle(a)-middle(b)||a.id.localeCompare(b.id,'en'));
+ let previousY=NET_Y-NET_ROW;
+ const occupied=components.flatMap(c=>c.terminals.filter(t=>t.netId).map(t=>({netId:t.netId,y:t.y})));
+ for(const net of ordered){
+   let target=Math.max(NET_Y,Math.round(middle(net)),previousY+NET_ROW);
+   // Avoid a net's horizontal name-lead overlapping a different net's pin.
+   for(let attempts=0;attempts<32&&occupied.some(t=>t.netId!==net.id&&Math.abs(t.y-target)<10);attempts++)target+=12;
+   net.y=target;previousY=target;
+ }
+ const netX=Math.max(NET_X,BUS_START+Math.max(0,nets.length-1)*BUS_STEP+95);
+ for(const net of nets)net.x=netX;
+ const height=Math.max(340,nextY+28,...nets.map(n=>n.y+65));
  return {
-   ok:true,name:project.name,width:990,height,components,nets,
+   ok:true,name:project.name,width:Math.max(990,netX+220),height,components,nets,
    unconnectedTerminals:components.flatMap(c=>c.terminals).filter(t=>t.netId===null).length,
    wireCount:project.wires.length,insertionCount:project.insertions?.length??0,
    warnings:netlist.warnings
