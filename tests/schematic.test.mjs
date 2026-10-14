@@ -164,3 +164,14 @@ test('empty circuits render a safe explicit empty diagram with no invented wires
  assert.equal(diagram.wireCount,0);
  assert.match(schematicSvg(diagram),/尚无元件/);
 });
+
+test('large collections of breadboards reject before creating expensive internal union graph',()=>{
+ const p=blankProject();
+ p.parts=Array.from({length:25},(_,i)=>({
+   id:'board'+i,kind:'breadboard',x:i*10,y:0,rotation:0
+ }));
+ const d=createSchematic(p);
+ assert.equal(d.ok,false);
+ assert.match(d.reason,/面包板数量超过/);
+ assert.equal(p.parts.length,25);
+});
