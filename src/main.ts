@@ -27,6 +27,7 @@ import { createBom, bomCSV } from './core/bom.js';
 import { renderBomPanel } from './ui/bom-panel.js';
 import { createSchematic } from './core/schematic.js';
 import { renderSchematicPanel, schematicSvg } from './ui/schematic-panel.js';
+import { renderQuickProperties, placeQuickProperties, type ScreenRect } from './ui/floating-properties.js';
 import { composeCircuitLayers } from './ui/circuit-layers.js';
 import { snap, pinWorld, wirePoints, wirePath, type Point, type WireDirection } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
@@ -728,6 +729,26 @@ function rcNetworkPanel(analysis:RcNetworkAnalysis):string {
   '<button type="button" class="rc-accuracy-button" data-action="rc-accuracy">检查数值一致性</button>'+quality+
   '<small>固定步长向后欧拉积分，仅作教学近似。t=0 电流不估算；并非真实示波器或 SPICE。</small></section>';
 }
+function positionQuickProperties(){
+ const card=app.querySelector<HTMLElement>('.quick-properties');
+ const stage=app.querySelector<HTMLElement>('.canvas');
+ if(!card||!stage)return;
+ const target=[...stage.querySelectorAll<SVGGraphicsElement>('.item[data-part]')]
+   .find(node=>node.getAttribute('data-part')===card.dataset.quickFor);
+ if(!target)return;
+ const base=stage.getBoundingClientRect();
+ const local=(r:DOMRect):ScreenRect=>({
+  left:r.left-base.left,top:r.top-base.top,right:r.right-base.left,bottom:r.bottom-base.top
+ });
+ const obstacles=[...stage.querySelectorAll<SVGGraphicsElement>('.item[data-part]')]
+   .filter(node=>node!==target).map(node=>local(node.getBoundingClientRect()));
+ const bottom=stage.querySelector<HTMLElement>('.bottom');
+ if(bottom)obstacles.push(local(bottom.getBoundingClientRect()));
+ const position=placeQuickProperties(local(target.getBoundingClientRect()),
+    base.width,base.height,card.offsetWidth,card.offsetHeight,obstacles);
+ card.style.left=Math.round(position.x)+'px';
+ card.style.top=Math.round(position.y)+'px';
+}
 function render(){
  const gpioFrame=unoPreview?.ok?sampleUnoPreview(unoPreview,unoPreviewTimeMs):null;
  lastGpio=gpioFrame&&unoPreview?.ok&&unoPreview.d13Configured?analyzeGpioD13(project,gpioFrame.high):null;
@@ -763,10 +784,17 @@ function render(){
      type.shortcut+' · '+type.label+'</option>').join('')+'</select></label>';
  const toolbarPalette='<label class="wire-palette"><span class="wire-palette-swatch" style="background:'+toolbarWireColor+'"></span>'+
    '<span>导线颜色'+(selectedWireIds.size>1?' · 已选 '+selectedWireIds.size+' 根':'')+'</span><select id="wire-palette" aria-label="导线颜色" title="选中导线后改变其颜色；数字键 0–9">'+wireColorOptions(toolbarWireColor)+'</select></label>';
+ const quickPart=selectedIds.size===1&&!showCode&&!showProjects&&!showExamples&&
+   !wiring&&!notePlacement&&!bomOpen&&!schematicOpen&&!scopeOpen?
+   project.parts.find(p=>p.id===selection):undefined;
+ const quickMarkup=quickPart?renderQuickProperties(quickPart):'';
  const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastNetwork?.reason??lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
- app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="note-add" aria-pressed="'+notePlacement+'" title="N · 添加注释">▤ 注释</button><button data-action="notes-visibility" aria-pressed="'+notesVisible+'" title="Shift+N · 显示或隐藏注释">'+(notesVisible?'◉ 显示注释':'◯ 隐藏注释')+'</button><button data-action="select-all">全选</button><button data-action="rotate" title="R · 旋转">⟳ 旋转</button><button data-action="delete">删除</button>'+toolbarPalette+toolbarType+'<button data-action="code">〈/〉 代码</button><button data-action="bom-open" aria-label="查看自动生成的物料清单">▤ BOM</button><button data-action="schematic-open" aria-label="查看自动生成的原理图">◇ 原理图</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+(notePlacement?' note-mode':'')+'">'+canvas()+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="note-add" aria-pressed="'+notePlacement+'" title="N · 添加注释">▤ 注释</button><button data-action="notes-visibility" aria-pressed="'+notesVisible+'" title="Shift+N · 显示或隐藏注释">'+(notesVisible?'◉ 显示注释':'◯ 隐藏注释')+'</button><button data-action="select-all">全选</button><button data-action="rotate" title="R · 旋转">⟳ 旋转</button><button data-action="delete">删除</button>'+toolbarPalette+toolbarType+'<button data-action="code">〈/〉 代码</button><button data-action="bom-open" aria-label="查看自动生成的物料清单">▤ BOM</button><button data-action="schematic-open" aria-label="查看自动生成的原理图">◇ 原理图</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+(notePlacement?' note-mode':'')+'">' +canvas()+quickMarkup+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+
    (bomOpen?renderBomPanel(createBom(project)):'')+
-   (schematicOpen?renderSchematicPanel(createSchematic(project),schematicZoom):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+   (schematicOpen?renderSchematicPanel(createSchematic(project),schematicZoom):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'
+ positionQuickProperties();
+}
+window.addEventListener('resize',positionQuickProperties);
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),spot=x===undefined&&y===undefined?
    suggestPalettePosition(project,kind):{x:x??300,y:y??300};
@@ -1204,6 +1232,16 @@ app.addEventListener('input',e=>{
  }});
 app.addEventListener('change',async e=>{
  const t=e.target as HTMLInputElement;
+ const quickField=t.dataset.quickField;
+ if(quickField){
+   if(!['value','rc-initial','led-color'].includes(quickField))return;
+   const original=app.querySelector<HTMLInputElement|HTMLSelectElement>('#'+quickField);
+   if(!original)return;
+   original.value=t.value;
+   original.dispatchEvent(new Event('change',{bubbles:true}));
+   app.querySelector<HTMLElement>('[data-quick-field="'+quickField+'"]')?.focus();
+   return;
+ }
  if(t.id==='component-category'){
    if(!isComponentCategory(t.value))return;
    componentCategory=t.value;

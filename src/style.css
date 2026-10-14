@@ -268,3 +268,19 @@
 .schematic-view-toolbar output{font-variant-numeric:tabular-nums;min-width:43px;text-align:center}
 .schematic-sheet{position:relative;flex:none}
 .schematic-scroll .schematic-sheet>.schematic-svg{width:100%!important;min-width:0!important;height:100%!important;max-width:none!important;touch-action:pan-x pan-y!important;user-select:text}
+
+/* Quick properties are contextual and never resize the fixed editor canvas. */
+.quick-properties{position:absolute;z-index:8;left:12px;top:12px;width:245px;max-width:calc(100% - 24px);max-height:calc(100% - 24px);overflow:auto;border:1px solid #c5dcdf;border-radius:12px;box-shadow:0 12px 34px #16374630;background:#fff;color:#2e5361;font-size:12px;pointer-events:auto}
+.quick-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:5px;padding:11px 13px 9px;border-bottom:1px solid #ebf0f1}
+.quick-heading strong,.quick-heading small{display:block}.quick-heading strong{font-size:13px;color:#194a54}.quick-heading small{font-size:10px;color:#8a9ba5;margin-top:3px}
+.quick-heading button{border:0;background:transparent;color:#7a919b;font-size:20px;line-height:1;cursor:pointer;padding:0 3px}
+.quick-fields{padding:10px 13px 8px;display:flex;flex-direction:column;gap:9px}
+.quick-field{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:650;color:#58717d}
+.quick-field :is(input,select){display:block;width:100%;min-width:0;min-height:35px;border:1px solid #d2e0e3;border-radius:6px;background:#fff;color:#2c515e;padding:6px 9px;font-size:13px;font-weight:500}
+.quick-properties :is(button,input,select):focus-visible{outline:2px solid #119d91;outline-offset:2px}
+.quick-hint{font-size:11px;line-height:1.6;color:#8499a2}
+.quick-actions{display:flex;gap:7px;padding:7px 11px 10px;border-top:1px solid #eff3f4}
+.quick-actions button,.quick-switch{border:1px solid #d7e4e6;border-radius:6px;padding:7px 10px;font-size:11px;background:#f7fafb;color:#426774;cursor:pointer;font-weight:650}
+.quick-actions button:hover,.quick-switch:hover{background:#e8f7f3;border-color:#9acfc6}
+.quick-danger{margin-left:auto;color:#bb554d!important;background:#fff!important}.quick-switch{width:100%}
+@media(max-width:650px){.quick-properties{width:205px}}
