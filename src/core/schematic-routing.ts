@@ -61,6 +61,21 @@ export function routeSchematic(diagram:SchematicDiagram):SchematicRoutes {
  }
  if(horizontals.length+verticals.length>SCHEMATIC_MAX_SEGMENTS)
   return empty('正交线段超过安全布局预算，仅显示完整的网络编号与端子关系。');
+ // A shared-looking horizontal stroke between DIFFERENT nets is not a wire
+ // crossing that an insulating arch can resolve. Fall back to labeled nets.
+ const byRow=new Map<number,Horizontal[]>();
+ for(const segment of horizontals){
+   for(const row of [Math.round(segment.y)-1,Math.round(segment.y),Math.round(segment.y)+1]){
+     for(const other of byRow.get(row)??[]){
+       if(other.netId!==segment.netId&&
+          Math.abs(other.y-segment.y)<2&&
+          Math.min(other.x2,segment.x2)-Math.max(other.x1,segment.x1)>4)
+         return empty('不同电气网络的正交线路发生同轴重叠，改用明确的端子网络编号避免伪短接。');
+     }
+   }
+   const row=Math.round(segment.y),bucket=byRow.get(row)??[];
+   bucket.push(segment);byRow.set(row,bucket);
+ }
  const crossings:SchematicCrossing[]=[];
  const seen=new Set<string>();
  for(const horizontal of horizontals)
@@ -72,6 +87,11 @@ export function routeSchematic(diagram:SchematicDiagram):SchematicRoutes {
       horizontal.y>=vertical.y2-BRIDGE_CLEARANCE)continue;
    const key=vertical.x+':'+horizontal.y;
    if(seen.has(key))continue;
+   // A foreign horizontal line through a real trunk junction would appear
+   // shorted because the filled junction dot paints over the crossover arch.
+   if(junctions.some(j=>j.netId===vertical.netId&&j.x===vertical.x&&
+        Math.abs(j.y-horizontal.y)<BRIDGE_CLEARANCE+2))
+     return empty('交叉线接近另一个网络的真实接点，改用网络编号避免错误的连接暗示。');
    seen.add(key);
    crossings.push({x:vertical.x,y:horizontal.y,
      horizontalNet:horizontal.netId,verticalNet:vertical.netId});

@@ -120,3 +120,5 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 fifteenth batch: single-part contextual quick property panel (canonical value/LED/RC editor handler, rotate/delete/close), collision-ranked CSS-pixel placement and grouped toolbar without changing scene width or schema
 - [ ] Authenticated original reference: floating property card position, typography, wire-specific property popup, responsive toolbar hierarchy, and touch/pen use; verify by visual comparison before claiming 1:1
+
+- [x] Alpha.11 schematic safety patch: reject different-net collinear strokes and crossings colliding with live net junctions; use complete N-labeled terminal fallback rather than visually fabricating connectivity

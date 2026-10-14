@@ -235,3 +235,20 @@ test('schematic view has read-only bounded zoom controls and safe large-scene la
  }));
  assert.equal(routeSchematic(crowded).mode,'orthogonal');
 });
+
+test('collinear conductors of different network identities fall back to unambiguous labels',()=>{
+ const d=createSchematic(demo());
+ assert.equal(d.ok,true);
+ const first=d.components.find(c=>c.id==='b1')?.terminals.find(t=>t.pinId==='positive');
+ const other=d.components.find(c=>c.id==='b1')?.terminals.find(t=>t.pinId==='negative');
+ assert.ok(first&&other&&first.netId!==other.netId);
+ // Simulate a degenerate auto-layout input, not an electrical topology edit.
+ other.y=first.y;
+ const routed=routeSchematic(d);
+ assert.equal(routed.mode,'labels');
+ assert.match(routed.reason,/同轴重叠/);
+ assert.equal(routed.links.length,0);
+ assert.equal(routed.crossings.length,0);
+ assert.match(schematicSvg(d),/data-schematic-route-mode="labels"/);
+ assert.equal(first.netId===other.netId,false);
+});

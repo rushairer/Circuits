@@ -59,8 +59,8 @@ test('multi-selection and schematic modal suppress quick card; tablet stays boun
  await expect(page.locator('.quick-properties')).toBeVisible();
  await page.locator('.item[data-part="l1"]').click({modifiers:['Shift']});
  await expect(page.locator('.quick-properties')).toHaveCount(0);
- await page.locator('.item[data-part="r1"]').click();
- await expect(page.locator('.quick-properties')).toBeVisible();
+ await page.locator('.item[data-part="b1"]').click();
+ await expect(page.locator('.quick-properties[data-quick-for="b1"]')).toBeVisible();
  await page.locator('[data-action="schematic-open"]').click();
  await expect(page.locator('.quick-properties')).toHaveCount(0);
  await page.keyboard.press('Escape');
