@@ -5,6 +5,7 @@ import { buildNetlist, terminalKey } from './netlist.js';
 import { createBom } from './bom.js';
 
 export const SCHEMATIC_MAX_COMPONENTS=80;
+export const SCHEMATIC_MAX_BREADBOARDS=24;
 export const SCHEMATIC_MAX_TERMINALS=350;
 export const SCHEMATIC_MAX_CONNECTED_NETS=160;
 
@@ -80,6 +81,10 @@ export function createSchematic(project:Project):SchematicResult {
  if(devices.length>SCHEMATIC_MAX_COMPONENTS)
    return fail('元件数量超过当前只读原理图上限（'+SCHEMATIC_MAX_COMPONENTS+'）；电路数据未改变。');
  const boardIds=new Set(project.parts.filter(p=>p.kind==='breadboard').map(p=>p.id));
+ // Each breadboard owns hundreds of internal sockets in the shared Netlist.
+ // Reject pathological imported scenes before allocating their UnionFind sets.
+ if(boardIds.size>SCHEMATIC_MAX_BREADBOARDS)
+   return fail('面包板数量超过当前只读原理图上限（'+SCHEMATIC_MAX_BREADBOARDS+'）。');
  const referencedBoard=new Map<string,Endpoint>();
  const addBoard=(endpoint:Endpoint)=>{
    if(boardIds.has(endpoint.componentId))
