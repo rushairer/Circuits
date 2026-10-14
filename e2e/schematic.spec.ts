@@ -152,3 +152,20 @@ test('schematic regeneration follows ideal switch topology rather than its pixel
  const b=await svg.locator('[data-terminal="s1::b"]').getAttribute('data-schematic-net');
  expect(a).toBe(b);
 });
+
+test('tablet-sized schematic viewer scrolls horizontally without editing circuit or zooming canvas',async({page})=>{
+ await page.setViewportSize({width:1024,height:768});
+ await page.goto('/');
+ const before=await snapshot(page);
+ await openSchematic(page);
+ const scroller=page.locator('.schematic-scroll');
+ const data=await scroller.evaluate(el=>({
+  scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,
+  touchAction:getComputedStyle(el.querySelector('svg')!).touchAction
+ }));
+ expect(data.scrollWidth).toBeGreaterThan(data.clientWidth);
+ expect(data.touchAction).toBe('pan-x pan-y');
+ await scroller.evaluate(el=>{el.scrollLeft=100;});
+ expect(await scroller.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);
+ expect(await snapshot(page)).toBe(before);
+});
