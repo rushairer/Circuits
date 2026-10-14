@@ -218,3 +218,45 @@
 .bom-dialog button:focus-visible{outline:2px solid #159f91;outline-offset:3px}
 @media(max-width:750px){.bom-dialog{padding:12px}.bom-heading h2{font-size:17px}
  .bom-overview span{padding:6px 9px}.bom-table-scroller{max-height:43vh}}
+
+
+/* Generated, read-only schematic. The same electrical net ID is the ONLY
+   criterion for connectivity; paths that cross do not create a junction. */
+.schematic-shade{position:absolute;inset:0;z-index:23;background:#102a358c}
+.schematic-dialog{position:absolute;z-index:24;top:50%;left:50%;transform:translate(-50%,-50%);
+ width:min(1100px,calc(100% - 28px));max-height:calc(100% - 26px);
+ display:flex;flex-direction:column;gap:12px;overflow:hidden;
+ background:#fff;border:1px solid #c6dae2;border-radius:12px;padding:18px 20px;
+ box-shadow:0 20px 54px #081f2b66;color:#294958}
+.schematic-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.schematic-heading h2{margin:0 0 5px;font-size:20px;color:#15535b}
+.schematic-heading p{margin:0;color:#718996;font-size:12px;line-height:1.5}
+.schematic-heading button,.schematic-actions button{font-family:inherit;font-size:12px;font-weight:700;line-height:1.2;
+ border:1px solid #c5dadd;border-radius:7px;background:#fff;color:#295c64;
+ padding:9px 13px;white-space:nowrap;cursor:pointer}
+.schematic-heading button:hover,.schematic-actions button:hover{background:#eaf8f5}
+.schematic-toolbar-stats{display:flex;flex-wrap:wrap;gap:8px}
+.schematic-toolbar-stats span{display:flex;align-items:center;gap:5px;
+ background:#eef7f8;border:1px solid #d8e8e9;padding:6px 10px;
+ border-radius:6px;color:#526f7b;font-size:11px}
+.schematic-toolbar-stats b{color:#098a80;font-size:14px}
+.schematic-scroll{flex:1;min-height:125px;overflow:auto;max-height:57vh;
+ border:1px solid #deeaed;border-radius:8px;background:#f7fafb}
+.schematic-svg{width:990px!important;min-width:990px;height:auto!important;max-width:none!important;
+ display:block;touch-action:pan-x pan-y!important;user-select:text}
+.canvas .schematic-scroll{touch-action:pan-x pan-y;overscroll-behavior:contain}
+.schematic-actions{display:flex;justify-content:flex-end;gap:9px}
+.schematic-actions [data-action="schematic-export"]{background:#09988e;border-color:#09988e;color:#fff}
+.schematic-actions [data-action="schematic-export"]:hover{background:#087a72}
+.schematic-actions button:disabled{opacity:.45;cursor:not-allowed}
+.schematic-dialog button:focus-visible{outline:2px solid #159f91;outline-offset:3px}
+.schematic-disclaimer,.schematic-warning{margin:0;color:#718997;font-size:11px;line-height:1.5}
+.schematic-warning{color:#ad5f28}
+.schematic-unavailable{padding:26px;border:1px solid #d7e5e8;border-radius:8px;
+ background:#f4f8f9;color:#385a67;font-size:13px;line-height:1.6}
+.schematic-unavailable strong{display:block;font-size:16px}
+.schematic-unavailable p{margin:7px 0}
+.schematic-unavailable small{color:#79909b}
+@media(max-width:700px){.schematic-dialog{padding:11px;width:calc(100% - 12px);max-height:calc(100% - 12px)}
+ .schematic-heading h2{font-size:16px}.schematic-toolbar-stats{gap:4px}
+ .schematic-scroll{max-height:52vh}}

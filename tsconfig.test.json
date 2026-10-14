@@ -17,6 +17,7 @@
     "src/ui/circuit-layers.ts",
     "src/ui/note-render.ts",
     "src/ui/bom-panel.ts",
+    "src/ui/schematic-panel.ts",
     "src/model.ts"
   ]
 }
