@@ -1,5 +1,5 @@
 import {
- pins, parts as PART_KINDS, labels, type Endpoint, type Kind, type Part, type Project
+ pins, parts as PART_KINDS, labels, type Endpoint, type Kind, type Project
 } from '../model.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import { createBom } from './bom.js';
@@ -20,6 +20,8 @@ export interface SchematicComponent {
  kind:Kind;
  label:string;
  specification:string;
+ switchClosed?:boolean;
+ switchContactOhms?:number;
  x:number;
  y:number;
  width:number;
@@ -140,7 +142,14 @@ export function createSchematic(project:Project):SchematicResult {
    nextY+=height+18;
    return {
      id:device.id,kind:device.kind,label:labels[device.kind],
-     specification:specification.get(device.id)??'标准',x,y,width:COMPONENT_WIDTH,height,
+     specification:device.kind==='switch'?
+       (device.closed?'闭合':'断开')+
+       (device.closed&&device.contactOhms?' · '+device.contactOhms+' Ω':''):
+       (specification.get(device.id)??'标准'),
+     ...(device.kind==='switch'?{
+       switchClosed:Boolean(device.closed),switchContactOhms:device.contactOhms??0
+     }:{}),
+     x,y,width:COMPONENT_WIDTH,height,
      terminals:entries.map((pinId,index)=>({
        componentId:device.id,pinId,
        netId:netIdByKey.get(endpointString({componentId:device.id,pinId}))??null,
