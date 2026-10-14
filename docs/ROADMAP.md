@@ -114,3 +114,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 thirteenth batch: first real read-only Schematic view based on existing Netlist, including breadboard buses, terminals, switch states, explicit net labels, bounded generation and SVG export
 - [ ] Match Tinkercad's auto-layout and standard symbols more closely; eliminate crossing ambiguity and add zoom/pan and useful wire-level diagram navigation without changing electrical identity
+
+- [x] Alpha.11 fourteenth batch: Netlist-driven orthogonal schematic bus lanes, visual insulated crossings, stable R/D/C-style reference labels, non-mutating schematic-only zoom controls and added unit/browser tests
+- [ ] Verify dense schematic routing, complete symbol standards (IEC/ANSI), schematic viewport gestures, native Safari and authenticated Tinkercad 2026 screenshots; the new router is a bounded pedagogical approximation, not a proven 1:1 clone
