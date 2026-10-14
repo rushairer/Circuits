@@ -18,6 +18,7 @@
     "src/ui/note-render.ts",
     "src/ui/bom-panel.ts",
     "src/ui/schematic-panel.ts",
+    "src/ui/floating-properties.ts",
     "src/model.ts"
   ]
 }
