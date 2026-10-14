@@ -23,7 +23,7 @@ function schematicSymbol(component:SchematicComponent):string {
     '<path d="M'+(x-12)+' '+(y-16)+'l25 16 -25 16z" fill="#dbeff0"/>'+
     '<path d="M'+(x+1)+' '+(y-19)+'l12 -11m-3 0h4v4m-24 5l12 -11m-3 0h4v4"/></g>';
   case 'switch':return '<g '+stroke+'><circle cx="'+(x-25)+'" cy="'+y+'" r="4"/><circle cx="'+(x+25)+'" cy="'+y+'" r="4"/>'+
-    '<path d="M'+(x-21)+' '+(y-2)+'l41 '+(component.specification==='标准'?-15:-15)+'"/></g>';
+    '<path d="M'+(x-21)+' '+(y-2)+'L'+(x+21)+' '+(component.switchClosed?y-2:y-18)+'"/></g>';
   case 'multimeter':case 'ammeter':return '<g '+stroke+'><circle cx="'+x+'" cy="'+y+'" r="19"/>'+
     '<text x="'+x+'" y="'+(y+6)+'" text-anchor="middle" fill="#314c5a" stroke="none" font-size="19">'+(component.kind==='multimeter'?'V':'A')+'</text></g>';
   case 'buzzer':return '<g '+stroke+'><circle cx="'+x+'" cy="'+y+'" r="19"/>'+
