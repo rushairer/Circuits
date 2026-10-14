@@ -243,7 +243,8 @@
 .schematic-scroll{flex:1;min-height:125px;overflow:auto;max-height:57vh;
  border:1px solid #deeaed;border-radius:8px;background:#f7fafb}
 .schematic-svg{width:990px!important;min-width:990px;height:auto!important;max-width:none!important;
- display:block;touch-action:pan-x pan-y;user-select:text}
+ display:block;touch-action:pan-x pan-y!important;user-select:text}
+.canvas .schematic-scroll{touch-action:pan-x pan-y;overscroll-behavior:contain}
 .schematic-actions{display:flex;justify-content:flex-end;gap:9px}
 .schematic-actions [data-action="schematic-export"]{background:#09988e;border-color:#09988e;color:#fff}
 .schematic-actions [data-action="schematic-export"]:hover{background:#087a72}
