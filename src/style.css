@@ -284,3 +284,13 @@
 .quick-actions button:hover,.quick-switch:hover{background:#e8f7f3;border-color:#9acfc6}
 .quick-danger{margin-left:auto;color:#bb554d!important;background:#fff!important}.quick-switch{width:100%}
 @media(max-width:650px){.quick-properties{width:205px}}
+
+/* Groups keep the familiar command order while making the editor toolbar scannable. */
+.tool-group{display:flex;align-items:center;gap:5px;border:1px solid #e2ebed;border-radius:9px;background:#fafcfc;padding:4px;flex:none;min-height:42px}
+.tool-group :is(button,select){white-space:nowrap}
+.tool-group:focus-within{border-color:#b3d9d4}
+.topbar{gap:8px;scrollbar-width:thin;scrollbar-color:#bdd6d8 transparent}
+.topbar .tool-group button{background:transparent;border-color:transparent}
+.topbar .tool-group button:hover{background:#e9f5f2;border-color:#d2e5e1}
+.topbar .tool-group button:focus-visible{outline:2px solid #138e83;outline-offset:0}
+.topbar .run{position:sticky;right:0;box-shadow:-7px 0 11px #ffffffd9;z-index:2}
