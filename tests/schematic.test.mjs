@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { blankProject, demo, typeOfNever } from '../.test-dist/model.js';
+import { blankProject, demo } from '../.test-dist/model.js';
 import { buildNetlist } from '../.test-dist/core/netlist.js';
 import { createSchematic,SCHEMATIC_MAX_COMPONENTS } from '../.test-dist/core/schematic.js';
 import { renderSchematicPanel,schematicSvg } from '../.test-dist/ui/schematic-panel.js';
