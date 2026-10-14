@@ -54,6 +54,7 @@ let lastScopeCapture:ScopeCapture|null=null;
 let scopeOpen=false;
 let bomOpen=false;
 let schematicOpen=false;
+let schematicZoom=1;
 let scopeCapacitorId='';
 let unoPreview:UnoPreviewResult|null=null;
 let unoPreviewTimeMs=0;
@@ -765,7 +766,7 @@ function render(){
  const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastNetwork?.reason??lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
  app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button><button data-action="note-add" aria-pressed="'+notePlacement+'" title="N · 添加注释">▤ 注释</button><button data-action="notes-visibility" aria-pressed="'+notesVisible+'" title="Shift+N · 显示或隐藏注释">'+(notesVisible?'◉ 显示注释':'◯ 隐藏注释')+'</button><button data-action="select-all">全选</button><button data-action="rotate" title="R · 旋转">⟳ 旋转</button><button data-action="delete">删除</button>'+toolbarPalette+toolbarType+'<button data-action="code">〈/〉 代码</button><button data-action="bom-open" aria-label="查看自动生成的物料清单">▤ BOM</button><button data-action="schematic-open" aria-label="查看自动生成的原理图">◇ 原理图</button><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+(notePlacement?' note-mode':'')+'">'+canvas()+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+
    (bomOpen?renderBomPanel(createBom(project)):'')+
-   (schematicOpen?renderSchematicPanel(createSchematic(project)):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
+   (schematicOpen?renderSchematicPanel(createSchematic(project),schematicZoom):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'}
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),spot=x===undefined&&y===undefined?
    suggestPalettePosition(project,kind):{x:x??300,y:y??300};
@@ -1061,8 +1062,23 @@ function handleClick(e:CanvasClick){
  case 'bom-export':if(bomOpen)download(bomCSV(createBom(project)),'circuits-bom.csv');break;
  case 'schematic-open':{
    pointerInput.cancel();clearWireDraft();scopeOpen=false;bomOpen=false;notePlacement=false;
-   schematicOpen=true;render();
+   schematicOpen=true;schematicZoom=1;render();
    app.querySelector<HTMLElement>('.schematic-dialog [data-action="schematic-close"]')?.focus();
+   break;
+ }
+ case 'schematic-zoom-in':
+ case 'schematic-zoom-out':
+ case 'schematic-zoom-reset':{
+   if(!schematicOpen)break;
+   const action=a.dataset.action;
+   const previous=app.querySelector<HTMLElement>('.schematic-scroll');
+   const ratio=previous?.scrollLeft??0, top=previous?.scrollTop??0;
+   schematicZoom=action==='schematic-zoom-reset'?1:
+     Math.max(0.5,Math.min(2,Math.round((schematicZoom+(action==='schematic-zoom-in'?0.25:-0.25))*100)/100));
+   render();
+   const next=app.querySelector<HTMLElement>('.schematic-scroll');
+   if(next){next.scrollLeft=ratio;next.scrollTop=top}
+   app.querySelector<HTMLElement>('[data-action="'+action+'"]')?.focus();
    break;
  }
  case 'schematic-close':

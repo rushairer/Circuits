@@ -169,3 +169,17 @@ test('tablet-sized schematic viewer scrolls horizontally without editing circuit
  expect(await scroller.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);
  expect(await snapshot(page)).toBe(before);
 });
+
+test('schematic viewport zoom is independent from the saved project',async({page})=>{
+ await page.goto('/');
+ const before=await snapshot(page);
+ await openSchematic(page);
+ const sheet=page.locator('.schematic-sheet');
+ const original=await sheet.evaluate(el=>el.getBoundingClientRect().width);
+ await page.locator('[data-action="schematic-zoom-in"]').click();
+ await expect(page.locator('.schematic-view-toolbar output')).toHaveText('125%');
+ expect(await sheet.evaluate(el=>el.getBoundingClientRect().width)).toBeGreaterThan(original);
+ await page.locator('[data-action="schematic-zoom-reset"]').click();
+ await expect(page.locator('.schematic-view-toolbar output')).toHaveText('100%');
+ expect(await snapshot(page)).toBe(before);
+});
