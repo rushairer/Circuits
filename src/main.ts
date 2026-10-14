@@ -733,14 +733,14 @@ function positionQuickProperties(){
  const card=app.querySelector<HTMLElement>('.quick-properties');
  const stage=app.querySelector<HTMLElement>('.canvas');
  if(!card||!stage)return;
- const target=[...stage.querySelectorAll<SVGGraphicsElement>('.item[data-part]')]
+ const target=Array.from(stage.querySelectorAll<SVGGraphicsElement>('.item[data-part]'))
    .find(node=>node.getAttribute('data-part')===card.dataset.quickFor);
  if(!target)return;
  const base=stage.getBoundingClientRect();
  const local=(r:DOMRect):ScreenRect=>({
   left:r.left-base.left,top:r.top-base.top,right:r.right-base.left,bottom:r.bottom-base.top
  });
- const obstacles=[...stage.querySelectorAll<SVGGraphicsElement>('.item[data-part]')]
+ const obstacles=Array.from(stage.querySelectorAll<SVGGraphicsElement>('.item[data-part]'))
    .filter(node=>node!==target).map(node=>local(node.getBoundingClientRect()));
  const bottom=stage.querySelector<HTMLElement>('.bottom');
  if(bottom)obstacles.push(local(bottom.getBoundingClientRect()));
