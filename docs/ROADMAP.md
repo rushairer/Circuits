@@ -111,3 +111,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 twelfth batch: read-only original-reference BOM view with component/value/color grouping, stable IDs, CSV export and simulation-neutral accessible dialog
 - [ ] Build an actually generated schematic view from terminal connectivity and explicit breadboard unions; do not confuse a screenshot/visual route with an electrically correct diagram
+
+- [x] Alpha.11 thirteenth batch: first real read-only Schematic view based on existing Netlist, including breadboard buses, terminals, switch states, explicit net labels, bounded generation and SVG export
+- [ ] Match Tinkercad's auto-layout and standard symbols more closely; eliminate crossing ambiguity and add zoom/pan and useful wire-level diagram navigation without changing electrical identity
