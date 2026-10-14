@@ -36,3 +36,7 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 
 - The BOM toolbar opens a read-only dialog over the canvas, backed by `../core/bom.ts`. It must not persist UI state, stop simulation, alter netlist connections or add undo records. Escape/backdrop closes; Tab and Shift+Tab trap focus on dialog controls, and all global deletion/wiring hotkeys are blocked while it is open.
 - BOM export is UTF-8 CSV with quoted fields and spreadsheet formula injection neutralization; never render untrusted names or IDs without HTML escaping. Original Schematic view remains unimplemented separately.
+
+- The generated Schematic is an independent read-only dialog. Use `../core/schematic.ts` to project ONLY the actual `buildNetlist` identity classes; geometric wire crossings, route changes, lens colors, and component canvas positions must not create hidden electrical joins. Bare breadboard copper groups are represented only when referenced by authored wires/insertions.
+- `schematic-panel.ts` must escape project title and all terminal/user strings before SVG/HTML rendering; SVG export has no active content or external resources. Disable export, and show an explicit explanation, when whole-diagram bounds cannot be satisfied; never silently truncate the netlist.
+- Schematic dialog Escape/Tab/Shift+Tab and backdrop close are modal and cannot trigger canvas editing, Delete, undo, pan, or simulation changes. Preserve preexisting BOM and scope focus flows.
