@@ -38,7 +38,7 @@ function schematicSymbol(component:SchematicComponent):string {
     '<path d="M'+(x-6)+' '+(y-5)+'l12 5 -12 5z"/></g>';
   default:return '<g><rect x="'+(x-27)+'" y="'+(y-21)+'" width="54" height="42" rx="5" fill="#eaf3f5" stroke="#6b9eaa" stroke-width="1.6"/>'+
     '<text x="'+x+'" y="'+(y+5)+'" text-anchor="middle" fill="#315967" font-size="10" font-weight="700">'+
-    escape(component.kind==='arduino'?'UNO':component.kind==='potentiometer'?'POT':component.kind==='pushbutton'?'BTN':component.kind==='servo'?'SERVO':'PART')+'</text></g>';
+    escape(component.kind==='arduino'?'UNO':'PART')+'</text></g>';
  }
 }
 
