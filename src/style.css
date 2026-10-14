@@ -231,7 +231,7 @@
 .schematic-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .schematic-heading h2{margin:0 0 5px;font-size:20px;color:#15535b}
 .schematic-heading p{margin:0;color:#718996;font-size:12px;line-height:1.5}
-.schematic-heading button,.schematic-actions button{font:700 12px/1.2 inherit;
+.schematic-heading button,.schematic-actions button{font-family:inherit;font-size:12px;font-weight:700;line-height:1.2;
  border:1px solid #c5dadd;border-radius:7px;background:#fff;color:#295c64;
  padding:9px 13px;white-space:nowrap;cursor:pointer}
 .schematic-heading button:hover,.schematic-actions button:hover{background:#eaf8f5}
