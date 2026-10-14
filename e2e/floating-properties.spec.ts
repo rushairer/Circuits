@@ -70,3 +70,20 @@ test('multi-selection and schematic modal suppress quick card; tablet stays boun
  expect(card!.x).toBeGreaterThanOrEqual(canvas!.x);
  expect(card!.x+card!.width).toBeLessThanOrEqual(canvas!.x+canvas!.width+1);
 });
+
+test('quick switch uses a unique action, toggles the real circuit, and retains right-inspector control',async({page})=>{
+ await page.goto('/');
+ const p=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!));
+ p.parts.push({id:'qs1',kind:'switch',x:510,y:100,rotation:0,closed:false});
+ await page.locator('#file').setInputFiles({
+  name:'quick-switch.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))
+ });
+ await page.locator('.item[data-part="qs1"]').click();
+ await expect(page.locator('.quick-properties [data-action="quick-toggle-switch"]')).toHaveCount(1);
+ await expect(page.locator('.inspector [data-action="toggle-switch"]')).toHaveCount(1);
+ await page.locator('.quick-properties [data-action="quick-toggle-switch"]').click();
+ const switched=await part(page,'qs1');
+ expect(switched.closed).toBe(true);
+ await page.locator('[data-action="undo"]').click();
+ expect((await part(page,'qs1')).closed).toBe(false);
+});

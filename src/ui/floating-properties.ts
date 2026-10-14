@@ -57,7 +57,7 @@ export function renderQuickProperties(part:Part):string {
  const capacitor=part.kind==='capacitor'?'<label class="quick-field">初始电压 (V)'+
   '<input data-quick-field="rc-initial" type="number" step="any" min="-1000" max="1000" value="'+
   (part.initialVolts??0)+'" aria-label="快捷初始电压"/></label>':'';
- const toggle=part.kind==='switch'?'<button type="button" class="quick-switch" data-action="toggle-switch">'+
+ const toggle=part.kind==='switch'?'<button type="button" class="quick-switch" data-action="quick-toggle-switch">'+
   (part.closed?'断开开关':'闭合开关')+'</button>':'';
  const generic=!title&&!led&&!toggle?
   '<small class="quick-hint">详细规格和仿真读数请查看右侧属性栏</small>':'';

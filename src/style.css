@@ -270,7 +270,7 @@
 .schematic-scroll .schematic-sheet>.schematic-svg{width:100%!important;min-width:0!important;height:100%!important;max-width:none!important;touch-action:pan-x pan-y!important;user-select:text}
 
 /* Quick properties are contextual and never resize the fixed editor canvas. */
-.quick-properties{position:absolute;z-index:8;left:12px;top:12px;width:245px;max-width:calc(100% - 24px);max-height:calc(100% - 24px);overflow:auto;border:1px solid #c5dcdf;border-radius:12px;box-shadow:0 12px 34px #16374630;background:#fff;color:#2e5361;font-size:12px;pointer-events:auto}
+.quick-properties{position:absolute;z-index:8;left:12px;top:12px;width:245px;max-width:calc(100% - 24px);max-height:calc(100% - 24px);overflow:auto;border:1px solid #c5dcdf;border-radius:12px;box-shadow:0 12px 34px #16374630;background:#fff;color:#2e5361;font-size:12px;pointer-events:none}
 .quick-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:5px;padding:11px 13px 9px;border-bottom:1px solid #ebf0f1}
 .quick-heading strong,.quick-heading small{display:block}.quick-heading strong{font-size:13px;color:#194a54}.quick-heading small{font-size:10px;color:#8a9ba5;margin-top:3px}
 .quick-heading button{border:0;background:transparent;color:#7a919b;font-size:20px;line-height:1;cursor:pointer;padding:0 3px}
@@ -294,3 +294,6 @@
 .topbar .tool-group button:hover{background:#e9f5f2;border-color:#d2e5e1}
 .topbar .tool-group button:focus-visible{outline:2px solid #138e83;outline-offset:0}
 .topbar .run{position:sticky;right:0;box-shadow:-7px 0 11px #ffffffd9;z-index:2}
+
+/* Only genuine quick controls can take a click; all empty popover chrome is transparent to canvas selection, pins, marquee and panning. */
+.quick-properties :is(button,input,select){pointer-events:auto}

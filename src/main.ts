@@ -1076,7 +1076,8 @@ function handleClick(e:CanvasClick){
    if(w?.bends?.length){const b=copy();delete w.bends;selectedBend=null;commit(b)}
    break;
  }
- case 'toggle-switch':{const c=project.parts.find(p=>p.id===selection);if(c?.kind==='switch'){const b=copy();c.closed=!c.closed;rcTimeIndex=0;commit(b)}break}
+ case 'quick-toggle-switch':
+  case 'toggle-switch':{const c=project.parts.find(p=>p.id===selection);if(c?.kind==='switch'){const b=copy();c.closed=!c.closed;rcTimeIndex=0;commit(b)}break}
  case 'rotate':rotateSelectedParts();break
  case 'delete':deleteSelection();break
  case 'code':showCode=!showCode;showProjects=false;showExamples=false;render();break;

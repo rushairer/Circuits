@@ -43,3 +43,5 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 
 - The contextual quick property panel is a CSS-pixel overlay calculated from the selected SVG part's DOM bounds. It must not resize the canvas or alter electrical state. Forward quick select/number changes through the canonical inspector handler (validation/undo); never duplicate input IDs, persist overlay position, or intercept shortcuts in native form elements.
 - Toolbar groups are presentational, preserve existing data-action identities and hotkeys, and must not block the primary Run control or hide a command behind an inaccessible scroll trap.
+
+- Context quick-property chrome must be pointer-transparent except actual inputs/buttons. A new popover must never intercept a blank-canvas deselect/pan or prevent selecting another real SVG component; avoid duplicated data-action selectors for old inspector actions (the quick switch has its own delegated action).
