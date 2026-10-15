@@ -157,7 +157,7 @@ export function createSchematic(project:Project):SchematicResult {
    const index=(references.get(device.kind)??0)+1;
    references.set(device.kind,index);
    return {
-     id:device.id,kind:device.kind,label:labels[device.kind],
+     id:device.id,kind:device.kind,label:device.name?.trim()||labels[device.kind],
      reference:referencePrefix[device.kind]+index,
      specification:device.kind==='switch'?
        (device.closed?'闭合':'断开')+

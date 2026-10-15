@@ -28,6 +28,7 @@ import { renderBomPanel } from './ui/bom-panel.js';
 import { createSchematic } from './core/schematic.js';
 import { renderSchematicPanel, schematicSvg } from './ui/schematic-panel.js';
 import { renderQuickProperties, renderQuickWireProperties, placeQuickProperties, type ScreenRect } from './ui/floating-properties.js';
+import { renamePart } from './core/part-name.js';
 import { composeCircuitLayers } from './ui/circuit-layers.js';
 import { snap, pinWorld, wirePoints, wirePath, type Point, type WireDirection } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
@@ -372,7 +373,8 @@ function canvas(){
           '<circle class="pin" data-part="'+c.id+'" data-pin="'+name+'" cx="'+p[0]+'" cy="'+p[1]+'" r="'+(board?4.4:7)+'" fill="'+(board?'transparent':inserted?'#19bd89':'#e6c08a')+'" stroke="'+(inserted?'#057d62':board?'#b2c4cb':'#a58142')+'" stroke-width="'+(board?1.2:2)+'"><title>'+name+(inserted?' · 已插入':'')+'</title></circle>';
       }).join('');
     const layerClass=socketsOnly?'breadboard-sockets':'item '+(selectedIds.has(c.id)?'selected':'');
-    const accessibility=socketsOnly?'':' tabindex="0" role="button" aria-label="'+labels[c.kind]+' '+c.id+'" aria-pressed="'+selectedIds.has(c.id)+'"';
+    const accessibility=socketsOnly?'':' tabindex="0" role="button" aria-label="'+
+      escape(labels[c.kind]+' '+(c.name?c.name+' ':'')+c.id)+'" aria-pressed="'+selectedIds.has(c.id)+'"';
     return '<g class="'+layerClass+'" data-part="'+c.id+'"'+accessibility+
       ' transform="translate('+c.x+' '+c.y+')"><g transform="rotate('+c.rotation+' '+w/2+' '+h/2+')">'+
       (socketsOnly?'':glow+gpioGlow+art(c))+pinsSvg+'</g></g>';
@@ -616,6 +618,7 @@ function side(){
  const networkValue=c?.kind==='capacitor'&&lastNetwork?.ok?
    lastNetwork.samples[rcTimeIndex]?.capacitors[c.id]:null;
  if(c)return '<h2>属性 · '+labels[c.kind]+'</h2><div class="field"><p>元件：'+labels[c.kind]+'</p>'+
+    '<label for="part-name">名称</label><input id="part-name" type="text" maxlength="80" autocomplete="off" value="'+escape(c.name??'')+'" placeholder="'+escape(labels[c.kind])+'"/>'+
    (c.kind==='led'?'<label for="led-color">LED 颜色</label><select id="led-color" aria-label="LED 颜色">'+
      LED_COLORS.map(color=>'<option value="'+color.value+'" '+(ledAppearance(c.ledColor).value===color.value?'selected':'')+'>'+color.label+'</option>').join('')+
      '</select><small>仅改变发光与灯罩外观，当前实验求解器尚未按波长调整器件物理模型。</small>':'')+
@@ -1275,7 +1278,7 @@ app.addEventListener('change',async e=>{
  const t=e.target as HTMLInputElement;
  const quickField=t.dataset.quickField;
  if(quickField){
-   if(!['value','rc-initial','led-color','wire-color','wire-type'].includes(quickField))return;
+   if(!['value','rc-initial','led-color','wire-color','wire-type','part-name'].includes(quickField))return;
    const original=app.querySelector<HTMLInputElement|HTMLSelectElement>('#'+quickField);
    if(!original)return;
    original.value=t.value;
@@ -1328,6 +1331,12 @@ app.addEventListener('change',async e=>{
    if(updated&&updated!==project){
      const before=copy();project=updated;commitVisualEdit(before);
    }
+   return;
+ }
+ if(t.id==='part-name'){
+   const changed=renamePart(project,selection??'',t.value);
+   if(changed===null){render();return}
+   if(changed!==project){const before=copy();project=changed;commitVisualEdit(before);}
    return;
  }
  if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){chooseWireColor(t.value)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}

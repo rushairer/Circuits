@@ -1,6 +1,6 @@
 export type Kind = 'battery' | 'resistor' | 'led' | 'breadboard' | 'arduino' | 'switch' | 'pushbutton' | 'potentiometer' | 'capacitor' | 'buzzer' | 'multimeter' | 'ammeter' | 'servo';
 export type LedColor='red'|'green'|'yellow'|'orange'|'blue'|'white';
-export interface Part { id:string; kind:Kind; x:number; y:number; value?:number; initialVolts?:number; closed?:boolean; contactOhms?:number; rotation:number; ledColor?:LedColor }
+export interface Part { id:string; kind:Kind; x:number; y:number; value?:number; name?:string; initialVolts?:number; closed?:boolean; contactOhms?:number; rotation:number; ledColor?:LedColor }
 export interface Endpoint { componentId:string; pinId:string }
 /** Wire connector types affect drawing hardware only, never electrical connectivity. */
 export type WireType='normal'|'hookup'|'alligator'|'automatic';
@@ -50,7 +50,7 @@ export function validProject(v:unknown):v is Project {
  if(!(typeof p.name==='string'&&p.name.length<=120&&typeof p.code==='string'&&p.code.length<=300000&&Array.isArray(p.parts)&&p.parts.length<=300&&Array.isArray(p.wires)&&p.wires.length<=2000))return false;
  const ids=new Set<string>();
  for(const c of p.parts){
-   if(!c||typeof c.id!=='string'||!/^[\w-]{1,80}$/.test(c.id)||ids.has(c.id)||!parts.includes(c.kind)||!Number.isFinite(c.x)||!Number.isFinite(c.y)||!Number.isFinite(c.rotation)||Math.abs(c.x)>100000||Math.abs(c.y)>100000||(c.closed!==undefined&&typeof c.closed!=='boolean')||(c.contactOhms!==undefined&&(c.kind!=='switch'||!Number.isFinite(c.contactOhms)||c.contactOhms<0||c.contactOhms>1e6||(c.contactOhms>0&&c.contactOhms<0.1)))||(c.kind==='ammeter'&&c.value!==undefined)||(c.ledColor!==undefined&&(c.kind!=='led'||!['red','green','yellow','orange','blue','white'].includes(c.ledColor)))||(c.initialVolts!==undefined&&(c.kind!=='capacitor'||!Number.isFinite(c.initialVolts)||Math.abs(c.initialVolts)>1000))||c.value!==undefined&&(!Number.isFinite(c.value)||Math.abs(c.value)>1e12))return false;
+   if(!c||typeof c.id!=='string'||!/^[\w-]{1,80}$/.test(c.id)||ids.has(c.id)||(c.name!==undefined&&(typeof c.name!=='string'||c.name.length>80||/[\u0000-\u001f\u007f]/.test(c.name)))||!parts.includes(c.kind)||!Number.isFinite(c.x)||!Number.isFinite(c.y)||!Number.isFinite(c.rotation)||Math.abs(c.x)>100000||Math.abs(c.y)>100000||(c.closed!==undefined&&typeof c.closed!=='boolean')||(c.contactOhms!==undefined&&(c.kind!=='switch'||!Number.isFinite(c.contactOhms)||c.contactOhms<0||c.contactOhms>1e6||(c.contactOhms>0&&c.contactOhms<0.1)))||(c.kind==='ammeter'&&c.value!==undefined)||(c.ledColor!==undefined&&(c.kind!=='led'||!['red','green','yellow','orange','blue','white'].includes(c.ledColor)))||(c.initialVolts!==undefined&&(c.kind!=='capacitor'||!Number.isFinite(c.initialVolts)||Math.abs(c.initialVolts)>1000))||c.value!==undefined&&(!Number.isFinite(c.value)||Math.abs(c.value)>1e12))return false;
    ids.add(c.id);
  }
  if(p.insertions!==undefined){

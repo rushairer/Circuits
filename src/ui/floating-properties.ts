@@ -41,7 +41,7 @@ export function placeQuickProperties(
 
 /** The existing inspector remains the canonical validation and undo path. */
 export function renderQuickProperties(part:Part):string {
- const header='<div class="quick-heading"><div><strong>'+escape(labels[part.kind])+
+ const header='<div class="quick-heading"><div><strong>'+escape(part.name||labels[part.kind])+
   '</strong><small>'+escape(part.id)+' · 快捷属性</small></div>'+
   '<button type="button" data-action="parts" title="关闭快捷属性" aria-label="关闭快捷属性">×</button></div>';
  const title=part.kind==='resistor'?'阻值 (Ω)':part.kind==='battery'?'电压 (V)':
@@ -64,7 +64,10 @@ export function renderQuickProperties(part:Part):string {
   '<small class="quick-hint">详细规格和仿真读数请查看右侧属性栏</small>':'';
  return '<section role="region" aria-label="'+escape(labels[part.kind])+' 快捷属性" '+
   'class="quick-properties" data-quick-for="'+escape(part.id)+'">'+header+
-  '<div class="quick-fields">'+value+led+capacitor+toggle+generic+'</div>'+
+  '<div class="quick-fields">'+
+   '<label class="quick-field">名称<input data-quick-field="part-name" type="text" maxlength="80" '+
+   'autocomplete="off" aria-label="快捷元件名称" value="'+escape(part.name??'')+'" placeholder="'+escape(labels[part.kind])+'"/></label>'+
+   value+led+capacitor+toggle+generic+'</div>'+
   '<div class="quick-actions"><button type="button" data-action="rotate">⟳ 旋转</button>'+
   '<button type="button" data-action="delete" class="quick-danger">删除</button></div></section>';
 }
