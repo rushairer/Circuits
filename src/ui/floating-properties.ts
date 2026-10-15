@@ -1,4 +1,5 @@
-import { labels, type Part } from '../model.js';
+import { labels, type Part, type Wire } from '../model.js';
+import { WIRE_TYPES } from '../core/wire-types.js';
 import { LED_COLORS, ledAppearance } from '../core/led-colors.js';
 
 export interface ScreenRect {left:number;top:number;right:number;bottom:number}
@@ -66,4 +67,28 @@ export function renderQuickProperties(part:Part):string {
   '<div class="quick-fields">'+value+led+capacitor+toggle+generic+'</div>'+
   '<div class="quick-actions"><button type="button" data-action="rotate">⟳ 旋转</button>'+
   '<button type="button" data-action="delete" class="quick-danger">删除</button></div></section>';
+}
+
+
+/** Selected conductor overlay; real electrical identity stays in Project.wires. */
+export function renderQuickWireProperties(wire:Wire):string {
+ const type=wire.type??'normal';
+ const options=WIRE_TYPES.map(item=>
+   '<option value="'+item.value+'"'+(type===item.value?' selected':'')+'>'+
+   escape(item.label)+'</option>').join('');
+ const routing=wire.routing==='horizontal'?'横向优先':wire.routing==='vertical'?'纵向优先':'传统兼容路径';
+ return '<section role="region" class="quick-properties quick-wire-properties" '+
+   'aria-label="导线快捷属性" data-quick-wire-for="'+escape(wire.id)+'">'+
+   '<div class="quick-heading"><div><strong>导线属性</strong><small>'+
+   escape(wire.id)+' · '+(wire.bends?.length??0)+' 个折点</small></div>'+
+   '<button type="button" aria-label="关闭导线快捷属性" data-action="parts">×</button></div>'+
+   '<div class="quick-fields">'+
+   '<label class="quick-field">导线颜色<input data-quick-field="wire-color" type="color" '+
+   'aria-label="快捷导线颜色" value="'+escape(wire.color)+'"/></label>'+
+   '<label class="quick-field">线缆类型<select data-quick-field="wire-type" aria-label="快捷线缆类型">'+options+'</select></label>'+
+   '<div class="quick-routing-status">正交走线：'+routing+'</div></div>'+
+   '<div class="quick-actions"><button type="button" data-action="quick-wire-flip-direction" '+
+   'aria-label="切换导线正交走线方向">↳ 切换方向</button>'+
+   '<button type="button" data-action="quick-wire-delete" class="quick-danger">删除</button></div>'+
+   '</section>';
 }

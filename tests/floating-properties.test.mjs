@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { placeQuickProperties,renderQuickProperties } from '../.test-dist/ui/floating-properties.js';
+import { placeQuickProperties,renderQuickProperties,renderQuickWireProperties } from '../.test-dist/ui/floating-properties.js';
 
 const rect=(left,top,right,bottom)=>({left,top,right,bottom});
 test('floating inspector chooses an unobstructed candidate within the canvas',()=>{
@@ -29,4 +29,21 @@ test('quick property inputs are distinct from canonical inspector IDs',()=>{
  const escaped=renderQuickProperties({id:'<bad>&"',kind:'servo',x:0,y:0,rotation:0});
  assert.match(escaped,/&lt;bad&gt;&amp;&quot;/);
  assert.doesNotMatch(escaped,/<bad>/);
+});
+
+
+test('wire quick controls preserve custom colors, connector type and legacy route as presentation',()=>{
+ const a={id:'w1',from:{componentId:'b1',pinId:'positive'},to:{componentId:'r1',pinId:'a'},color:'#ab45cd'};
+ const html=renderQuickWireProperties(a);
+ assert.match(html,/data-quick-wire-for="w1"/);
+ assert.match(html,/value="#ab45cd"/);
+ assert.match(html,/data-quick-field="wire-type"/);
+ assert.match(html,/传统兼容路径/);
+ assert.match(html,/data-action="quick-wire-flip-direction"/);
+ assert.doesNotMatch(html,/data-action="wire-flip-direction"/);
+ const next=renderQuickWireProperties({...a,type:'alligator',routing:'vertical',bends:[{x:10,y:20}]});
+ assert.match(next,/value="alligator" selected/);
+ assert.match(next,/纵向优先/);
+ assert.match(next,/1 个折点/);
+ assert.doesNotMatch(next,/id="wire-color"|id="wire-type"/);
 });

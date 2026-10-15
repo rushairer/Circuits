@@ -45,3 +45,5 @@ Reference: W3C Pointer Events Level 3, https://www.w3.org/TR/pointerevents3/ (ca
 - Toolbar groups are presentational, preserve existing data-action identities and hotkeys, and must not block the primary Run control or hide a command behind an inaccessible scroll trap.
 
 - Context quick-property chrome must be pointer-transparent except actual inputs/buttons. A new popover must never intercept a blank-canvas deselect/pan or prevent selecting another real SVG component; avoid duplicated data-action selectors for old inspector actions (the quick switch has its own delegated action).
+
+- A single selected wire has a contextual quick card anchored to its visible SVG conductor. Quick color/type edits delegate to the canonical sidebar/toolbar change handlers; direction flips use the existing one-undo path. Never persist popup placement, alter endpoints, capture blank-canvas clicks or display a single-wire card during Shift batch wire selection. Use uniquely named quick button actions.

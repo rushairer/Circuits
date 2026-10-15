@@ -87,3 +87,42 @@ test('quick switch uses a unique action, toggles the real circuit, and retains r
  await page.locator('[data-action="undo"]').click();
  expect((await part(page,'qs1')).closed).toBe(false);
 });
+
+
+test('single selected wire exposes contextual type/direction without changing electrical endpoints',async({page})=>{
+ await page.goto('/');
+ const original=JSON.parse((await snapshot(page))!);
+ await page.locator('.wire[data-wire="w1"]').click();
+ const quick=page.locator('.quick-wire-properties[data-quick-wire-for="w1"]');
+ await expect(quick).toBeVisible();
+ await expect(quick.locator('[data-quick-field="wire-type"]')).toHaveValue('normal');
+ await quick.locator('[data-quick-field="wire-type"]').selectOption('hookup');
+ let saved=JSON.parse((await snapshot(page))!);
+ expect(saved.wires[0].type).toBe('hookup');
+ expect(saved.wires[0].from).toEqual(original.wires[0].from);
+ expect(saved.wires[0].to).toEqual(original.wires[0].to);
+ await page.locator('.quick-wire-properties [data-action="quick-wire-flip-direction"]').click();
+ saved=JSON.parse((await snapshot(page))!);
+ expect(saved.wires[0].routing).toBe('horizontal');
+ expect(saved.wires[0].from).toEqual(original.wires[0].from);
+ expect(saved.wires[0].to).toEqual(original.wires[0].to);
+ await page.locator('[data-action="undo"]').click();
+ saved=JSON.parse((await snapshot(page))!);
+ expect(saved.wires[0].routing).toBeUndefined();
+ expect(saved.wires[0].type).toBe('hookup');
+ await page.locator('[data-action="undo"]').click();
+ expect(JSON.parse((await snapshot(page))!).wires).toEqual(original.wires);
+});
+
+test('floating wire inspector leaves Shift batch selection and native keyboard shortcuts intact',async({page})=>{
+ await page.goto('/');
+ await page.locator('.wire[data-wire="w1"]').click();
+ await expect(page.locator('.quick-wire-properties')).toBeVisible();
+ await page.locator('.wire[data-wire="w2"]').click({modifiers:['Shift']});
+ await expect(page.locator('.quick-wire-properties')).toHaveCount(0);
+ await expect(page.locator('.inspector')).toContainText('已选中 2 根导线');
+ await page.locator('#wire-type').selectOption('alligator');
+ const p=JSON.parse((await snapshot(page))!);
+ expect(p.wires[0].type).toBe('alligator');
+ expect(p.wires[1].type).toBe('alligator');
+});

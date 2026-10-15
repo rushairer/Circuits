@@ -27,7 +27,7 @@ import { createBom, bomCSV } from './core/bom.js';
 import { renderBomPanel } from './ui/bom-panel.js';
 import { createSchematic } from './core/schematic.js';
 import { renderSchematicPanel, schematicSvg } from './ui/schematic-panel.js';
-import { renderQuickProperties, placeQuickProperties, type ScreenRect } from './ui/floating-properties.js';
+import { renderQuickProperties, renderQuickWireProperties, placeQuickProperties, type ScreenRect } from './ui/floating-properties.js';
 import { composeCircuitLayers } from './ui/circuit-layers.js';
 import { snap, pinWorld, wirePoints, wirePath, type Point, type WireDirection } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
@@ -733,15 +733,18 @@ function positionQuickProperties(){
  const card=app.querySelector<HTMLElement>('.quick-properties');
  const stage=app.querySelector<HTMLElement>('.canvas');
  if(!card||!stage)return;
- const target=Array.from(stage.querySelectorAll<SVGGraphicsElement>('.item[data-part]'))
-   .find(node=>node.getAttribute('data-part')===card.dataset.quickFor);
+ const partNodes=Array.from(stage.querySelectorAll<SVGGraphicsElement>('.item[data-part]'));
+ const target=card.dataset.quickFor?
+   partNodes.find(node=>node.getAttribute('data-part')===card.dataset.quickFor):
+   Array.from(stage.querySelectorAll<SVGGraphicsElement>('.wire[data-wire]'))
+     .find(node=>node.getAttribute('data-wire')===card.dataset.quickWireFor);
  if(!target)return;
  const base=stage.getBoundingClientRect();
  const local=(r:DOMRect):ScreenRect=>({
   left:r.left-base.left,top:r.top-base.top,right:r.right-base.left,bottom:r.bottom-base.top
  });
- const obstacles=Array.from(stage.querySelectorAll<SVGGraphicsElement>('.item[data-part]'))
-   .filter(node=>node!==target).map(node=>local(node.getBoundingClientRect()));
+ const obstacles=partNodes.filter(node=>node!==target)
+   .map(node=>local(node.getBoundingClientRect()));
  const bottom=stage.querySelector<HTMLElement>('.bottom');
  if(bottom)obstacles.push(local(bottom.getBoundingClientRect()));
  const position=placeQuickProperties(local(target.getBoundingClientRect()),
@@ -787,7 +790,12 @@ function render(){
  const quickPart=selectedIds.size===1&&!showCode&&!showProjects&&!showExamples&&
    !wiring&&!notePlacement&&!bomOpen&&!schematicOpen&&!scopeOpen?
    project.parts.find(p=>p.id===selection):undefined;
- const quickMarkup=quickPart?renderQuickProperties(quickPart):'';
+ const quickWire=!quickPart&&!showCode&&!showProjects&&!showExamples&&
+   !wiring&&!notePlacement&&!bomOpen&&!schematicOpen&&!scopeOpen&&
+   !segmentDrag&&!endpointDrag&&!bendDrag&&selectedWireIds.size<=1?
+   project.wires.find(w=>w.id===selection):undefined;
+ const quickMarkup=quickPart?renderQuickProperties(quickPart):
+   quickWire?renderQuickWireProperties(quickWire):'';
  const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastNetwork?.reason??lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
  app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar" aria-label="编辑器工具栏"><div class="tool-group" role="group" aria-label="工程与历史"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button></div><div class="tool-group" role="group" aria-label="编辑和注释"><button data-action="note-add" aria-pressed="'+notePlacement+'" title="N · 添加注释">▤ 注释</button><button data-action="notes-visibility" aria-pressed="'+notesVisible+'" title="Shift+N · 显示或隐藏注释">'+(notesVisible?'◉ 显示注释':'◯ 隐藏注释')+'</button><button data-action="select-all">全选</button><button data-action="rotate" title="R · 旋转">⟳ 旋转</button><button data-action="delete">删除</button></div><div class="tool-group" role="group" aria-label="线缆工具">'+toolbarPalette+toolbarType+'</div><div class="tool-group" role="group" aria-label="代码与报表"><button data-action="code">〈/〉 代码</button><button data-action="bom-open" aria-label="查看自动生成的物料清单">▤ BOM</button><button data-action="schematic-open" aria-label="查看自动生成的原理图">◇ 原理图</button></div><div class="tool-group" role="group" aria-label="视图与模型"><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button></div><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+(notePlacement?' note-mode':'')+'">' +canvas()+quickMarkup+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+
    (bomOpen?renderBomPanel(createBom(project)):'')+
@@ -1057,7 +1065,8 @@ function handleClick(e:CanvasClick){
  case 'select-all':selectAllParts();break;
  case 'grid':gridEnabled=!gridEnabled;localStorage.setItem('circuits-grid',gridEnabled?'on':'off');render();break;
  case 'wire-direction':flipDraftDirection();break;
- case 'wire-flip-direction':{
+ case 'quick-wire-flip-direction':
+  case 'wire-flip-direction':{
    const w=project.wires.find(w=>w.id===selection);
    if(w){
      const previous=copy();
@@ -1079,7 +1088,8 @@ function handleClick(e:CanvasClick){
  case 'quick-toggle-switch':
   case 'toggle-switch':{const c=project.parts.find(p=>p.id===selection);if(c?.kind==='switch'){const b=copy();c.closed=!c.closed;rcTimeIndex=0;commit(b)}break}
  case 'rotate':rotateSelectedParts();break
- case 'delete':deleteSelection();break
+ case 'quick-wire-delete':
+  case 'delete':deleteSelection();break
  case 'code':showCode=!showCode;showProjects=false;showExamples=false;render();break;
  case 'bom-open':{
    pointerInput.cancel();clearWireDraft();scopeOpen=false;notePlacement=false;
@@ -1235,7 +1245,7 @@ app.addEventListener('change',async e=>{
  const t=e.target as HTMLInputElement;
  const quickField=t.dataset.quickField;
  if(quickField){
-   if(!['value','rc-initial','led-color'].includes(quickField))return;
+   if(!['value','rc-initial','led-color','wire-color','wire-type'].includes(quickField))return;
    const original=app.querySelector<HTMLInputElement|HTMLSelectElement>('#'+quickField);
    if(!original)return;
    original.value=t.value;
