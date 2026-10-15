@@ -128,8 +128,14 @@ export function renderSchematicPanel(result:SchematicResult,zoom=1):string {
    '<button data-action="schematic-zoom-out" aria-label="缩小原理图" '+(scale<=0.5?'disabled':'')+'>−</button>'+
    '<output aria-label="原理图缩放比例">'+Math.round(scale*100)+'%</output>'+
    '<button data-action="schematic-zoom-in" aria-label="放大原理图" '+(scale>=2?'disabled':'')+'>＋</button>'+
-   '<button data-action="schematic-zoom-reset" aria-label="恢复原理图实际尺寸">1:1</button></div>'+
+   '<button data-action="schematic-zoom-reset" aria-label="恢复原理图实际尺寸">1:1</button>'+
+   '<label class="schematic-net-filter">网络 <select id="schematic-net-focus" aria-label="高亮原理图电气网络">'+
+   '<option value="">全部网络</option>'+
+   result.nets.map(net=>'<option value="'+escape(net.id)+'">'+escape(net.id)+' · '+
+     (net.endpointKeys.length+net.boardContacts.length)+' 接点</option>').join('')+
+   '</select></label></div>'+
    '<div class="schematic-scroll"><div class="schematic-sheet" style="width:'+Math.round(result.width*scale)+'px;height:'+Math.round(result.height*scale)+'px">'+schematicSvg(result)+'</div></div>'+
+   '<p class="schematic-net-summary" role="status" hidden></p>'+
    (routeInfo?.reason?'<p class="schematic-warning">'+escape(routeInfo.reason)+'</p>':'')+
    (result.warnings.length?'<p class="schematic-warning">'+escape(result.warnings.join('；'))+'</p>':'')+
    '<p class="schematic-disclaimer">实心圆点表示同网络汇流；拱形跨线属于不同网络且不导通，最终连通性只由 N 编号和 Netlist 决定。面包板插孔按真实连接合并；部分复杂器件仍使用简化图形，并非原版像素级原理图。</p>':

@@ -183,3 +183,31 @@ test('schematic viewport zoom is independent from the saved project',async({page
  await expect(page.locator('.schematic-view-toolbar output')).toHaveText('100%');
  expect(await snapshot(page)).toBe(before);
 });
+
+
+test('schematic net focus highlights only authored topology without altering project or SVG export',async({page})=>{
+ await page.goto('/');
+ const before=await snapshot(page);
+ await openSchematic(page);
+ const select=page.locator('#schematic-net-focus');
+ await expect(select.locator('option')).toHaveCount(4);
+ await select.selectOption('N1');
+ const svg=page.locator('.schematic-svg');
+ await expect(svg).toHaveAttribute('data-schematic-focus-net','N1');
+ await expect(svg.locator('.sch-net[data-schematic-net="N2"]')).toHaveClass(/sch-dimmed/);
+ await expect(svg.locator('.sch-net[data-schematic-net="N1"]')).toHaveClass(/sch-focused/);
+ await expect(page.locator('.schematic-net-summary')).toContainText('N1');
+ expect(await snapshot(page)).toBe(before);
+ await page.locator('[data-action="schematic-zoom-in"]').click();
+ await expect(svg).toHaveAttribute('data-schematic-focus-net','N1');
+ const dlPromise=page.waitForEvent('download');
+ await page.locator('.schematic-dialog [data-action="schematic-export"]').click();
+ const dl=await dlPromise,source=await readFile((await dl.path())!,'utf8');
+ expect(source).not.toContain('sch-dimmed');
+ expect(source).not.toContain('data-schematic-focus-net');
+ expect((source.match(/class="sch-net"/g)||[])).toHaveLength(3);
+ await select.selectOption('');
+ await expect(svg).not.toHaveAttribute('data-schematic-focus-net','N1');
+ await page.keyboard.press('Escape');
+ expect(await snapshot(page)).toBe(before);
+});

@@ -252,3 +252,14 @@ test('collinear conductors of different network identities fall back to unambigu
  assert.match(schematicSvg(d),/data-schematic-route-mode="labels"/);
  assert.equal(first.netId===other.netId,false);
 });
+
+
+test('schematic net focus selector is non-persistent and SVG remains independently exportable',()=>{
+ const d=createSchematic(demo());
+ assert.equal(d.ok,true);
+ const html=renderSchematicPanel(d,1);
+ assert.match(html,/id="schematic-net-focus"/);
+ assert.match(html,/<option value="N1">N1/);
+ assert.match(html,/class="schematic-net-summary" role="status" hidden/);
+ assert.doesNotMatch(schematicSvg(d),/sch-focused|sch-dimmed|data-schematic-focus-net/);
+});

@@ -297,3 +297,12 @@
 
 /* Only genuine quick controls can take a click; all empty popover chrome is transparent to canvas selection, pins, marquee and panning. */
 .quick-properties :is(button,input,select){pointer-events:auto}
+
+/* Schematic net inspection: dim only view elements; export remains full and pure. */
+.schematic-net-filter{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:11px;font-weight:650;color:#50717c}
+.schematic-net-filter select{max-width:158px;height:31px;background:#fff;border:1px solid #c7dbe0;border-radius:6px;padding:4px 6px;font-size:11px;color:#294b58}
+.schematic-net-filter select:focus-visible{outline:2px solid #159f91;outline-offset:2px}
+.schematic-net-summary{margin:0;font-size:11px;line-height:1.5;color:#147c72;max-height:36px;overflow:auto}
+.schematic-net-summary[hidden]{display:none}
+.schematic-svg .sch-dimmed{opacity:.12!important}
+.schematic-svg .sch-focused{opacity:1!important}

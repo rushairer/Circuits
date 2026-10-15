@@ -56,6 +56,7 @@ let scopeOpen=false;
 let bomOpen=false;
 let schematicOpen=false;
 let schematicZoom=1;
+let schematicFocusNet='';
 let scopeCapacitorId='';
 let unoPreview:UnoPreviewResult|null=null;
 let unoPreviewTimeMs=0;
@@ -752,6 +753,34 @@ function positionQuickProperties(){
  card.style.left=Math.round(position.x)+'px';
  card.style.top=Math.round(position.y)+'px';
 }
+function applySchematicFocus(){
+ const svg=app.querySelector<SVGSVGElement>('.schematic-dialog .schematic-svg');
+ if(!svg)return;
+ const select=app.querySelector<HTMLSelectElement>('#schematic-net-focus');
+ const options=select?Array.from(select.options).map(o=>o.value):[];
+ const focus=options.includes(schematicFocusNet)?schematicFocusNet:'';
+ if(select)select.value=focus;
+ if(focus)svg.setAttribute('data-schematic-focus-net',focus);
+ else svg.removeAttribute('data-schematic-focus-net');
+ for(const el of Array.from(svg.querySelectorAll<SVGElement>('[data-schematic-net]'))){
+   const net=el.getAttribute('data-schematic-net');
+   el.classList.toggle('sch-dimmed',Boolean(focus)&&net!==focus);
+   el.classList.toggle('sch-focused',Boolean(focus)&&net===focus);
+ }
+ for(const el of Array.from(svg.querySelectorAll<SVGElement>('.sch-crossover'))){
+   const relevant=el.getAttribute('data-horizontal-net')===focus||
+     el.getAttribute('data-vertical-net')===focus;
+   el.classList.toggle('sch-dimmed',Boolean(focus)&&!relevant);
+ }
+ const label=app.querySelector<HTMLElement>('.schematic-net-summary');
+ if(label){
+   const net=Array.from(svg.querySelectorAll<SVGGElement>('.sch-net'))
+     .find(el=>el.getAttribute('data-schematic-net')===focus);
+   const text=net?.querySelector('title')?.textContent??'';
+   label.hidden=!focus;
+   label.textContent=focus?text.slice(0,170)+(text.length>170?'…':''):'';
+ }
+}
 function render(){
  const gpioFrame=unoPreview?.ok?sampleUnoPreview(unoPreview,unoPreviewTimeMs):null;
  lastGpio=gpioFrame&&unoPreview?.ok&&unoPreview.d13Configured?analyzeGpioD13(project,gpioFrame.high):null;
@@ -801,6 +830,7 @@ function render(){
    (bomOpen?renderBomPanel(createBom(project)):'')+
    (schematicOpen?renderSchematicPanel(createSchematic(project),schematicZoom):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'
  positionQuickProperties();
+ applySchematicFocus();
 }
 window.addEventListener('resize',positionQuickProperties);
 function add(kind:Kind,x?:number,y?:number){
@@ -1101,7 +1131,7 @@ function handleClick(e:CanvasClick){
  case 'bom-export':if(bomOpen)download(bomCSV(createBom(project)),'circuits-bom.csv');break;
  case 'schematic-open':{
    pointerInput.cancel();clearWireDraft();scopeOpen=false;bomOpen=false;notePlacement=false;
-   schematicOpen=true;schematicZoom=1;render();
+   schematicOpen=true;schematicZoom=1;schematicFocusNet='';render();
    app.querySelector<HTMLElement>('.schematic-dialog [data-action="schematic-close"]')?.focus();
    break;
  }
@@ -1251,6 +1281,11 @@ app.addEventListener('change',async e=>{
    original.value=t.value;
    original.dispatchEvent(new Event('change',{bubbles:true}));
    app.querySelector<HTMLElement>('[data-quick-field="'+quickField+'"]')?.focus();
+   return;
+ }
+ if(t.id==='schematic-net-focus'&&schematicOpen){
+   schematicFocusNet=t.value;
+   applySchematicFocus();
    return;
  }
  if(t.id==='component-category'){
@@ -1688,7 +1723,7 @@ window.addEventListener('keydown',e=>{
      e.preventDefault();schematicOpen=false;render();
      app.querySelector<HTMLElement>('[data-action="schematic-open"]')?.focus();
    }else if(e.key==='Tab'){
-     const controls=Array.from(app.querySelectorAll<HTMLElement>('.schematic-dialog button:not([disabled])'));
+     const controls=Array.from(app.querySelectorAll<HTMLElement>('.schematic-dialog button:not([disabled]),.schematic-dialog select'));
      const first=controls[0],last=controls.at(-1);
      if(first&&last&&e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
      else if(first&&last&&!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
