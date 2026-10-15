@@ -47,3 +47,23 @@ test('wire quick controls preserve custom colors, connector type and legacy rout
  assert.match(next,/1 个折点/);
  assert.doesNotMatch(next,/id="wire-color"|id="wire-type"/);
 });
+
+
+test('tablet contextual input never covers another clickable electronic component when a free zone exists',()=>{
+ // 1024px viewport: the selected resistor sits between a battery and LED.
+ // A name field makes the popover tall enough to cover LED at the old right slot.
+ const selected={left:310,top:155,right:410,bottom:205};
+ const battery={left:70,top:120,right:145,bottom:235};
+ const led={left:535,top:120,right:630,bottom:240};
+ const breadboard={left:350,top:340,right:675,bottom:510};
+ const popup=placeQuickProperties(selected,794,610,245,224,[battery,led,breadboard]);
+ const rect={left:popup.x,top:popup.y,right:popup.x+245,bottom:popup.y+224};
+ const intersect=(a,b)=>Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*
+   Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
+ assert.equal(intersect(rect,battery),0);
+ assert.equal(intersect(rect,led),0);
+ assert.equal(intersect(rect,breadboard),0);
+ assert.equal(intersect(rect,selected),0);
+ assert.ok(popup.x>=12&&rect.right<=794-12);
+ assert.ok(popup.y>=12&&rect.bottom<=610-12);
+});

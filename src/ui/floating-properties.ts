@@ -21,22 +21,35 @@ export function placeQuickProperties(
    return {x:12,y:12};
  const margin=12,w=Math.max(0,Math.min(width,stageWidth-margin*2)),
    h=Math.max(0,Math.min(height,stageHeight-margin*2));
- const proposals=[
-  {x:anchor.right+margin,y:anchor.top},
-  {x:anchor.left-w-margin,y:anchor.top},
-  {x:anchor.left,y:anchor.top-h-margin},
-  {x:anchor.left,y:anchor.bottom+margin},
-  {x:stageWidth-w-margin,y:margin}
+ // Both an adjacent LED pin and the panel's native input are clickable.
+ // Rank obstruction BEFORE proximity: even an interactive input must not cover
+ // another part when a free placement exists. Explore corners as well as the
+ // four immediate sides of the selected object (at most 30 candidates).
+ const xSlots=[
+  anchor.right+margin,anchor.left-w-margin,anchor.left,
+  stageWidth-w-margin,margin,(stageWidth-w)/2
  ];
- return proposals.map((p,index)=>{
-  const x=clamp(p.x,margin,Math.max(margin,stageWidth-w-margin)),
-    y=clamp(p.y,margin,Math.max(margin,stageHeight-h-margin));
+ const ySlots=[
+  anchor.top,anchor.top-h-margin,anchor.bottom+margin,
+  margin,stageHeight-h-margin
+ ];
+ const scored:{x:number;y:number;occupied:number;own:number;distance:number}[]=[];
+ const visited=new Set<string>();
+ for(const candidateX of xSlots)for(const candidateY of ySlots){
+  const x=clamp(candidateX,margin,Math.max(margin,stageWidth-w-margin));
+  const y=clamp(candidateY,margin,Math.max(margin,stageHeight-h-margin));
+  const key=x+','+y;
+  if(visited.has(key))continue;
+  visited.add(key);
   const box={left:x,top:y,right:x+w,bottom:y+h};
-  const score=overlap(box,anchor)*5+
-    obstacles.reduce((sum,r)=>sum+overlap(box,r)*3,0)+
-    Math.hypot(x-p.x,y-p.y)*55+index*0.01;
-  return {x,y,score};
- }).sort((a,b)=>a.score-b.score)[0];
+  const occupied=obstacles.reduce((sum,r)=>sum+overlap(box,r),0);
+  const own=overlap(box,anchor);
+  const distance=Math.hypot(x-(anchor.right+margin),y-anchor.top);
+  scored.push({x,y,occupied,own,distance});
+ }
+ scored.sort((a,b)=>a.occupied-b.occupied||a.own-b.own||
+   a.distance-b.distance||a.y-b.y||a.x-b.x);
+ return {x:scored[0].x,y:scored[0].y};
 }
 
 /** The existing inspector remains the canonical validation and undo path. */
