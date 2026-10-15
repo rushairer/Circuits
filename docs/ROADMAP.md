@@ -122,3 +122,5 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 - [ ] Authenticated original reference: floating property card position, typography, wire-specific property popup, responsive toolbar hierarchy, and touch/pen use; verify by visual comparison before claiming 1:1
 
 - [x] Alpha.11 schematic safety patch: reject different-net collinear strokes and crossings colliding with live net junctions; use complete N-labeled terminal fallback rather than visually fabricating connectivity
+
+- [x] Alpha.11 dense schematic: increase per-net orthogonal bus-lane spacing from 14 to 28 view units so radius-10 insulating crossover bridges cannot collide on adjacent trunks, with 12-net regression; neither terminal IDs nor electrical topology changes

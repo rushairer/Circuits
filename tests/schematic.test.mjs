@@ -4,7 +4,7 @@ import { blankProject, demo } from '../.test-dist/model.js';
 import { buildNetlist } from '../.test-dist/core/netlist.js';
 import { createSchematic,SCHEMATIC_MAX_COMPONENTS } from '../.test-dist/core/schematic.js';
 import { renderSchematicPanel,schematicSvg } from '../.test-dist/ui/schematic-panel.js';
-import { routeSchematic } from '../.test-dist/core/schematic-routing.js';
+import { routeSchematic,SCHEMATIC_LANE_STEP } from '../.test-dist/core/schematic-routing.js';
 
 const terminal=(diagram,id,pin)=>
  diagram.components.find(c=>c.id===id)?.terminals.find(t=>t.pinId===pin);
@@ -262,4 +262,28 @@ test('schematic net focus selector is non-persistent and SVG remains independent
  assert.match(html,/<option value="N1">N1/);
  assert.match(html,/class="schematic-net-summary" role="status" hidden/);
  assert.doesNotMatch(schematicSvg(d),/sch-focused|sch-dimmed|data-schematic-focus-net/);
+});
+
+
+test('dense but bounded schematic channels keep bridge clearance and complete network identities',()=>{
+ const project=blankProject();
+ project.parts=Array.from({length:24},(_,i)=>({
+  id:'r'+i,kind:'resistor',x:i*10,y:0,rotation:0,value:220
+ }));
+ project.wires=Array.from({length:12},(_,i)=>({
+  id:'w'+i,from:{componentId:'r'+(i*2),pinId:'a'},
+  to:{componentId:'r'+(i*2+1),pinId:'a'},color:'#35b65d'
+ }));
+ const source=structuredClone(project),diagram=createSchematic(project);
+ assert.equal(diagram.ok,true);
+ assert.equal(diagram.nets.length,12);
+ assert.ok(diagram.width>990);
+ const routes=routeSchematic(diagram);
+ assert.equal(routes.mode,'orthogonal');
+ assert.equal(routes.buses.length,12);
+ const lanes=routes.buses.map(x=>x.x).sort((a,b)=>a-b);
+ for(let i=1;i<lanes.length;i++)assert.ok(lanes[i]-lanes[i-1]>=28);
+ assert.equal(SCHEMATIC_LANE_STEP,28);
+ assert.deepEqual(project,source);
+ assert.equal((schematicSvg(diagram).match(/class="sch-net"/g)||[]).length,12);
 });

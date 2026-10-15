@@ -17,9 +17,11 @@ export interface SchematicRoutes {
  reason:string|null;
 }
 export const SCHEMATIC_LANE_START=490;
-export const SCHEMATIC_LANE_STEP=14;
+export const SCHEMATIC_LANE_STEP=28;
 export const SCHEMATIC_MAX_SEGMENTS=740;
 export const SCHEMATIC_MAX_CROSSINGS=240;
+// Bridge semicircle radius is 10px: adjacent trunks need at least 28px
+// to avoid overlapping insulated crossing glyphs at the same horizontal row.
 const BRIDGE_CLEARANCE=10;
 const empty=(reason:string):SchematicRoutes=>({
  mode:'labels',links:[],buses:[],junctions:[],crossings:[],reason
