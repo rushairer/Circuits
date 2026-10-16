@@ -29,8 +29,9 @@ import { createSchematic } from './core/schematic.js';
 import { renderSchematicPanel, schematicSvg } from './ui/schematic-panel.js';
 import { renderQuickProperties, renderQuickWireProperties, placeQuickProperties, type ScreenRect } from './ui/floating-properties.js';
 import { renamePart } from './core/part-name.js';
-import { RESISTANCE_UNITS,isResistanceUnit,changeResistorValue,resistorDisplayValue } from './core/resistance-units.js';
+import { isResistanceUnit,changeResistorValue } from './core/resistance-units.js';
 import { resistorValueFields } from './ui/resistor-value-fields.js';
+import { resistorArtwork } from './ui/resistor-artwork.js';
 import { composeCircuitLayers } from './ui/circuit-layers.js';
 import { snap, pinWorld, wirePoints, wirePath, type Point, type WireDirection } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
@@ -293,7 +294,7 @@ function art(c:Part){
    (simulationMode==='rc'?rcAmmeterReading(c.id):simulationMode==='nonlinear'?lastAnalysis?.ammeters[c.id]:null):null;
  const ampText=currentText(ampReading??null);
  if(c.kind==='battery')return '<rect x="8" y="10" width="76" height="119" rx="12" fill="#303b43"/><rect x="8" y="10" width="76" height="32" rx="9" fill="#eca738"/><text x="46" y="86" font-size="25" text-anchor="middle" fill="white">9V</text><text x="70" y="42" fill="white">+</text><text x="70" y="108" fill="white">−</text>';
- if(c.kind==='resistor')return '<path d="M0 30H140" stroke="#b7a17d" stroke-width="5"/><rect x="36" y="13" width="68" height="35" rx="16" fill="#d7b68c" stroke="#bc936c"/><path d="M54 13v35m12-35v35m12-35v35" stroke="#9c542e" stroke-width="6"/><text x="70" y="9" font-size="13" text-anchor="middle" fill="#667988">'+resistorDisplayValue(c)+RESISTANCE_UNITS.find(u=>u.value===(c.resistanceUnit??'ohm'))!.symbol+'</text>';
+ if(c.kind==='resistor')return resistorArtwork(c);
  if(c.kind==='led'){
    const appearance=ledAppearance(c.ledColor);
    return '<path d="M0 65H110" stroke="#b6c1c7" stroke-width="5"/>'+

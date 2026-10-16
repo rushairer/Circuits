@@ -20,6 +20,7 @@
     "src/ui/schematic-panel.ts",
     "src/ui/floating-properties.ts",
     "src/ui/resistor-value-fields.ts",
+    "src/ui/resistor-artwork.ts",
     "src/model.ts"
   ]
 }

@@ -130,3 +130,5 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 - [x] Alpha.11 resistor property foundation: validate optional resistor SI unit p/n/u/m/Ω/k/M/G and immutable canonical-ohm changes, preserving legacy project/netlist identities; follow with connected inspector controls
 
 - [x] Alpha.11 resistor SI prefix controls in canonical right Inspector and canvas quick properties; numeric/prefix edits are single history entries and imported project field remains optional
+
+- [x] Alpha.11 resistor body paint reacts to actual value edits with standard 4/5 color-band rules, including negative IEC multipliers, exact-value fallback and three-engine/immutable topology checks
