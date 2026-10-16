@@ -126,3 +126,5 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 - [x] Alpha.11 dense schematic: increase per-net orthogonal bus-lane spacing from 14 to 28 view units so radius-10 insulating crossover bridges cannot collide on adjacent trunks, with 12-net regression; neither terminal IDs nor electrical topology changes
 
 - [x] Context quick-card collision regression: bounded candidate search prioritizes zero overlap with actual clickable neighboring parts and selected part before nearest-side preference; native controls cannot cover nearby component clicks in 1024px tablet layout
+
+- [x] Alpha.11 resistor property foundation: validate optional resistor SI unit p/n/u/m/Ω/k/M/G and immutable canonical-ohm changes, preserving legacy project/netlist identities; follow with connected inspector controls
