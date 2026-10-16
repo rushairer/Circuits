@@ -29,6 +29,8 @@ import { createSchematic } from './core/schematic.js';
 import { renderSchematicPanel, schematicSvg } from './ui/schematic-panel.js';
 import { renderQuickProperties, renderQuickWireProperties, placeQuickProperties, type ScreenRect } from './ui/floating-properties.js';
 import { renamePart } from './core/part-name.js';
+import { RESISTANCE_UNITS,isResistanceUnit,changeResistorValue,resistorDisplayValue } from './core/resistance-units.js';
+import { resistorValueFields } from './ui/resistor-value-fields.js';
 import { composeCircuitLayers } from './ui/circuit-layers.js';
 import { snap, pinWorld, wirePoints, wirePath, type Point, type WireDirection } from './core/geometry.js';
 import { WORKSPACE_KEY, MAX_PROJECTS, migrateWorkspace, activeProject, saveCurrent, createProject, switchProject, deleteProject } from './core/storage.js';
@@ -291,7 +293,7 @@ function art(c:Part){
    (simulationMode==='rc'?rcAmmeterReading(c.id):simulationMode==='nonlinear'?lastAnalysis?.ammeters[c.id]:null):null;
  const ampText=currentText(ampReading??null);
  if(c.kind==='battery')return '<rect x="8" y="10" width="76" height="119" rx="12" fill="#303b43"/><rect x="8" y="10" width="76" height="32" rx="9" fill="#eca738"/><text x="46" y="86" font-size="25" text-anchor="middle" fill="white">9V</text><text x="70" y="42" fill="white">+</text><text x="70" y="108" fill="white">−</text>';
- if(c.kind==='resistor')return '<path d="M0 30H140" stroke="#b7a17d" stroke-width="5"/><rect x="36" y="13" width="68" height="35" rx="16" fill="#d7b68c" stroke="#bc936c"/><path d="M54 13v35m12-35v35m12-35v35" stroke="#9c542e" stroke-width="6"/><text x="70" y="9" font-size="13" text-anchor="middle" fill="#667988">'+(c.value??220)+'Ω</text>';
+ if(c.kind==='resistor')return '<path d="M0 30H140" stroke="#b7a17d" stroke-width="5"/><rect x="36" y="13" width="68" height="35" rx="16" fill="#d7b68c" stroke="#bc936c"/><path d="M54 13v35m12-35v35m12-35v35" stroke="#9c542e" stroke-width="6"/><text x="70" y="9" font-size="13" text-anchor="middle" fill="#667988">'+resistorDisplayValue(c)+RESISTANCE_UNITS.find(u=>u.value===(c.resistanceUnit??'ohm'))!.symbol+'</text>';
  if(c.kind==='led'){
    const appearance=ledAppearance(c.ledColor);
    return '<path d="M0 65H110" stroke="#b6c1c7" stroke-width="5"/>'+
@@ -622,7 +624,8 @@ function side(){
    (c.kind==='led'?'<label for="led-color">LED 颜色</label><select id="led-color" aria-label="LED 颜色">'+
      LED_COLORS.map(color=>'<option value="'+color.value+'" '+(ledAppearance(c.ledColor).value===color.value?'selected':'')+'>'+color.label+'</option>').join('')+
      '</select><small>仅改变发光与灯罩外观，当前实验求解器尚未按波长调整器件物理模型。</small>':'')+
-   (c.kind==='resistor'||c.kind==='battery'||c.kind==='capacitor'?'<label>数值 ('+(c.kind==='resistor'?'Ω':c.kind==='capacitor'?'µF':'V')+')</label><input id="value" type="number" min="'+(c.kind==='capacitor'?'0.001':'1')+'" step="any" value="'+(c.value??(c.kind==='capacitor'?100:1))+'"/>':'')+(c.kind==='capacitor'?'<label>初始电压（V）</label><input id="rc-initial" type="number" min="-1000" max="1000" step="any" value="'+(c.initialVolts??0)+'"/><small>按 t=0 初始状态计算，不模拟电路的历史充电过程。</small>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(gpioLed?'<p id="gpio-led-inspector">D13 电流：'+gpioLed.currentMilliAmps.toFixed(3)+'mA · '+(gpioLed.status==='overcurrent'?'过流':gpioLed.lit?'点亮':'熄灭')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(rcMeter?'<p id="rc-meter-inspector">RC 采样电压：'+(rcMeter.status==='measured'&&rcMeter.volts!==null?rcMeter.volts.toFixed(3)+' V · 理想高阻表笔':'—（'+rcMeter.reason+'）')+'</p>':'')+(rcValue?'<p>RC 当前采样：'+rcValue.voltageVolts.toFixed(3)+' V · '+rcValue.currentMilliAmps.toFixed(3)+' mA</p>':'')+(networkValue?'<p id="rc-network-inspector">多电容当前采样：'+networkValue.voltageVolts.toFixed(3)+' V · '+(networkValue.currentMilliAmps===null?'未估算':networkValue.currentMilliAmps.toFixed(3)+' mA')+'</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<label for="switch-contact">闭合接触电阻（Ω）</label><input id="switch-contact" type="number" min="0" max="1000000" step="any" value="'+(c.contactOhms??0)+'"/><small>0Ω 为原来的理想闭合开关；可设置 0.1–1,000,000Ω。开路仍不导通。状态改变从 t=0 重新计算。</small><button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+
+   (c.kind==='resistor'?resistorValueFields(c):
+    c.kind==='battery'||c.kind==='capacitor'?'<label>数值 ('+(c.kind==='capacitor'?'µF':'V')+')</label><input id="value" type="number" min="'+(c.kind==='capacitor'?'0.001':'1')+'" step="any" value="'+(c.value??(c.kind==='capacitor'?100:1))+'"/>':'')+(c.kind==='capacitor'?'<label>初始电压（V）</label><input id="rc-initial" type="number" min="-1000" max="1000" step="any" value="'+(c.initialVolts??0)+'"/><small>按 t=0 初始状态计算，不模拟电路的历史充电过程。</small>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(gpioLed?'<p id="gpio-led-inspector">D13 电流：'+gpioLed.currentMilliAmps.toFixed(3)+'mA · '+(gpioLed.status==='overcurrent'?'过流':gpioLed.lit?'点亮':'熄灭')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(rcMeter?'<p id="rc-meter-inspector">RC 采样电压：'+(rcMeter.status==='measured'&&rcMeter.volts!==null?rcMeter.volts.toFixed(3)+' V · 理想高阻表笔':'—（'+rcMeter.reason+'）')+'</p>':'')+(rcValue?'<p>RC 当前采样：'+rcValue.voltageVolts.toFixed(3)+' V · '+rcValue.currentMilliAmps.toFixed(3)+' mA</p>':'')+(networkValue?'<p id="rc-network-inspector">多电容当前采样：'+networkValue.voltageVolts.toFixed(3)+' V · '+(networkValue.currentMilliAmps===null?'未估算':networkValue.currentMilliAmps.toFixed(3)+' mA')+'</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<label for="switch-contact">闭合接触电阻（Ω）</label><input id="switch-contact" type="number" min="0" max="1000000" step="any" value="'+(c.contactOhms??0)+'"/><small>0Ω 为原来的理想闭合开关；可设置 0.1–1,000,000Ω。开路仍不导通。状态改变从 t=0 重新计算。</small><button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+
    (c.kind==='ammeter'?'<p id="ammeter-inspector">'+
      (simulationMode==='rc'?(rcAmp?.milliAmps!==null&&rcAmp?
        'RC 串联电流：'+rcAmp.milliAmps.toFixed(3)+' mA · '+rcAmp.reason:
@@ -1278,7 +1281,7 @@ app.addEventListener('change',async e=>{
  const t=e.target as HTMLInputElement;
  const quickField=t.dataset.quickField;
  if(quickField){
-   if(!['value','rc-initial','led-color','wire-color','wire-type','part-name'].includes(quickField))return;
+   if(!['value','value-unit','rc-initial','led-color','wire-color','wire-type','part-name'].includes(quickField))return;
    const original=app.querySelector<HTMLInputElement|HTMLSelectElement>('#'+quickField);
    if(!original)return;
    original.value=t.value;
@@ -1333,13 +1336,37 @@ app.addEventListener('change',async e=>{
    }
    return;
  }
+ if(t.id==='value-unit'){
+   const part=project.parts.find(p=>p.id===selection);
+   const numeric=app.querySelector<HTMLInputElement>('#value');
+   if(part?.kind!=='resistor'||!isResistanceUnit(t.value)||!numeric||
+      numeric.value.trim()===''){render();return;}
+   const next=changeResistorValue(project,part.id,Number(numeric.value),t.value);
+   if(next===null){render();return;}
+   if(next!==project){const before=copy();project=next;commit(before);}
+   return;
+ }
  if(t.id==='part-name'){
    const changed=renamePart(project,selection??'',t.value);
    if(changed===null){render();return}
    if(changed!==project){const before=copy();project=changed;commitVisualEdit(before);}
    return;
  }
- if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){chooseWireColor(t.value)}}if(t.id==='value'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b)}else render()}
+ if(t.id==='name'){project.name=t.value.trim().slice(0,120)||'未命名电路';save();render()}if(t.id==='wire-color'){const w=project.wires.find(w=>w.id===selection);if(w&&/^#[0-9a-f]{6}$/i.test(t.value)){chooseWireColor(t.value)}}if(t.id==='value'){
+  const c=project.parts.find(p=>p.id===selection);
+  if(c?.kind==='resistor'){
+   const selected=app.querySelector<HTMLSelectElement>('#value-unit')?.value;
+   const next=t.value.trim()!==''&&isResistanceUnit(selected)?
+      changeResistorValue(project,c.id,Number(t.value),selected):null;
+   if(next===null){render();return;}
+   if(next!==project){const before=copy();project=next;commit(before);}
+   return;
+  }
+  const num=Number(t.value);
+  if(c&&t.value.trim()!==''&&Number.isFinite(num)&&num>0&&num<=(c.kind==='capacitor'?1e6:1e12)&&(c.kind!=='capacitor'||num>=0.001)){
+   const b=copy();c.value=num;if(c.kind==='capacitor')rcTimeIndex=0;commit(b);
+  }else render();
+ }
  if(t.id==='switch-contact'){const c=project.parts.find(p=>p.id===selection);const value=Number(t.value);if(c?.kind==='switch'&&t.value.trim()!==''&&Number.isFinite(value)&&(value===0||(value>=0.1&&value<=1e6))){const before=copy();c.contactOhms=value;rcTimeIndex=0;commit(before)}else render()}
  if(t.id==='rc-initial'){const c=project.parts.find(p=>p.id===selection);const num=Number(t.value);if(c?.kind==='capacitor'&&Number.isFinite(num)&&Math.abs(num)<=1000){const b=copy();c.initialVolts=num;rcTimeIndex=0;commit(b)}else render()}if(t.id==='file'&&t.files?.[0]){try{const p=JSON.parse(await t.files[0].text());if(!validProject(p))throw Error();pointerInput.cancel();const b=copy();project=reconcileInsertions({...p,schemaVersion:2});selection=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;notesVisible=true;rcTimeIndex=0;scopeOpen=false;scopeCapacitorId='';commit(b)}catch{alert('JSON 工程文件格式不正确')}}});
 app.addEventListener('dragstart',e=>{const p=(e.target as Element).closest<HTMLElement>('[data-kind]');if(p)e.dataTransfer?.setData('text/circuit-kind',p.dataset.kind!)});

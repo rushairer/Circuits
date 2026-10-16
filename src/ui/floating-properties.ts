@@ -1,6 +1,7 @@
 import { labels, type Part, type Wire } from '../model.js';
 import { WIRE_TYPES } from '../core/wire-types.js';
 import { LED_COLORS, ledAppearance } from '../core/led-colors.js';
+import { resistorValueFields } from './resistor-value-fields.js';
 
 export interface ScreenRect {left:number;top:number;right:number;bottom:number}
 export interface ScreenPoint {x:number;y:number}
@@ -60,7 +61,7 @@ export function renderQuickProperties(part:Part):string {
  const title=part.kind==='resistor'?'阻值 (Ω)':part.kind==='battery'?'电压 (V)':
   part.kind==='capacitor'?'电容 (µF)':null;
  const fallback=part.kind==='resistor'?220:part.kind==='battery'?9:100;
- const value=title?'<label class="quick-field">'+title+
+ const value=title&&part.kind!=='resistor'?'<label class="quick-field">'+title+
   '<input type="number" data-quick-field="value" aria-label="快捷'+title+'" step="any" min="'+
   (part.kind==='capacitor'?'0.001':'1')+'" value="'+(part.value??fallback)+'"/></label>':'';
  const led=part.kind==='led'?'<label class="quick-field">LED 颜色'+
@@ -80,7 +81,7 @@ export function renderQuickProperties(part:Part):string {
   '<div class="quick-fields">'+
    '<label class="quick-field">名称<input data-quick-field="part-name" type="text" maxlength="80" '+
    'autocomplete="off" aria-label="快捷元件名称" value="'+escape(part.name??'')+'" placeholder="'+escape(labels[part.kind])+'"/></label>'+
-   value+led+capacitor+toggle+generic+'</div>'+
+   (part.kind==='resistor'?resistorValueFields(part,true):value)+led+capacitor+toggle+generic+'</div>'+
   '<div class="quick-actions"><button type="button" data-action="rotate">⟳ 旋转</button>'+
   '<button type="button" data-action="delete" class="quick-danger">删除</button></div></section>';
 }

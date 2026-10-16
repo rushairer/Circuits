@@ -128,3 +128,5 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 - [x] Context quick-card collision regression: bounded candidate search prioritizes zero overlap with actual clickable neighboring parts and selected part before nearest-side preference; native controls cannot cover nearby component clicks in 1024px tablet layout
 
 - [x] Alpha.11 resistor property foundation: validate optional resistor SI unit p/n/u/m/Ω/k/M/G and immutable canonical-ohm changes, preserving legacy project/netlist identities; follow with connected inspector controls
+
+- [x] Alpha.11 resistor SI prefix controls in canonical right Inspector and canvas quick properties; numeric/prefix edits are single history entries and imported project field remains optional

@@ -306,3 +306,11 @@
 .schematic-net-summary[hidden]{display:none}
 .schematic-svg .sch-dimmed{opacity:.12!important}
 .schematic-svg .sch-focused{opacity:1!important}
+
+/* The resistor mantissa and SI prefix are a single original-style property control. */
+.resistance-field{display:flex;flex-direction:column;gap:5px}
+.resistance-value-row{display:flex;align-items:stretch;gap:5px;max-width:100%}
+.resistance-value-row input{flex:1 1 auto;min-width:0;width:68px}
+.resistance-value-row select{flex:0 0 64px;min-width:0;width:64px;background:#fff;border:1px solid #d2e0e3;border-radius:6px;color:#31535f;padding:5px}
+.quick-properties .resistance-value-row select{flex-basis:60px;width:60px;font-size:12px}
+.resistance-value-row select:focus-visible{outline:2px solid #119d91;outline-offset:2px}
