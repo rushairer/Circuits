@@ -67,3 +67,31 @@ test('tablet contextual input never covers another clickable electronic componen
  assert.ok(popup.x>=12&&rect.right<=794-12);
  assert.ok(popup.y>=12&&rect.bottom<=610-12);
 });
+
+
+test('context inspector never overlays the originally selected part just to avoid a nearby obstacle',()=>{
+ const anchor={left:260,top:175,right:380,bottom:245};
+ const parts=[
+  {left:390,top:120,right:620,bottom:425},
+  {left:15,top:80,right:160,bottom:370},
+  {left:200,top:400,right:660,bottom:540}
+ ];
+ const point=placeQuickProperties(anchor,730,605,245,250,parts);
+ const rect={left:point.x,top:point.y,right:point.x+245,bottom:point.y+250};
+ const collision=(a,b)=>Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*
+   Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));
+ assert.equal(collision(rect,anchor),0);
+ assert.ok(point.x>=12&&point.y>=12);
+ assert.ok(rect.right<=718&&rect.bottom<=593);
+});
+test('busy responsive scene still produces a finite bounded fallback without expensive unbounded search',()=>{
+ const obstacles=Array.from({length:300},(_,i)=>({
+  left:(i%20)*31,top:Math.floor(i/20)*32,
+  right:(i%20)*31+55,bottom:Math.floor(i/20)*32+60
+ }));
+ const spot=placeQuickProperties({left:250,top:210,right:320,bottom:275},
+  620,500,245,226,obstacles);
+ assert.ok(Number.isFinite(spot.x)&&Number.isFinite(spot.y));
+ assert.ok(spot.x>=12&&spot.x<=363);
+ assert.ok(spot.y>=12&&spot.y<=262);
+});

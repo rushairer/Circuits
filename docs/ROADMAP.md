@@ -132,3 +132,5 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 - [x] Alpha.11 resistor SI prefix controls in canonical right Inspector and canvas quick properties; numeric/prefix edits are single history entries and imported project field remains optional
 
 - [x] Alpha.11 resistor body paint reacts to actual value edits with standard 4/5 color-band rules, including negative IEC multipliers, exact-value fallback and three-engine/immutable topology checks
+
+- [x] Alpha.11 WebKit tablet regression: constrained popover candidate search includes nearest obstacle edges and explicitly protects the selected SVG component from native control hit occlusion, with dense scene layout checks

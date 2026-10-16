@@ -26,13 +26,24 @@ export function placeQuickProperties(
  // Rank obstruction BEFORE proximity: even an interactive input must not cover
  // another part when a free placement exists. Explore corners as well as the
  // four immediate sides of the selected object (at most 30 candidates).
+ // Evaluate obstacle edges too: an interactive inspector cannot overlap the
+ // selected part, but the original five slots may all be occupied on tablets.
+ // Bound extra anchors to the six closest scene obstacles to avoid O(n^3).
+ const center=(box:ScreenRect)=>({x:(box.left+box.right)/2,y:(box.top+box.bottom)/2});
+ const a=center(anchor);
+ const nearby=obstacles.filter(box=>[box.left,box.top,box.right,box.bottom].every(Number.isFinite))
+  .map(box=>({box,c:center(box)}))
+  .sort((l,r)=>Math.hypot(l.c.x-a.x,l.c.y-a.y)-Math.hypot(r.c.x-a.x,r.c.y-a.y))
+  .slice(0,6).map(x=>x.box);
  const xSlots=[
   anchor.right+margin,anchor.left-w-margin,anchor.left,
-  stageWidth-w-margin,margin,(stageWidth-w)/2
+  stageWidth-w-margin,margin,(stageWidth-w)/2,
+  ...nearby.flatMap(box=>[box.left-w-margin,box.right+margin])
  ];
  const ySlots=[
   anchor.top,anchor.top-h-margin,anchor.bottom+margin,
-  margin,stageHeight-h-margin
+  margin,stageHeight-h-margin,
+  ...nearby.flatMap(box=>[box.top-h-margin,box.bottom+margin])
  ];
  const scored:{x:number;y:number;occupied:number;own:number;distance:number}[]=[];
  const visited=new Set<string>();
@@ -48,8 +59,17 @@ export function placeQuickProperties(
   const distance=Math.hypot(x-(anchor.right+margin),y-anchor.top);
   scored.push({x,y,occupied,own,distance});
  }
- scored.sort((a,b)=>a.occupied-b.occupied||a.own-b.own||
-   a.distance-b.distance||a.y-b.y||a.x-b.x);
+ scored.sort((a,b)=>{
+   // A completely clear placement outranks a near placement. On collisions,
+   // never place an active native field over the selected SVG part: WebKit
+   // otherwise retries the first click after the DOM re-render.
+   const aClear=a.own===0&&a.occupied===0,bClear=b.own===0&&b.occupied===0;
+   if(aClear!==bClear)return aClear?-1:1;
+   const aOwn=a.own===0,bOwn=b.own===0;
+   if(aOwn!==bOwn)return aOwn?-1:1;
+   return a.occupied-b.occupied||a.own-b.own||
+     a.distance-b.distance||a.y-b.y||a.x-b.x;
+ });
  return {x:scored[0].x,y:scored[0].y};
 }
 
