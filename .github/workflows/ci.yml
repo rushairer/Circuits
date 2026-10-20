@@ -42,7 +42,7 @@ jobs:
         timeout-minutes: 5
         run: npx playwright install chromium firefox webkit
       - name: Tablet selection pointer-hit regression
-        run: npx playwright test e2e/floating-properties.spec.ts -g "tablet quick-property panel keeps adjacent" --project=chromium --project=firefox --project=webkit
+        run: npx playwright test e2e/floating-properties.spec.ts -g "tablet quick-property panel keeps adjacent|neighboring physical terminal|endpoint and bend handles" --project=chromium --project=firefox --project=webkit
       - name: Browser end-to-end tests
         run: npm run test:e2e
       - name: Save touch and pen interaction evidence

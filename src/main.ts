@@ -751,12 +751,33 @@ function positionQuickProperties(){
  const local=(r:DOMRect):ScreenRect=>({
   left:r.left-base.left,top:r.top-base.top,right:r.right-base.left,bottom:r.bottom-base.top
  });
+ const targetBounds=local(target.getBoundingClientRect());
  const obstacles=partNodes.filter(node=>node!==target)
    .map(node=>local(node.getBoundingClientRect()));
+ // Only nearby electronic components are inspected for real SVG pin targets.
+ // Reading thousands of breadboard holes on every render would be expensive;
+ // the board body is still considered by the normal rectangle avoidance.
+ const midpoint=(box:ScreenRect)=>({x:(box.left+box.right)/2,y:(box.top+box.bottom)/2});
+ const a=midpoint(targetBounds);
+ const closestParts=partNodes.filter(node=>node.querySelector('.pin-hit'))
+   .map(node=>({node,bounds:local(node.getBoundingClientRect())}))
+   .sort((left,right)=>{
+     const l=midpoint(left.bounds),r=midpoint(right.bounds);
+     return Math.hypot(l.x-a.x,l.y-a.y)-Math.hypot(r.x-a.x,r.y-a.y);
+   }).slice(0,16);
+ const preciseTargets:SVGCircleElement[]=[
+   ...closestParts.flatMap(({node})=>
+     Array.from(node.querySelectorAll<SVGCircleElement>('.pin-hit')).slice(0,32)),
+   ...Array.from(stage.querySelectorAll<SVGCircleElement>('.bend-handle,.endpoint-handle')).slice(0,64)
+ ];
+ const protectedHits=preciseTargets.slice(0,384).map(node=>{
+   const box=local(node.getBoundingClientRect());
+   return midpoint(box);
+ });
  const bottom=stage.querySelector<HTMLElement>('.bottom');
  if(bottom)obstacles.push(local(bottom.getBoundingClientRect()));
- const position=placeQuickProperties(local(target.getBoundingClientRect()),
-    base.width,base.height,card.offsetWidth,card.offsetHeight,obstacles);
+ const position=placeQuickProperties(targetBounds,
+    base.width,base.height,card.offsetWidth,card.offsetHeight,obstacles,protectedHits);
  card.style.left=Math.round(position.x)+'px';
  card.style.top=Math.round(position.y)+'px';
 }

@@ -118,3 +118,29 @@ test('real 1024px workbench geometry keeps LED center clickable despite large br
  assert.ok(result.x>=12&&result.x+245<=stage.width-12);
  assert.ok(result.y>=12&&result.y+245<=stage.height-12);
 });
+
+
+test('actual pin and bend hit centers outrank an otherwise cheaper layout',()=>{
+ const selected=rect(190,120,290,165);
+ const neighboring=rect(410,120,470,170);
+ const protectedPins=[{x:430,y:140},{x:290,y:148},{x:442,y:172}];
+ const without=placeQuickProperties(selected,640,480,205,192,[neighboring]);
+ const withPins=placeQuickProperties(selected,640,480,205,192,[neighboring],protectedPins);
+ const obstructed=(point,p)=>p.x>=point.x-12&&p.x<=point.x+205+12&&
+   p.y>=point.y-12&&p.y<=point.y+192+12;
+ const hitsAt=(point)=>protectedPins.filter(p=>obstructed(point,p)).length;
+ assert.ok(hitsAt(withPins)<=hitsAt(without));
+ assert.equal(hitsAt(withPins),0);
+ assert.ok(withPins.x>=12&&withPins.y>=12);
+ assert.ok(withPins.x+205<=628&&withPins.y+192<=468);
+});
+
+test('electrical hot spots are ignored when invalid and bounded at scale',()=>{
+ const selected=rect(180,140,280,200);
+ const hot=Array.from({length:600},(_,i)=>({x:10+(i%30)*17,y:10+Math.floor(i/30)*18}));
+ hot.push({x:NaN,y:0},{x:10,y:Infinity});
+ const result=placeQuickProperties(selected,720,540,205,190,[],hot);
+ assert.ok(Number.isFinite(result.x)&&Number.isFinite(result.y));
+ assert.ok(result.x>=12&&result.y>=12);
+ assert.ok(result.x<=503&&result.y<=338);
+});

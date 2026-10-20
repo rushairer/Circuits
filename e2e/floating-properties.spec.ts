@@ -158,3 +158,45 @@ test('tablet quick-property panel keeps adjacent component hit targets available
  if(info.owning!=='l1')console.log('TABLET_QUICK_HIT_DIAGNOSTIC '+JSON.stringify(info));
  expect(info.owning,'Selected resistor popover must not intercept LED hit; geometry is logged above').toBe('l1');
 });
+
+
+test('single-part quick inspector leaves neighboring physical terminal hit regions usable',async({page})=>{
+ await page.setViewportSize({width:1024,height:768});
+ await page.goto('/');
+ await page.locator('.item[data-part="r1"]').click();
+ await expect(page.locator('.quick-properties[data-quick-for="r1"]')).toBeVisible();
+ const inspect=await page.evaluate(()=>{
+   const pins=Array.from(document.querySelectorAll<SVGCircleElement>(
+     '.item[data-part="l1"] .pin-hit,.item[data-part="b1"] .pin-hit'));
+   return pins.map(pin=>{
+     const r=pin.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+     const at=document.elementFromPoint(x,y);
+     return {part:pin.getAttribute('data-part'),pin:pin.getAttribute('data-pin'),
+       intercepted:!!at?.closest('.quick-properties')};
+   });
+ });
+ expect(inspect.length).toBeGreaterThanOrEqual(4);
+ expect(inspect.filter(p=>p.intercepted),'quick panel cannot steal a terminal activation center')
+   .toEqual([]);
+});
+
+test('wire quick properties keep endpoint and bend handles clickable in tablet viewport',async({page})=>{
+ await page.setViewportSize({width:1024,height:768});
+ await page.goto('/');
+ await page.locator('.wire[data-wire="w1"]').click();
+ const card=page.locator('.quick-wire-properties[data-quick-wire-for="w1"]');
+ await expect(card).toBeVisible();
+ const check=await page.evaluate(()=>{
+   const handles=Array.from(document.querySelectorAll<SVGCircleElement>(
+     '.endpoint-handle[data-wire="w1"]'));
+   return handles.map(handle=>{
+     const r=handle.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+     const at=document.elementFromPoint(x,y);
+     return {end:handle.getAttribute('data-wire-end'),
+       cardIntercepts:!!at?.closest('.quick-properties'),
+       hitHandle:at===handle||!!at?.closest('.endpoint-handle')};
+   });
+ });
+ expect(check).toHaveLength(2);
+ expect(check.filter(x=>x.cardIntercepts)).toEqual([]);
+});
