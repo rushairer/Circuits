@@ -23,8 +23,8 @@ export function placeQuickProperties(
  const margin=12,w=Math.max(0,Math.min(width,stageWidth-margin*2)),
    h=Math.max(0,Math.min(height,stageHeight-margin*2));
  // Both an adjacent LED pin and the panel's native input are clickable.
- // Rank obstruction BEFORE proximity: even an interactive input must not cover
- // another part when a free placement exists. Explore corners as well as the
+ // Rank actual component hit targets before painted-area coverage. A panel
+ // must not disable LED selection just to avoid more of a huge breadboard. Explore corners as well as the
  // four immediate sides of the selected object (at most 30 candidates).
  // Evaluate obstacle edges too: an interactive inspector cannot overlap the
  // selected part, but the original five slots may all be occupied on tablets.
@@ -45,7 +45,16 @@ export function placeQuickProperties(
   margin,stageHeight-h-margin,
   ...nearby.flatMap(box=>[box.top-h-margin,box.bottom+margin])
  ];
- const scored:{x:number;y:number;occupied:number;own:number;distance:number}[]=[];
+ const scored:{x:number;y:number;occupied:number;own:number;blockedCenters:number;distance:number}[]=[];
+ // The visible bbox center is the activation point used by mouse/keyboard
+ // assistive tooling. Protect an extra 10 CSS pixels of pointer clearance;
+ // a large breadboard substrate must not outweigh a small LED's click target.
+ const coversActivation=(panel:ScreenRect,part:ScreenRect)=>{
+   const cx=(part.left+part.right)/2,cy=(part.top+part.bottom)/2;
+   const reserve=10;
+   return cx>=panel.left-reserve&&cx<=panel.right+reserve&&
+     cy>=panel.top-reserve&&cy<=panel.bottom+reserve;
+ };
  const visited=new Set<string>();
  for(const candidateX of xSlots)for(const candidateY of ySlots){
   const x=clamp(candidateX,margin,Math.max(margin,stageWidth-w-margin));
@@ -56,8 +65,10 @@ export function placeQuickProperties(
   const box={left:x,top:y,right:x+w,bottom:y+h};
   const occupied=obstacles.reduce((sum,r)=>sum+overlap(box,r),0);
   const own=overlap(box,anchor);
+  const blockedCenters=(coversActivation(box,anchor)?1:0)+
+    obstacles.reduce((count,obstacle)=>count+(coversActivation(box,obstacle)?1:0),0);
   const distance=Math.hypot(x-(anchor.right+margin),y-anchor.top);
-  scored.push({x,y,occupied,own,distance});
+  scored.push({x,y,occupied,own,blockedCenters,distance});
  }
  scored.sort((a,b)=>{
    // A completely clear placement outranks a near placement. On collisions,
@@ -65,6 +76,10 @@ export function placeQuickProperties(
    // otherwise retries the first click after the DOM re-render.
    const aClear=a.own===0&&a.occupied===0,bClear=b.own===0&&b.occupied===0;
    if(aClear!==bClear)return aClear?-1:1;
+   // A small LED is not expendable simply because overlapping a huge
+   // breadboard costs more rectangular area. Preserve *all* click centers.
+   if(a.blockedCenters!==b.blockedCenters)
+     return a.blockedCenters-b.blockedCenters;
    const aOwn=a.own===0,bOwn=b.own===0;
    if(aOwn!==bOwn)return aOwn?-1:1;
    return a.occupied-b.occupied||a.own-b.own||

@@ -95,3 +95,26 @@ test('busy responsive scene still produces a finite bounded fallback without exp
  assert.ok(spot.x>=12&&spot.x<=363);
  assert.ok(spot.y>=12&&spot.y<=262);
 });
+
+
+test('real 1024px workbench geometry keeps LED center clickable despite large breadboard',()=>{
+ const stage={width:724,height:610};
+ // Captured from Chromium/Firefox/WebKit at 1024x768 (stage starts y=126).
+ const resistor={left:274,top:181,right:383,bottom:215};
+ const led={left:485,top:167,right:575,bottom:205};
+ const battery={left:71,top:160,right:134,bottom:238};
+ const breadboard={left:150,top:260,right:680,bottom:500};
+ const bar={left:22,top:545,right:490,bottom:600};
+ const result=placeQuickProperties(resistor,stage.width,stage.height,245,245,
+   [led,battery,breadboard,bar]);
+ const safeCenter=(part)=>{
+  const x=(part.left+part.right)/2,y=(part.top+part.bottom)/2;
+  return !(x>=result.x-10&&x<=result.x+245+10&&
+    y>=result.y-10&&y<=result.y+245+10);
+ };
+ assert.equal(safeCenter(resistor),true);
+ assert.equal(safeCenter(led),true);
+ assert.equal(safeCenter(battery),true);
+ assert.ok(result.x>=12&&result.x+245<=stage.width-12);
+ assert.ok(result.y>=12&&result.y+245<=stage.height-12);
+});
