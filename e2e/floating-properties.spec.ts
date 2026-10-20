@@ -126,3 +126,35 @@ test('floating wire inspector leaves Shift batch selection and native keyboard s
  expect(p.wires[0].type).toBe('alligator');
  expect(p.wires[1].type).toBe('alligator');
 });
+
+test('tablet quick-property panel keeps adjacent component hit targets available',async({page})=>{
+ await page.setViewportSize({width:1024,height:768});
+ await page.goto('/');
+ await page.locator('.item[data-part="r1"]').click();
+ await expect(page.locator('.quick-properties[data-quick-for="r1"]')).toBeVisible();
+ const info=await page.evaluate(()=>{
+   const asRect=(el:Element|null)=>{
+     if(!el)return null;
+     const r=el.getBoundingClientRect();
+     return {x:Math.round(r.x),y:Math.round(r.y),
+       width:Math.round(r.width),height:Math.round(r.height)};
+   };
+   const target=document.querySelector('.item[data-part="l1"]');
+   const rect=target?.getBoundingClientRect();
+   const center=rect?{x:rect.left+rect.width/2,y:rect.top+rect.height/2}:null;
+   const at=center?document.elementFromPoint(center.x,center.y):null;
+   const owning=at?.closest('.item[data-part]')?.getAttribute('data-part')??null;
+   const overlay=at?.closest('.quick-properties')?.getAttribute('data-quick-for')??null;
+   const stage=document.querySelector('.canvas');
+   return {
+     stage:asRect(stage),
+     popover:asRect(document.querySelector('.quick-properties')),
+     resistor:asRect(document.querySelector('.item[data-part="r1"]')),
+     led:asRect(target),
+     battery:asRect(document.querySelector('.item[data-part="b1"]')),
+     center,element:at?.tagName??null,owning,overlay
+   };
+ });
+ if(info.owning!=='l1')console.log('TABLET_QUICK_HIT_DIAGNOSTIC '+JSON.stringify(info));
+ expect(info.owning,'Selected resistor popover must not intercept LED hit; geometry is logged above').toBe('l1');
+});
