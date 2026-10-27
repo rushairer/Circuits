@@ -114,7 +114,7 @@ export function schematicSvg(result:SchematicDiagram):string {
    links+body+nets+empty+'</svg>';
 }
 
-export function renderSchematicPanel(result:SchematicResult,zoom=1):string {
+function schematicBody(result:SchematicResult,zoom=1):string {
  const scale=Number.isFinite(zoom)?Math.max(0.5,Math.min(2,zoom)):1;
  const routeInfo=result.ok?routeSchematic(result):null;
  const inner=result.ok?
@@ -141,6 +141,12 @@ export function renderSchematicPanel(result:SchematicResult,zoom=1):string {
    '<p class="schematic-disclaimer">实心圆点表示同网络汇流；拱形跨线属于不同网络且不导通，最终连通性只由 N 编号和 Netlist 决定。面包板插孔按真实连接合并；部分复杂器件仍使用简化图形，并非原版像素级原理图。</p>':
    '<div class="schematic-unavailable" role="status"><strong>暂不能生成完整原理图</strong>'+
    '<p>'+escape(result.reason)+'</p><small>原电路与仿真均未改变；不会输出不完整的原理图。</small></div>';
+ return inner;
+}
+
+/** Legacy focus-contained viewer retained for existing sharing and browser flows. */
+export function renderSchematicPanel(result:SchematicResult,zoom=1):string {
+ const inner=schematicBody(result,zoom);
  return '<div class="schematic-shade" data-action="schematic-close"></div>'+
    '<section class="schematic-dialog" role="dialog" aria-modal="true" aria-labelledby="schematic-title">'+
    '<div class="schematic-heading"><div><h2 id="schematic-title">自动原理图 · Schematic</h2>'+
@@ -149,4 +155,15 @@ export function renderSchematicPanel(result:SchematicResult,zoom=1):string {
    inner+
    '<div class="schematic-actions"><button data-action="schematic-close">返回电路</button>'+
    '<button data-action="schematic-export" '+(!result.ok?'disabled':'')+'>导出 SVG</button></div></section>';
+}
+
+/** Primary editor-integrated read-only view; shares netlist, routes, zoom and export. */
+export function renderSchematicWorkspace(result:SchematicResult,zoom=1):string {
+ return '<section class="schematic-workspace read-only-workspace" aria-labelledby="inline-schematic-title">'+
+   '<div class="schematic-heading"><div><h2 id="inline-schematic-title">原理图 · Schematic</h2>'+
+   '<p>根据当前电路的真实引脚与连接自动生成，切换视图不会改动工程</p></div>'+
+   '<button type="button" data-action="view-circuit">返回电路</button></div>'+
+   schematicBody(result,zoom)+
+   '<div class="schematic-actions"><button type="button" data-action="view-circuit">电路视图</button>'+
+   '<button type="button" data-action="schematic-export" '+(!result.ok?'disabled':'')+'>导出 SVG</button></div></section>';
 }

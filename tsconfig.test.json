@@ -18,6 +18,7 @@
     "src/ui/note-render.ts",
     "src/ui/bom-panel.ts",
     "src/ui/schematic-panel.ts",
+    "src/ui/workspace-views.ts",
     "src/ui/floating-properties.ts",
     "src/ui/resistor-value-fields.ts",
     "src/ui/resistor-artwork.ts",
