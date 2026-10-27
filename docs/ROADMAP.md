@@ -139,3 +139,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 follow-up: quick inspector protects live component pin-hit zones and selected conductor endpoint/waypoint controls at 1024px tablet scale; bounded 384-target screen-space scoring, dedicated browser preflight and pure stress tests
 - [ ] Breadboard individual hole protection and full wire-segment hit isolation in crowded layouts; measure 300+ part interaction latency across engines
+
+- [x] Alpha.11 first integrated three-view switcher: circuit canvas, Netlist-authored schematic, actual component list; readonly states, zoom/net focus, and SVG/CSV export without project mutation; legacy modals retained as transition
+- [ ] Compare toolbar tab dimensions/labels to authenticated Tinkercad; remove duplicate legacy modal entry only after verifying parity. Inline schematic is a read-only projection, not a full schematic editor

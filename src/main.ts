@@ -24,9 +24,10 @@ import { createScopeCapture, exportScopeCSV, type ScopeCapture } from './core/sc
 import { readRcVoltageProbe, readRcCurrentProbe } from './core/rc-probes.js';
 import { renderScopePanel, updateScopePanel } from './ui/scope-panel.js';
 import { createBom, bomCSV } from './core/bom.js';
-import { renderBomPanel } from './ui/bom-panel.js';
+import { renderBomPanel,renderBomWorkspace } from './ui/bom-panel.js';
 import { createSchematic } from './core/schematic.js';
-import { renderSchematicPanel, schematicSvg } from './ui/schematic-panel.js';
+import { renderSchematicPanel,renderSchematicWorkspace,schematicSvg } from './ui/schematic-panel.js';
+import { renderWorkspaceTabs,renderReadonlyInspector,type WorkspaceView } from './ui/workspace-views.js';
 import { renderQuickProperties, renderQuickWireProperties, placeQuickProperties, type ScreenRect } from './ui/floating-properties.js';
 import { renamePart } from './core/part-name.js';
 import { isResistanceUnit,changeResistorValue } from './core/resistance-units.js';
@@ -61,6 +62,8 @@ let bomOpen=false;
 let schematicOpen=false;
 let schematicZoom=1;
 let schematicFocusNet='';
+/** Not serialized to Project or its undo history. */
+let workspaceView:WorkspaceView='circuit';
 let scopeCapacitorId='';
 let unoPreview:UnoPreviewResult|null=null;
 let unoPreviewTimeMs=0;
@@ -132,7 +135,7 @@ function openWorkspace(id:string){
  pointerInput.cancel();
  workspace=switchProject(workspace,id);
  project=reconcileInsertions(activeProject(workspace));
- selection=null;wirePickCycle=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;notesVisible=true;noteDrag=null;marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;bomOpen=false;schematicOpen=false;scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
+ selection=null;wirePickCycle=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;notesVisible=true;noteDrag=null;marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;bomOpen=false;schematicOpen=false;workspaceView='circuit';scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
  save();render();
 }
 function commit(before:Project){wirePickCycle=null;clearWireDraft();resetUnoPreview();rcConvergence=null;project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
@@ -782,7 +785,7 @@ function positionQuickProperties(){
  card.style.top=Math.round(position.y)+'px';
 }
 function applySchematicFocus(){
- const svg=app.querySelector<SVGSVGElement>('.schematic-dialog .schematic-svg');
+ const svg=app.querySelector<SVGSVGElement>('.schematic-dialog .schematic-svg, .schematic-workspace .schematic-svg');
  if(!svg)return;
  const select=app.querySelector<HTMLSelectElement>('#schematic-net-focus');
  const options=select?Array.from(select.options).map(o=>o.value):[];
@@ -808,6 +811,15 @@ function applySchematicFocus(){
    label.hidden=!focus;
    label.textContent=focus?text.slice(0,170)+(text.length>170?'…':''):'';
  }
+}
+function activateWorkspaceView(view:WorkspaceView){
+ if(workspaceView===view)return;
+ pointerInput.cancel();clearWireDraft();notePlacement=false;scopeOpen=false;
+ bomOpen=false;schematicOpen=false;showProjects=false;showExamples=false;showCode=false;
+ workspaceView=view;
+ if(view==='schematic'){schematicZoom=1;schematicFocusNet='';}
+ render();
+ app.querySelector<HTMLElement>('#tab-'+view)?.focus();
 }
 function render(){
  const gpioFrame=unoPreview?.ok?sampleUnoPreview(unoPreview,unoPreviewTimeMs):null;
@@ -844,19 +856,20 @@ function render(){
      type.shortcut+' · '+type.label+'</option>').join('')+'</select></label>';
  const toolbarPalette='<label class="wire-palette"><span class="wire-palette-swatch" style="background:'+toolbarWireColor+'"></span>'+
    '<span>导线颜色'+(selectedWireIds.size>1?' · 已选 '+selectedWireIds.size+' 根':'')+'</span><select id="wire-palette" aria-label="导线颜色" title="选中导线后改变其颜色；数字键 0–9">'+wireColorOptions(toolbarWireColor)+'</select></label>';
- const quickPart=selectedIds.size===1&&!showCode&&!showProjects&&!showExamples&&
+ const quickPart=workspaceView==='circuit'&&selectedIds.size===1&&!showCode&&!showProjects&&!showExamples&&
    !wiring&&!notePlacement&&!bomOpen&&!schematicOpen&&!scopeOpen?
    project.parts.find(p=>p.id===selection):undefined;
- const quickWire=!quickPart&&!showCode&&!showProjects&&!showExamples&&
+ const quickWire=workspaceView==='circuit'&&!quickPart&&!showCode&&!showProjects&&!showExamples&&
    !wiring&&!notePlacement&&!bomOpen&&!schematicOpen&&!scopeOpen&&
    !segmentDrag&&!endpointDrag&&!bendDrag&&selectedWireIds.size<=1?
    project.wires.find(w=>w.id===selection):undefined;
  const quickMarkup=quickPart?renderQuickProperties(quickPart):
    quickWire?renderQuickWireProperties(quickWire):'';
+ const editDisabled=workspaceView==='circuit'?'':'disabled';
  const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastNetwork?.reason??lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
- app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'"/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar" aria-label="编辑器工具栏"><div class="tool-group" role="group" aria-label="工程与历史"><button data-action="new">＋ 新建</button><button data-action="sample">示例电路</button><button data-action="undo" '+(!undo.length?'disabled':'')+'>↶ 撤销</button><button data-action="redo" '+(!redo.length?'disabled':'')+'>↷ 重做</button></div><div class="tool-group" role="group" aria-label="编辑和注释"><button data-action="note-add" aria-pressed="'+notePlacement+'" title="N · 添加注释">▤ 注释</button><button data-action="notes-visibility" aria-pressed="'+notesVisible+'" title="Shift+N · 显示或隐藏注释">'+(notesVisible?'◉ 显示注释':'◯ 隐藏注释')+'</button><button data-action="select-all">全选</button><button data-action="rotate" title="R · 旋转">⟳ 旋转</button><button data-action="delete">删除</button></div><div class="tool-group" role="group" aria-label="线缆工具">'+toolbarPalette+toolbarType+'</div><div class="tool-group" role="group" aria-label="代码与报表"><button data-action="code">〈/〉 代码</button><button data-action="bom-open" aria-label="查看自动生成的物料清单">▤ BOM</button><button data-action="schematic-open" aria-label="查看自动生成的原理图">◇ 原理图</button></div><div class="tool-group" role="group" aria-label="视图与模型"><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button></div><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+(notePlacement?' note-mode':'')+'">' +canvas()+quickMarkup+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+
+ app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'" '+(workspaceView==='circuit'?'':'readonly aria-readonly="true"')+'/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar" aria-label="编辑器工具栏"><div class="tool-group" role="group" aria-label="工程与历史"><button data-action="new" '+editDisabled+'>＋ 新建</button><button data-action="sample" '+editDisabled+'>示例电路</button><button data-action="undo" '+(editDisabled||(!undo.length?'disabled':''))+'>↶ 撤销</button><button data-action="redo" '+(editDisabled||(!redo.length?'disabled':''))+'>↷ 重做</button></div><div class="tool-group" role="group" aria-label="编辑和注释"><button data-action="note-add" '+editDisabled+' aria-pressed="'+notePlacement+'" title="N · 添加注释">▤ 注释</button><button data-action="notes-visibility" aria-pressed="'+notesVisible+'" title="Shift+N · 显示或隐藏注释">'+(notesVisible?'◉ 显示注释':'◯ 隐藏注释')+'</button><button data-action="select-all" '+editDisabled+'>全选</button><button data-action="rotate" '+editDisabled+' title="R · 旋转">⟳ 旋转</button><button data-action="delete" '+editDisabled+'>删除</button></div><div class="tool-group" role="group" aria-label="线缆工具">'+toolbarPalette+toolbarType+'</div><div class="tool-group" role="group" aria-label="代码与报表"><button data-action="code">〈/〉 代码</button><button data-action="bom-open" aria-label="查看自动生成的物料清单">▤ BOM</button><button data-action="schematic-open" aria-label="查看自动生成的原理图">◇ 原理图</button></div>'+renderWorkspaceTabs(workspaceView)+'<div class="tool-group" role="group" aria-label="视图与模型"><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button></div><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+(notePlacement?' note-mode':'')+'" id="workspace-main" role="tabpanel" aria-labelledby="tab-'+workspaceView+'" data-view="'+workspaceView+'">' +(workspaceView==='circuit'?canvas()+quickMarkup+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+
    (bomOpen?renderBomPanel(createBom(project)):'')+
-   (schematicOpen?renderSchematicPanel(createSchematic(project),schematicZoom):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div></section><aside class="inspector">'+side()+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'
+   (schematicOpen?renderSchematicPanel(createSchematic(project),schematicZoom):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div>':workspaceView==='schematic'?renderSchematicWorkspace(createSchematic(project),schematicZoom):renderBomWorkspace(createBom(project)))+'</section><aside class="inspector">'+(workspaceView==='circuit'?side():renderReadonlyInspector(workspaceView))+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'
  positionQuickProperties();
  applySchematicFocus();
 }
@@ -1115,7 +1128,10 @@ function handleClick(e:CanvasClick){
    workspace=createProject(workspace,id,draft,Date.now());
    openWorkspace(id);break;
  }
- case 'projects':showProjects=!showProjects;showExamples=false;showCode=false;render();break;
+ case 'projects':workspaceView='circuit';showProjects=!showProjects;showExamples=false;showCode=false;render();break;
+ case 'view-circuit':
+ case 'view-schematic':
+ case 'view-bom':activateWorkspaceView(a.dataset.action.slice(5) as WorkspaceView);break;
  case 'sample':showExamples=!showExamples;showProjects=false;showCode=false;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;selection=null;render();break;
  case 'undo':revert(undo,redo);break;case 'redo':revert(redo,undo);break;
  case 'note-add':armNotePlacement();break;
@@ -1148,7 +1164,7 @@ function handleClick(e:CanvasClick){
  case 'rotate':rotateSelectedParts();break
  case 'quick-wire-delete':
   case 'delete':deleteSelection();break
- case 'code':showCode=!showCode;showProjects=false;showExamples=false;render();break;
+ case 'code':workspaceView='circuit';showCode=!showCode;showProjects=false;showExamples=false;render();break;
  case 'bom-open':{
    pointerInput.cancel();clearWireDraft();scopeOpen=false;notePlacement=false;
    bomOpen=true;render();
@@ -1156,9 +1172,9 @@ function handleClick(e:CanvasClick){
    break;
  }
  case 'bom-close':bomOpen=false;render();app.querySelector<HTMLElement>('[data-action="bom-open"]')?.focus();break;
- case 'bom-export':if(bomOpen)download(bomCSV(createBom(project)),'circuits-bom.csv');break;
+ case 'bom-export':if(bomOpen||workspaceView==='bom')download(bomCSV(createBom(project)),'circuits-bom.csv');break;
  case 'schematic-open':{
-   pointerInput.cancel();clearWireDraft();scopeOpen=false;bomOpen=false;notePlacement=false;
+   pointerInput.cancel();clearWireDraft();scopeOpen=false;bomOpen=false;notePlacement=false;workspaceView='circuit';
    schematicOpen=true;schematicZoom=1;schematicFocusNet='';render();
    app.querySelector<HTMLElement>('.schematic-dialog [data-action="schematic-close"]')?.focus();
    break;
@@ -1166,7 +1182,7 @@ function handleClick(e:CanvasClick){
  case 'schematic-zoom-in':
  case 'schematic-zoom-out':
  case 'schematic-zoom-reset':{
-   if(!schematicOpen)break;
+   if(!schematicOpen&&workspaceView!=='schematic')break;
    const action=a.dataset.action;
    const previous=app.querySelector<HTMLElement>('.schematic-scroll');
    const ratio=previous?.scrollLeft??0, top=previous?.scrollTop??0;
@@ -1181,7 +1197,7 @@ function handleClick(e:CanvasClick){
  case 'schematic-close':
    schematicOpen=false;render();app.querySelector<HTMLElement>('[data-action="schematic-open"]')?.focus();break;
  case 'schematic-export':{
-   if(!schematicOpen)break;
+   if(!schematicOpen&&workspaceView!=='schematic')break;
    const diagram=createSchematic(project);
    if(diagram.ok)download('<?xml version="1.0" encoding="UTF-8"?>\n'+schematicSvg(diagram),'circuits-schematic.svg');
    break;
@@ -1311,7 +1327,7 @@ app.addEventListener('change',async e=>{
    app.querySelector<HTMLElement>('[data-quick-field="'+quickField+'"]')?.focus();
    return;
  }
- if(t.id==='schematic-net-focus'&&schematicOpen){
+ if(t.id==='schematic-net-focus'&&(schematicOpen||workspaceView==='schematic')){
    schematicFocusNet=t.value;
    applySchematicFocus();
    return;
@@ -1411,7 +1427,7 @@ app.addEventListener('dblclick',e=>{
  if(id&&point){e.preventDefault();addBend(id,point)}
 });
 app.addEventListener('wheel',e=>{
- if(!(e.target as Element).closest('.canvas')||e.deltaY===0||scopeOpen||bomOpen||schematicOpen)return;
+ if(workspaceView!=='circuit'||!(e.target as Element).closest('.canvas')||e.deltaY===0||scopeOpen||bomOpen||schematicOpen)return;
  pointerInput.cancel();
  e.preventDefault();
  const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
@@ -1787,6 +1803,19 @@ window.addEventListener('keydown',e=>{
      else if(first&&last&&!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
    }
    return; // A schematic is a projection, never an editable canvas gesture.
+ }
+ const tab=t.closest<HTMLElement>('.workspace-tabs [role="tab"]');
+ if(tab&&['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){
+   e.preventDefault();
+   const views:WorkspaceView[]=['circuit','schematic','bom'];
+   const index=views.indexOf(workspaceView);
+   const next=e.key==='Home'?0:e.key==='End'?2:
+     (index+(e.key==='ArrowRight'?1:2))%3;
+   activateWorkspaceView(views[next]);return;
+ }
+ if(workspaceView!=='circuit'){
+   if(e.key==='Escape'){e.preventDefault();activateWorkspaceView('circuit');}
+   return;
  }
  if(['INPUT','TEXTAREA','SELECT'].includes(t.tagName))return;
  const command=e.ctrlKey||e.metaKey;

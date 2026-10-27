@@ -314,3 +314,29 @@
 .resistance-value-row select{flex:0 0 64px;min-width:0;width:64px;background:#fff;border:1px solid #d2e0e3;border-radius:6px;color:#31535f;padding:5px}
 .quick-properties .resistance-value-row select{flex-basis:60px;width:60px;font-size:12px}
 .resistance-value-row select:focus-visible{outline:2px solid #119d91;outline-offset:2px}
+
+/* In-editor Tinkercad-style view modes, keeping the current canvas camera. */
+.workspace-tabs{display:flex;align-items:center;gap:2px;flex:none;padding:3px;border:1px solid #c7dadb;
+ border-radius:8px;background:#f3f8f8;position:sticky;right:106px;z-index:3;box-shadow:-7px 0 13px #fff9}
+.topbar .workspace-tabs button{border:0;border-radius:5px;background:transparent;padding:8px 11px;
+ color:#526a75;font-size:12px;font-weight:700;white-space:nowrap}
+.topbar .workspace-tabs button[aria-selected="true"]{color:#087f79;background:#fff;box-shadow:0 1px 4px #19394522}
+.topbar .workspace-tabs button:focus-visible{outline:2px solid #159f91;outline-offset:1px}
+.topbar .workspace-tabs button:hover{background:#e4f1ee}
+.canvas[data-view="schematic"],.canvas[data-view="bom"]{background:#f7fafb;display:flex;flex-direction:column}
+.read-only-workspace{display:flex;flex:1;min-width:0;min-height:0;flex-direction:column;gap:11px;
+ padding:16px 20px;overflow:hidden;color:#294958}
+.read-only-workspace .schematic-heading h2,.read-only-workspace .bom-heading h2{font-size:18px}
+.read-only-workspace .schematic-heading p,.read-only-workspace .bom-heading p{font-size:12px}
+.read-only-workspace .schematic-scroll{flex:1;min-height:0;max-height:none;overscroll-behavior:contain}
+.read-only-workspace .schematic-actions,.read-only-workspace .bom-actions{flex-shrink:0}
+.bom-workspace .bom-table-scroller{max-height:none;flex:1;min-height:0;overflow:auto;background:white}
+.bom-workspace .bom-overview{margin:3px 0}
+.readonly-inspector{display:flex;flex-direction:column;gap:12px;font-size:12px;line-height:1.7}
+.readonly-inspector p{margin:0;padding:0 18px;color:#617d85}
+.readonly-inspector button{margin:3px 18px;border:1px solid #b6d4d0;border-radius:7px;
+ background:#f4faf8;color:#137a73;padding:9px 12px;font-size:12px;font-weight:700}
+header input[readonly]{color:#788d95}
+@media(max-width:800px){.workspace-tabs{right:86px}.topbar .workspace-tabs button{padding:7px 8px}
+ .read-only-workspace{padding:10px;gap:8px}.readonly-inspector p{padding:0 10px}
+ .readonly-inspector button{margin:3px 10px}}
