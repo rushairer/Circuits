@@ -65,7 +65,7 @@ test('inline component list exports real BOM and never exposes editing commands'
  const dl=await dlPromise;
  const contents=await readFile((await dl.path())!,'utf8');
  expect(contents).toContain('组件 ID');
- expect(contents).toContain('R');
+ expect(contents).toContain('电阻');
  expect(await saved(page)).toBe(before);
  await page.keyboard.press('Delete');
  await page.keyboard.press('ControlOrMeta+z');
