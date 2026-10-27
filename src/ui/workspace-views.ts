@@ -8,7 +8,7 @@ const views:readonly {id:WorkspaceView;label:string;hint:string}[]=[
 export function renderWorkspaceTabs(active:WorkspaceView):string {
  return '<nav class="workspace-tabs" role="tablist" aria-label="工作区视图">'+
    views.map(view=>'<button type="button" role="tab" id="tab-'+view.id+'" '+
-    'data-action="view-'+view.id+'" aria-controls="workspace-main" aria-label="'+view.hint+'" '+
+    'data-action="view-'+view.id+'" aria-controls="workspace-main" title="'+view.hint+'" '+
     'aria-selected="'+(active===view.id)+'" tabindex="'+(active===view.id?'0':'-1')+'">'+
      view.label+'</button>').join('')+'</nav>';
 }

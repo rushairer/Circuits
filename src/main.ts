@@ -1166,7 +1166,7 @@ function handleClick(e:CanvasClick){
   case 'delete':deleteSelection();break
  case 'code':workspaceView='circuit';showCode=!showCode;showProjects=false;showExamples=false;render();break;
  case 'bom-open':{
-   pointerInput.cancel();clearWireDraft();scopeOpen=false;notePlacement=false;
+   pointerInput.cancel();clearWireDraft();scopeOpen=false;notePlacement=false;workspaceView='circuit';
    bomOpen=true;render();
    app.querySelector<HTMLElement>('.bom-dialog [data-action="bom-close"]')?.focus();
    break;
@@ -1220,7 +1220,7 @@ function handleClick(e:CanvasClick){
  case 'run':connectionNotice='';if(!isRunning)resetUnoPreview();isRunning=!isRunning;if(!isRunning)rcConvergence=null;render();break;
  case 'solver-mode':connectionNotice='';simulationMode=simulationMode==='classic'?'nonlinear':simulationMode==='nonlinear'?'rc':'classic';rcTimeIndex=0;rcTraceId='';scopeOpen=false;rcConvergence=null;render();break;
  case 'rc-accuracy':if(lastNetwork?.ok&&isRunning){rcConvergence=assessRcConvergence(project,{durationSeconds:rcWindowSeconds});render()}break;
- case 'scope-open':if(lastScopeCapture){scopeOpen=true;render();app.querySelector<HTMLElement>('.scope-dialog [data-action="scope-close"]')?.focus()}break;
+ case 'scope-open':if(lastScopeCapture){workspaceView='circuit';scopeOpen=true;render();app.querySelector<HTMLElement>('.scope-dialog [data-action="scope-close"]')?.focus()}break;
  case 'scope-close':scopeOpen=false;render();app.querySelector<HTMLElement>('[data-action="scope-open"]')?.focus();break;
  case 'scope-export':if(lastScopeCapture&&scopeOpen)download(exportScopeCSV(lastScopeCapture),'circuits-rc-waveform.csv');break;
  case 'zoom-in':changeZoom(1.15);break;case 'zoom-out':changeZoom(1/1.15);break;case 'fit':fitView();break;

@@ -112,3 +112,20 @@ test('1024px integrated schematic scrolls within canvas and preserves circuit pa
  expect(await page.locator('#board').getAttribute('viewBox')).toBe(originalViewBox);
  expect(await saved(page)).toBe(initial);
 });
+
+
+test('legacy toolbar viewers and scope actions are not inert when accessed from integrated views',async({page})=>{
+ await page.goto('/');
+ await page.locator('#tab-schematic').click();
+ await page.locator('[data-action="bom-open"]').click();
+ await expect(page.locator('.bom-dialog')).toBeVisible();
+ await expect(page.locator('#tab-circuit')).toHaveAttribute('aria-selected','true');
+ await page.keyboard.press('Escape');
+ await expect(page.locator('.bom-dialog')).toHaveCount(0);
+ await page.locator('#tab-bom').click();
+ await page.locator('[data-action="schematic-open"]').click();
+ await expect(page.locator('.schematic-dialog')).toBeVisible();
+ await expect(page.locator('#tab-circuit')).toHaveAttribute('aria-selected','true');
+ await page.keyboard.press('Escape');
+ await expect(page.locator('.schematic-dialog')).toHaveCount(0);
+});
