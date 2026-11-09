@@ -148,3 +148,28 @@ test('fractional-coordinate leads remain exactly orthogonal without six-decimal 
  assert.equal(points[0].y,130.876543211);
  assert.equal(points.at(-1).y,130.876543211);
 });
+
+
+test('even in a crowded diagram connected component bodies remain protected obstacles',()=>{
+ const p=sample();
+ // Numerous nearby but not overlapping decorative modules would normally
+ // consume the limited obstacle candidates before late-sorted terminal IDs.
+ p.parts[0].id='zz-left';
+ p.parts[2].id='zz-right';
+ p.wires[0].from.componentId='zz-left';
+ p.wires[0].to.componentId='zz-right';
+ for(let i=0;i<22;i++)p.parts.push({
+  id:'aa-'+i,kind:'resistor',x:160+i*12,y:270+i%2*65,rotation:0,value:220
+ });
+ const points=path(p);
+ assert.equal(isOrthogonal(points),true);
+ assert.deepEqual(points[0],{x:140,y:130});
+ assert.deepEqual(points.at(-1),{x:470,y:130});
+ const left={left:-13,right:153,top:87,bottom:173};
+ const right={left:457,right:623,top:87,bottom:173};
+ // Intermediate segments must not tunnel through either attached device.
+ for(let i=2;i<points.length-1;i++){
+  assert.equal(intersects(points[i-1],points[i],left),false);
+  assert.equal(intersects(points[i-1],points[i],right),false);
+ }
+});

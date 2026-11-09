@@ -50,8 +50,13 @@ function simplify(points:readonly Point[]):Point[]{
  for(const p of points){
   if(out.length&&same(out[out.length-1],p))continue;
   const a=out[out.length-2],b=out[out.length-1];
-  if(a&&b&&((Math.abs(a.x-b.x)<EPS&&Math.abs(b.x-p.x)<EPS)||
-             (Math.abs(a.y-b.y)<EPS&&Math.abs(b.y-p.y)<EPS))){
+  const collinear=a&&b&&((Math.abs(a.x-b.x)<EPS&&Math.abs(b.x-p.x)<EPS)||
+                           (Math.abs(a.y-b.y)<EPS&&Math.abs(b.y-p.y)<EPS));
+  // Do NOT erase a reversal: the escape stub may need to leave the device,
+  // then loop back via a free lane. Removing it could hide the connection
+  // behind the source component body.
+  const forward=a&&b&&(b.x-a.x)*(p.x-b.x)+(b.y-a.y)*(p.y-b.y)>=-EPS;
+  if(collinear&&forward){
    out[out.length-1]={...p};
   }else out.push({...p});
  }
@@ -202,13 +207,18 @@ export function visibleWireVertices(
   left:Math.min(start.x,end.x)-230,right:Math.max(start.x,end.x)+230,
   top:Math.min(start.y,end.y)-230,bottom:Math.max(start.y,end.y)+230
  };
- const boxes=parts.filter(p=>p.kind!=='breadboard')
-  .map(p=>({id:p.id,bounds:box(p)})).filter(item=>intersects(item.bounds,corridor))
-  .sort((a,b)=>{
+ const all=parts.filter(p=>p.kind!=='breadboard')
+  .map(p=>({id:p.id,bounds:box(p)})).filter(item=>intersects(item.bounds,corridor));
+ const mandatory=new Set([wire.from.componentId,wire.to.componentId]);
+ const kept=all.filter(item=>mandatory.has(item.id));
+ const extras=all.filter(item=>!mandatory.has(item.id)).sort((a,b)=>{
    const relevance=(r:Bounds)=>Math.max(0,Math.max(r.left-Math.max(start.x,end.x),Math.min(start.x,end.x)-r.right))+
-    Math.max(0,Math.max(r.top-Math.max(start.y,end.y),Math.min(start.y,end.y)-r.bottom));
+     Math.max(0,Math.max(r.top-Math.max(start.y,end.y),Math.min(start.y,end.y)-r.bottom));
    return relevance(a.bounds)-relevance(b.bounds)||a.id.localeCompare(b.id);
-  }).slice(0,AUTO_ROUTE_OBSTACLE_LIMIT).map(item=>item.bounds);
+ });
+ // Endpoint devices may never be evicted by a crowded nearest-obstacle list.
+ const boxes=[...kept,...extras.slice(0,Math.max(0,AUTO_ROUTE_OBSTACLE_LIMIT-kept.length))]
+  .map(item=>item.bounds);
  if(boxes.some(b=>inside(start,b)||inside(end,b)))return fallback;
  const path=orthogonalSearch(start,end,boxes,wire.routing);
  if(!path)return fallback;
