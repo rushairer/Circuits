@@ -4,6 +4,7 @@ import { DEFAULT_WIRE_COLOR, WIRE_COLOR_PRESETS, wireColorForDigit, wireColorOpt
 import { insertWireWaypoint, moveWireWaypoint, removeWireWaypoint } from './core/wire-edit.js';
 import { nearestOrthogonalSegment, slideOrthogonalSegment } from './core/wire-segments.js';
 import { paintCrossingWires } from './core/wire-crossings.js';
+import { visibleWireVertices } from './core/wire-visibility.js';
 import { wirePickCandidates, pickWireCandidate, type WirePickCycle, type WirePickCandidate } from './core/wire-picking.js';
 import { recolorWires, removeWires } from './core/wire-batch.js';
 import { LED_COLORS, isLedColor, ledAppearance, changeLedColor } from './core/led-colors.js';
@@ -12,7 +13,7 @@ import type { WireType } from './model.js';
 import { createCircuitNote, editCircuitNote, moveCircuitNote, deleteCircuitNote } from './core/notes.js';
 import { renderCircuitNotes, notePreviewLines } from './ui/note-render.js';
 import { snapWireWaypoint, type WaypointGuide, type WaypointSnapMemory } from './core/waypoint-snap.js';
-import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint } from './model.js';
+import { demo, validProject, parts, labels, pins, size, type Project, type Kind, type Part, type Endpoint, type Wire } from './model.js';
 import { evaluate } from './core/simulator.js';
 import { compileUnoPreview, sampleUnoPreview, sampleUnoSerial, type UnoPreviewResult, type UnoSerialSnapshot } from './core/uno-preview.js';
 import { analyzeGpioD13, type GpioD13Analysis } from './core/gpio-d13.js';
@@ -323,6 +324,25 @@ function art(c:Part){
      '" stroke="#d6ecf3" stroke-width="2"/>'+
    '<text x="160" y="75" text-anchor="middle" font-size="10" fill="#fff">D13</text>';
  return '<rect x="2" y="2" width="'+(w-4)+'" height="'+(h-4)+'" rx="9" fill="#f6f7f6" stroke="#bdc9cc" stroke-width="3"/><path d="M18 35h404 M18 167h404" stroke="#e06a6a" stroke-width="2"/><path d="M18 48h404 M18 180h404" stroke="#5d9fd4" stroke-width="2"/>'+Array.from({length:22},(_,x)=>Array.from({length:10},(_,y)=>'<circle cx="'+(28+x*18)+'" cy="'+(67+y*9)+'" r="2.8" fill="#89959b"/>').join('')).join('') }
+/** One geometry source for the cursor ghost and the eventual committed conductor.
+ * Mouse movement with no real destination remains user-directed HV/VH;
+ * near a real pin and without manual waypoints it previews a safe detour.
+ */
+function draftWireGeometry(from:Point,to:Point):{path:string;corner:Point}{
+ let vertices:Point[]|null=null;
+ if(wiring&&wiringHover&&!wiringBends.length&&validWireTarget(wiring,wiringHover.endpoint)){
+   const transient:Wire={id:'draft',from:wiring,to:wiringHover.endpoint,
+     color:activeWireColor,routing:wiringDirection};
+   vertices=visibleWireVertices(transient,project.parts,[from,to]);
+ }
+ const first=wiringBends[0]??to;
+ const fallback=wiringDirection==='horizontal'?{x:first.x,y:from.y}:{x:from.x,y:first.y};
+ return {
+   path:vertices?'M'+vertices.map(point=>point.x+' '+point.y).join(' L'):
+     wirePath([from,...wiringBends,to],true,wiringDirection),
+   corner:vertices?.[1]??fallback
+ };
+}
 function canvas(){
  // The ordered visual stack defines which wire jumps over crossings;
  // selection changes SVG order only, never the stored electrical connections.
@@ -392,16 +412,14 @@ function canvas(){
   const wireSource=wiring&&pinWorld(wiring,project.parts);
  const wireEnd=wiringHover?.point??wiringCursor??wireSource;
  const endLabel=wiringHover?.endpoint.pinId??'';
- const firstLeg=wireSource&&(wiringBends[0]??wireEnd);
- const firstCorner=wireSource&&firstLeg?(wiringDirection==='horizontal'?
-   {x:firstLeg.x,y:wireSource.y}:{x:wireSource.x,y:firstLeg.y}):null;
+ const draftGeometry=wireSource&&wireEnd?draftWireGeometry(wireSource,wireEnd):null;
  const draftWire=wireSource&&wireEnd?
    '<g id="wire-preview" aria-hidden="true" pointer-events="none">'+
    '<line id="wire-align-guide" class="wire-align-guide" x1="'+(wiringDirection==='horizontal'?wireEnd.x:0)+'" y1="'+(wiringDirection==='horizontal'?-500:wireEnd.y)+'" x2="'+(wiringDirection==='horizontal'?wireEnd.x:1100)+'" y2="'+(wiringDirection==='horizontal'?1500:wireEnd.y)+'"/>'+
-   '<path id="wire-preview-path" class="wire-preview-path" stroke="'+activeWireColor+'" d="'+wirePath([wireSource,...wiringBends,wireEnd],true,wiringDirection)+'"/>'+
+   '<path id="wire-preview-path" class="wire-preview-path" stroke="'+activeWireColor+'" d="'+draftGeometry!.path+'"/>'+
    '<circle class="wire-preview-source" cx="'+wireSource.x+'" cy="'+wireSource.y+'" r="9" style="stroke:'+activeWireColor+'"/>'+
    wiringBends.map(p=>'<circle class="wire-preview-bend" cx="'+p.x+'" cy="'+p.y+'" r="5"/>').join('')+
-   '<circle id="wire-direction-corner" class="wire-preview-corner" cx="'+firstCorner!.x+'" cy="'+firstCorner!.y+'" r="4"/>'+
+   '<circle id="wire-direction-corner" class="wire-preview-corner" cx="'+draftGeometry!.corner.x+'" cy="'+draftGeometry!.corner.y+'" r="4"/>'+
    '<rect id="wire-preview-target" class="wire-preview-target" x="'+(wireEnd.x-7)+'" y="'+(wireEnd.y-7)+'" width="14" height="14" rx="2" opacity="'+(wiringHover?'1':'0')+'" data-valid="'+(wiringHover&&validWireTarget(wiring!,wiringHover.endpoint)?'true':'false')+'"/>'+
    '<g id="wire-target-label" class="wire-target-label" transform="translate('+(wireEnd.x+12)+' '+(wireEnd.y-16)+')" opacity="'+(wiringHover?'1':'0')+'"><rect x="0" y="-15" width="'+Math.max(48,endLabel.length*8+12)+'" height="22" rx="3"/><text x="7" y="0">'+escape(endLabel)+'</text></g>'+
    '</g>':'';
@@ -543,9 +561,9 @@ function updateWireCursor(point:Point){
  }
  const end=wiringHover?.point??point;
  const path=app.querySelector<SVGPathElement>('#wire-preview-path');
- if(path)path.setAttribute('d',wirePath([from,...wiringBends,end],true,wiringDirection));
- const firstLeg=wiringBends[0]??end;
- const corner=wiringDirection==='horizontal'?{x:firstLeg.x,y:from.y}:{x:from.x,y:firstLeg.y};
+ const geometry=draftWireGeometry(from,end);
+ if(path)path.setAttribute('d',geometry.path);
+ const corner=geometry.corner;
  const cornerNode=app.querySelector<SVGCircleElement>('#wire-direction-corner');
  if(cornerNode){cornerNode.setAttribute('cx',String(corner.x));cornerNode.setAttribute('cy',String(corner.y));}
  const ring=app.querySelector<SVGRectElement>('#wire-preview-target');

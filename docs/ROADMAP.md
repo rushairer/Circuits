@@ -142,3 +142,6 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 
 - [x] Alpha.11 first integrated three-view switcher: circuit canvas, Netlist-authored schematic, actual component list; readonly states, zoom/net focus, and SVG/CSV export without project mutation; legacy modals retained as transition
 - [ ] Compare toolbar tab dimensions/labels to authenticated Tinkercad; remove duplicate legacy modal entry only after verifying parity. Inline schematic is a read-only projection, not a full schematic editor
+
+- [x] Alpha.11 obstacle-aware wiring: unbent directed wires route around non-breadboard component bodies with deterministic orthogonal lanes; pin escape stubs, live preview, identical painted/hit/drag centerlines, preserved manual/legacy paths and one-undo first manual edit. Electrical connectivity independent of these SVG-only paths
+- [ ] Expand clearance routing for overlapping/rotated non-90-degree components and >240-part scenes; add lane congestion/crossing penalty for long bundles of colored jumper wires, plus authenticated original visual side-by-side

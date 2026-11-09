@@ -1,5 +1,6 @@
 import { type Project } from '../model.js';
-import { nearestWireSegment, snap, wirePoints, type Point } from './geometry.js';
+import { nearestWireSegment, nearestSegment, snap, wirePoints, type Point } from './geometry.js';
+import { visibleWireVertices } from './wire-visibility.js';
 
 export interface WaypointInserted { project:Project; index:number }
 const validPoint=(point:Point)=>Number.isFinite(point.x)&&Number.isFinite(point.y)&&
@@ -20,8 +21,15 @@ export function insertWireWaypoint(
  if(!points)return null;
  const nextPoint=placed(at,grid);
  if(!validPoint(nextPoint))return null;
- const index=nearestWireSegment(points,nextPoint,wire.routing);
- const bends=[...(wire.bends??[])];
+ // First manual edit takes ownership of the visible auto-detour shape:
+ // persist its orthogonal corners as waypoints before inserting the handle.
+ // Otherwise a double-click would cause the conductor to jump across a part.
+ const visual=wire.routing&&!wire.bends?.length?
+   visibleWireVertices(wire,project.parts,points):null;
+ const useVisual=visual&&visual.length>2&&visual.length-2<32;
+ const index=useVisual?nearestSegment(visual,nextPoint):
+   nearestWireSegment(points,nextPoint,wire.routing);
+ const bends=useVisual?visual!.slice(1,-1).map(p=>({...p})):[...(wire.bends??[])];
  bends.splice(index,0,nextPoint);
  return {project:{...project,wires:project.wires.map(w=>
    w.id===wireId?{...w,bends}:w)},index};

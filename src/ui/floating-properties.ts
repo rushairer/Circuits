@@ -137,6 +137,8 @@ export function renderQuickWireProperties(wire:Wire):string {
    '<option value="'+item.value+'"'+(type===item.value?' selected':'')+'>'+
    escape(item.label)+'</option>').join('');
  const routing=wire.routing==='horizontal'?'横向优先':wire.routing==='vertical'?'纵向优先':'传统兼容路径';
+ const routeHint=wire.routing&&!wire.bends?.length?'自动避让器件 · 拖动线段可自定义折点':
+   wire.bends?.length?'手动折点优先 · 保持用户指定线路':'旧工程路径保持原样 · 可切换方向启用自动走线';
  return '<section role="region" class="quick-properties quick-wire-properties" '+
    'aria-label="导线快捷属性" data-quick-wire-for="'+escape(wire.id)+'">'+
    '<div class="quick-heading"><div><strong>导线属性</strong><small>'+
@@ -146,7 +148,8 @@ export function renderQuickWireProperties(wire:Wire):string {
    '<label class="quick-field">导线颜色<input data-quick-field="wire-color" type="color" '+
    'aria-label="快捷导线颜色" value="'+escape(wire.color)+'"/></label>'+
    '<label class="quick-field">线缆类型<select data-quick-field="wire-type" aria-label="快捷线缆类型">'+options+'</select></label>'+
-   '<div class="quick-routing-status">正交走线：'+routing+'</div></div>'+
+   '<div class="quick-routing-status">正交走线：'+routing+
+   '<small class="quick-hint">'+routeHint+'</small></div></div>'+
    '<div class="quick-actions"><button type="button" data-action="quick-wire-flip-direction" '+
    'aria-label="切换导线正交走线方向">↳ 切换方向</button>'+
    '<button type="button" data-action="quick-wire-delete" class="quick-danger">删除</button></div>'+

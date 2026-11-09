@@ -4,6 +4,10 @@ import {demo,validProject} from '../.test-dist/model.js';
 import {evaluate} from '../.test-dist/core/dc.js';
 import {visibleWireVertices,visibleWirePath,AUTO_ROUTE_PART_LIMIT} from '../.test-dist/core/wire-visibility.js';
 import {orthogonalRoute,wirePoints} from '../.test-dist/core/geometry.js';
+import {paintCrossingWires} from '../.test-dist/core/wire-crossings.js';
+import {wirePickCandidates} from '../.test-dist/core/wire-picking.js';
+import {nearestOrthogonalSegment,slideOrthogonalSegment} from '../.test-dist/core/wire-segments.js';
+import {insertWireWaypoint} from '../.test-dist/core/wire-edit.js';
 
 const sample=()=>{
  const p=demo();
@@ -67,4 +71,43 @@ test('dense project bounds auto-router work and preserves canonical fallback',()
  assert.deepEqual(path(p),orthogonalRoute(wirePoints(p.wires[0],p.parts),'horizontal'));
  const legacy={...p,wires:[{...p.wires[0],routing:undefined}]};
  assert.equal(isOrthogonal(path(legacy)),true);
+});
+
+
+test('actual stroke, hit-test and segment dragging see the same clearance detour',()=>{
+ const p=sample(),vertices=path(p);
+ const painted=paintCrossingWires(p.wires,p.parts);
+ assert.equal(painted[0].hitPath,'M'+vertices.map(x=>x.x+' '+x.y).join(' L'));
+ const middle=vertices.findIndex((point,i)=>i>0&&point.y!==130);
+ assert.ok(middle>0);
+ const a=vertices[middle-1],b=vertices[middle];
+ const at={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+ const picked=wirePickCandidates(p.wires,p.parts,at,1,7);
+ assert.equal(picked[0]?.id,'w1');
+ const selected=nearestOrthogonalSegment(p.wires[0],p.parts,at);
+ assert.ok(selected);
+ assert.ok(selected.distance<1e-6);
+ const displacement=selected.axis==='vertical'?{x:16,y:0}:{x:0,y:16};
+ const slid=slideOrthogonalSegment(p,'w1',selected.index,displacement,1);
+ assert.ok(slid);
+ assert.equal(slid.project.wires[0].from.pinId,'b');
+ assert.equal(slid.project.wires[0].to.pinId,'a');
+ assert.ok(slid.project.wires[0].bends.length>0);
+ assert.equal(isOrthogonal(visibleWireVertices(slid.project.wires[0],slid.project.parts)),true);
+});
+test('converting the auto-detour into manual bends never teleports the wire through a blocker',()=>{
+ const p=sample(),old=path(p);
+ const leg=old.findIndex((x,i)=>i>0&&x.y!==old[i-1].y);
+ assert.ok(leg>0);
+ const center={x:(old[leg-1].x+old[leg].x)/2,
+               y:(old[leg-1].y+old[leg].y)/2};
+ const changed=insertWireWaypoint(p,'w1',center,null);
+ assert.ok(changed);
+ assert.ok(changed.project.wires[0].bends.length>=old.length-2);
+ assert.ok(changed.index>=0);
+ const revised=visibleWireVertices(changed.project.wires[0],changed.project.parts);
+ assert.equal(isOrthogonal(revised),true);
+ assert.deepEqual(revised[0],old[0]);
+ assert.deepEqual(revised.at(-1),old.at(-1));
+ assert.deepEqual(p.wires[0].bends,undefined);
 });
