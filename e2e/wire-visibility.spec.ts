@@ -69,3 +69,23 @@ test('moving obstruction regenerates a simpler conductor while preserving wire J
  expect(vertices(after!).length).toBeLessThan(vertices(before!).length);
  expect((await saved(page)).wires).toEqual(p.wires);
 });
+
+
+test('one-click smart cleanup upgrades legacy unbent circuits with atomic undo and live simulation preserved',async({page})=>{
+ await page.goto('/');
+ const initial=await saved(page);
+ await page.locator('[data-action="run"]').click();
+ await expect(page.locator('[data-action="run"]')).toContainText('停止仿真');
+ await page.locator('[data-action="auto-route-wires"]').click();
+ const routed=await saved(page);
+ expect(routed.wires).toHaveLength(initial.wires.length);
+ expect(routed.wires.every((w:{routing?:string})=>Boolean(w.routing))).toBe(true);
+ expect(routed.wires.map((w:{from:unknown;to:unknown})=>({from:w.from,to:w.to})))
+  .toEqual(initial.wires.map((w:{from:unknown;to:unknown})=>({from:w.from,to:w.to})));
+ await expect(page.locator('[data-action="run"]')).toContainText('停止仿真');
+ await page.locator('[data-action="undo"]').click();
+ const undone=await saved(page);
+ expect(undone.wires).toEqual(initial.wires);
+ await page.locator('[data-action="redo"]').click();
+ expect((await saved(page)).wires).toEqual(routed.wires);
+});

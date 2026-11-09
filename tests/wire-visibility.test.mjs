@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {demo,validProject} from '../.test-dist/model.js';
 import {evaluate} from '../.test-dist/core/dc.js';
-import {visibleWireVertices,visibleWirePath,AUTO_ROUTE_PART_LIMIT} from '../.test-dist/core/wire-visibility.js';
+import {visibleWireVertices,visibleWirePath,enableClearanceRouting,AUTO_ROUTE_PART_LIMIT} from '../.test-dist/core/wire-visibility.js';
 import {orthogonalRoute,wirePoints} from '../.test-dist/core/geometry.js';
 import {paintCrossingWires} from '../.test-dist/core/wire-crossings.js';
 import {wirePickCandidates} from '../.test-dist/core/wire-picking.js';
@@ -110,4 +110,26 @@ test('converting the auto-detour into manual bends never teleports the wire thro
  assert.deepEqual(revised[0],old[0]);
  assert.deepEqual(revised.at(-1),old.at(-1));
  assert.deepEqual(p.wires[0].bends,undefined);
+});
+
+
+test('opt-in upgrades legacy auto wires as one immutable visual edit; manual bends remain sacred',()=>{
+ const p=demo(),before=structuredClone(p),analysis=evaluate(p);
+ p.wires[1].bends=[{x:600,y:110}];
+ const saved=structuredClone(p);
+ const changed=enableClearanceRouting(p);
+ assert.notEqual(changed,p);
+ assert.equal(changed.wires[0].routing,'horizontal');
+ assert.equal(changed.wires[1].routing,undefined);
+ assert.deepEqual(changed.wires[1].bends,[{x:600,y:110}]);
+ assert.equal(changed.wires[2].routing,'horizontal');
+ assert.deepEqual(changed.wires.map(w=>({id:w.id,from:w.from,to:w.to,color:w.color})),
+   p.wires.map(w=>({id:w.id,from:w.from,to:w.to,color:w.color})));
+ assert.deepEqual(p,saved);
+ assert.deepEqual(evaluate(changed),evaluate(p));
+ assert.strictEqual(enableClearanceRouting(changed),changed);
+ const subset=enableClearanceRouting(p,new Set(['w3']));
+ assert.equal(subset.wires[0].routing,undefined);
+ assert.equal(subset.wires[2].routing,'horizontal');
+ assert.deepEqual(before.wires[1].bends,undefined);
 });

@@ -1,4 +1,4 @@
-import { pins, size, type Endpoint, type Part, type Wire } from '../model.js';
+import { pins, size, type Endpoint, type Part, type Wire, type Project } from '../model.js';
 import { orthogonalRoute, createPinResolver, type Point, type WireDirection } from './geometry.js';
 
 /**
@@ -218,4 +218,23 @@ export function visibleWireVertices(
 export function visibleWirePath(wire:Wire,parts:readonly Part[],points?:readonly Point[]):string{
  const vertices=visibleWireVertices(wire,parts,points);
  return vertices?'M'+vertices.map(coordinate).join(' L'):'';
+}
+
+
+/**
+ * Explicit, undoable opt-in for existing legacy autoroutes. Never silently
+ * replace a user's manual bends or mutate the serialized geometry on load.
+ */
+export function enableClearanceRouting(project:Project,selected:ReadonlySet<string>|null=null):Project{
+ let changed=false;
+ const resolve=createPinResolver(project.parts);
+ const wires=project.wires.map(wire=>{
+  if((selected&&!selected.has(wire.id))||wire.routing||wire.bends?.length)return wire;
+  const a=resolve(wire.from),b=resolve(wire.to);
+  if(!a||!b)return wire;
+  changed=true;
+  return {...wire,routing:Math.abs(b.x-a.x)>=Math.abs(b.y-a.y)?
+    'horizontal' as const:'vertical' as const};
+ });
+ return changed?{...project,wires}:project;
 }
