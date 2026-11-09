@@ -1,5 +1,6 @@
 import type { Part, Wire } from '../model.js';
 import { createPinResolver, orthogonalRoute, type Point } from './geometry.js';
+import { visibleWireVertices } from './wire-visibility.js';
 
 /**
  * A jumper wire is physically above/below another at an interior crossing,
@@ -35,12 +36,12 @@ const subtract=(a:Point,b:Point)=>({x:a.x-b.x,y:a.y-b.y});
 const cross=(a:Point,b:Point)=>a.x*b.y-a.y*b.x;
 const at=(a:Point,b:Point,t:number):Point=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});
 
-function visualVertices(w:Wire,points:Point[]|null):Point[]|null{
+function visualVertices(w:Wire,parts:readonly Part[],points:Point[]|null,preview=false):Point[]|null{
  if(!points)return null;
- if(w.routing)return orthogonalRoute(points,w.routing);
- if(w.bends?.length)return points;
- const a=points[0],b=points[points.length-1],mid=(a.x+b.x)/2;
- return [a,{x:mid,y:a.y},{x:mid,y:b.y},b];
+ // Retarget gestures use the old route until the destination pin is committed;
+ // a hover coordinate is not a real electrical terminal.
+ if(preview&&w.routing)return orthogonalRoute(points,w.routing);
+ return visibleWireVertices(w,parts,points);
 }
 function makeSegment(wireIndex:number,from:Point,to:Point):Segment{
  return {wireIndex,from,to,length:Math.hypot(to.x-from.x,to.y-from.y),
@@ -163,7 +164,7 @@ export function paintCrossingWires(
      const index=preview.side==='from'?0:points.length-1;
      points[index]={...preview.point};
    }
-   const vertices=visualVertices(w,points);
+   const vertices=visualVertices(w,parts,points,preview?.id===w.id);
    return {id:w.id,vertices,
      original:vertices?'M'+vertices.map(coordinate).join(' L'):''};
  });

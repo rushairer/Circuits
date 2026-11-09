@@ -65,5 +65,6 @@ test('dense project bounds auto-router work and preserves canonical fallback',()
  for(let i=0;i<AUTO_ROUTE_PART_LIMIT;i++)
   p.parts.push({...other,id:'extra-'+i,x:8000+i*100,y:9000});
  assert.deepEqual(path(p),orthogonalRoute(wirePoints(p.wires[0],p.parts),'horizontal'));
- assert.equal(path({...p,wires:[{...p.wires[0],routing:undefined}]}),undefined);
+ const legacy={...p,wires:[{...p.wires[0],routing:undefined}]};
+ assert.equal(isOrthogonal(path(legacy)),true);
 });

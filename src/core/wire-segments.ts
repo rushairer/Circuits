@@ -1,5 +1,6 @@
 import type { Part, Project, Wire } from '../model.js';
-import { orthogonalRoute, pinWorld, snap, wirePoints, type Point } from './geometry.js';
+import { snap, wirePoints, type Point } from './geometry.js';
+import { visibleWireVertices } from './wire-visibility.js';
 
 export type SegmentAxis='horizontal'|'vertical';
 export interface VisibleWireSegment {
@@ -43,10 +44,9 @@ function simplify(points:readonly Point[]):Point[]{
 export function orthogonalWireVertices(wire:Wire,parts:readonly Part[]):Point[]|null{
  const pts=wirePoints(wire,parts);
  if(!pts)return null;
- if(wire.routing)return simplify(orthogonalRoute(pts,wire.routing));
- if(wire.bends?.length)return null;
- const start=pts[0],end=pts[pts.length-1],midX=(start.x+end.x)/2;
- return simplify([start,{x:midX,y:start.y},{x:midX,y:end.y},end]);
+ if(!wire.routing&&wire.bends?.length)return null;
+ const route=visibleWireVertices(wire,parts,pts);
+ return route?simplify(route):null;
 }
 
 /**
