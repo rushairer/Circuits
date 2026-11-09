@@ -133,3 +133,18 @@ test('opt-in upgrades legacy auto wires as one immutable visual edit; manual ben
  assert.equal(subset.wires[2].routing,'horizontal');
  assert.deepEqual(before.wires[1].bends,undefined);
 });
+
+
+test('fractional-coordinate leads remain exactly orthogonal without six-decimal jumps',()=>{
+ const p=sample();
+ p.parts[0].x=0.123456789;p.parts[0].y=100.876543211;
+ p.parts[1].x=230.456789123;p.parts[1].y=72.987654321;
+ p.parts[2].x=470.123456789;p.parts[2].y=100.876543211;
+ const points=path(p);
+ assert.ok(points.length>=4);
+ assert.equal(isOrthogonal(points),true);
+ assert.equal(points[0].x,140.123456789);
+ assert.equal(points.at(-1).x,470.123456789);
+ assert.equal(points[0].y,130.876543211);
+ assert.equal(points.at(-1).y,130.876543211);
+});

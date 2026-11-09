@@ -112,13 +112,15 @@ function orthogonalSearch(from:Point,to:Point,boxes:readonly Bounds[],direction:
   xs.push(b.left-OUTSIDE,b.right+OUTSIDE);
   ys.push(b.top-OUTSIDE,b.bottom+OUTSIDE);
  }
- const unique=(a:number[])=>[...new Set(a.map(n=>Number(n.toFixed(6))))].sort((a,b)=>a-b);
+ // Preserve exact imported fractional coordinates. Quantizing to 6 decimals
+ // could create a microscopic diagonal between a real pin/port and the grid.
+ const unique=(a:number[])=>[...new Set(a)].sort((a,b)=>a-b);
  const xx=unique(xs),yy=unique(ys),rows=yy.length,cols=xx.length;
  if(cols*rows>2000)return null;
  const point=(id:number)=>({x:xx[Math.floor(id/rows)],y:yy[id%rows]});
  const index=(p:Point)=>{
-  const col=xx.findIndex(x=>Math.abs(x-p.x)<1e-5);
-  const row=yy.findIndex(y=>Math.abs(y-p.y)<1e-5);
+  const col=xx.indexOf(p.x);
+  const row=yy.indexOf(p.y);
   return col<0||row<0?-1:col*rows+row;
  };
  const start=index(from),goal=index(to);
