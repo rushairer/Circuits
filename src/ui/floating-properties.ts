@@ -137,8 +137,9 @@ export function renderQuickWireProperties(wire:Wire):string {
    '<option value="'+item.value+'"'+(type===item.value?' selected':'')+'>'+
    escape(item.label)+'</option>').join('');
  const routing=wire.routing==='horizontal'?'横向优先':wire.routing==='vertical'?'纵向优先':'传统兼容路径';
- const routeHint=wire.routing&&!wire.bends?.length?'自动避让器件 · 拖动线段可自定义折点':
-   wire.bends?.length?'手动折点优先 · 保持用户指定线路':'旧工程路径保持原样 · 可切换方向启用自动走线';
+ const routeHint=wire.bends?.length?'手动折点优先 · 保持用户指定线路':
+   wire.autoAvoid?'智能避让器件 · 可通过拖动线段自定义':
+   '传统路径保持不变 · 可点击顶部“智能避让”升级';
  return '<section role="region" class="quick-properties quick-wire-properties" '+
    'aria-label="导线快捷属性" data-quick-wire-for="'+escape(wire.id)+'">'+
    '<div class="quick-heading"><div><strong>导线属性</strong><small>'+

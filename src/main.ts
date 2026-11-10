@@ -332,7 +332,7 @@ function draftWireGeometry(from:Point,to:Point):{path:string;corner:Point}{
  let vertices:Point[]|null=null;
  if(wiring&&wiringHover&&!wiringBends.length&&validWireTarget(wiring,wiringHover.endpoint)){
    const transient:Wire={id:'draft',from:wiring,to:wiringHover.endpoint,
-     color:activeWireColor,routing:wiringDirection};
+     color:activeWireColor,routing:wiringDirection,autoAvoid:true};
    vertices=visibleWireVertices(transient,project.parts,[from,to]);
  }
  const first=wiringBends[0]??to;
@@ -905,6 +905,7 @@ function add(kind:Kind,x?:number,y?:number){
 function finishConnection(from:Endpoint,to:Endpoint,bends:readonly Point[]){
  const id=uid();
  const result=appendConnection(project,{id,from,to,color:activeWireColor,routing:wiringDirection,
+   ...(bends.length?{}:{autoAvoid:true}),
    ...(activeWireType==='normal'?{}:{type:activeWireType}),
    ...(bends.length?{bends:bends.map(p=>({...p}))}:{})});
  clearWireDraft();

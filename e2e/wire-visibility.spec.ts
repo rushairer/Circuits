@@ -46,6 +46,7 @@ test('live auto-wire preview routes around another component and matches the com
  const updated=await saved(page);
  expect(updated.wires).toHaveLength(1);
  expect(updated.wires[0].routing).toBe('horizontal');
+ expect(updated.wires[0].autoAvoid).toBe(true);
  expect(updated.wires[0].bends).toBeUndefined();
  expect(updated.wires[0].from).toEqual({componentId:'left',pinId:'b'});
  expect(updated.wires[0].to).toEqual({componentId:'right',pinId:'a'});
@@ -54,7 +55,7 @@ test('moving obstruction regenerates a simpler conductor while preserving wire J
  await setup(page);
  const p=await saved(page);
  p.wires=[{id:'wire1',from:{componentId:'left',pinId:'b'},to:{componentId:'right',pinId:'a'},
-   color:'#159f91',routing:'horizontal'}];
+   color:'#159f91',routing:'horizontal',autoAvoid:true}];
  await page.locator('#file').setInputFiles({
   name:'routed.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))
  });
@@ -79,7 +80,7 @@ test('one-click smart cleanup upgrades legacy unbent circuits with atomic undo a
  await page.locator('[data-action="auto-route-wires"]').click();
  const routed=await saved(page);
  expect(routed.wires).toHaveLength(initial.wires.length);
- expect(routed.wires.every((w:{routing?:string})=>Boolean(w.routing))).toBe(true);
+ expect(routed.wires.every((w:{routing?:string;autoAvoid?:boolean})=>Boolean(w.routing)&&w.autoAvoid===true)).toBe(true);
  expect(routed.wires.map((w:{from:unknown;to:unknown})=>({from:w.from,to:w.to})))
   .toEqual(initial.wires.map((w:{from:unknown;to:unknown})=>({from:w.from,to:w.to})));
  await expect(page.locator('[data-action="run"]')).toContainText('停止仿真');

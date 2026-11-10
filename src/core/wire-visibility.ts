@@ -196,6 +196,9 @@ export function visibleWireVertices(
   return [a,{x:mx,y:a.y},{x:mx,y:b.y},b];
  }
  const fallback=orthogonalRoute(points,wire.routing);
+ // Older schema-v2 routed wires retain their original HV/VH geometry:
+ // switching on obstacle-avoidance requires explicit user intent.
+ if(!wire.autoAvoid)return fallback;
  if(parts.length>AUTO_ROUTE_PART_LIMIT||points.some(p=>!finite(p)))return fallback;
  const from=points[0],to=points.at(-1)!;
  const find=(ep:Endpoint)=>parts.find(p=>p.id===ep.componentId);
@@ -241,12 +244,13 @@ export function enableClearanceRouting(project:Project,selected:ReadonlySet<stri
  let changed=false;
  const resolve=createPinResolver(project.parts);
  const wires=project.wires.map(wire=>{
-  if((selected&&!selected.has(wire.id))||wire.routing||wire.bends?.length)return wire;
+  if((selected&&!selected.has(wire.id))||wire.autoAvoid||wire.bends?.length)return wire;
   const a=resolve(wire.from),b=resolve(wire.to);
   if(!a||!b)return wire;
   changed=true;
-  return {...wire,routing:Math.abs(b.x-a.x)>=Math.abs(b.y-a.y)?
-    'horizontal' as const:'vertical' as const};
+  return {...wire,autoAvoid:true,
+    routing:wire.routing??(Math.abs(b.x-a.x)>=Math.abs(b.y-a.y)?
+      'horizontal' as const:'vertical' as const)};
  });
  return changed?{...project,wires}:project;
 }

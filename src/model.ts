@@ -7,7 +7,7 @@ export interface Endpoint { componentId:string; pinId:string }
 /** Wire connector types affect drawing hardware only, never electrical connectivity. */
 export type WireType='normal'|'hookup'|'alligator'|'automatic';
 /** Optional orthogonal direction/type; absent preserves legacy SVG paths and wire style. */
-export interface Wire { id:string; from:Endpoint; to:Endpoint; color:string; bends?:{x:number;y:number}[]; routing?:'horizontal'|'vertical'; type?:WireType }
+export interface Wire { id:string; from:Endpoint; to:Endpoint; color:string; bends?:{x:number;y:number}[]; routing?:'horizontal'|'vertical'; autoAvoid?:boolean; type?:WireType }
 export interface Insertion { componentId:string; pinId:string; boardId:string; holeId:string }
 /** Free-position teaching annotation. It has no terminals and never belongs to a net. */
 export interface CircuitNote { id:string; x:number; y:number; text:string }
@@ -85,6 +85,7 @@ export function validProject(v:unknown):v is Project {
  for(const w of p.wires){
    if(!w||typeof w.id!=='string'||!/^[\w-]{1,80}$/.test(w.id)||wireIds.has(w.id)||!w.from||!w.to||!/^#[0-9a-fA-F]{6}$/.test(w.color))return false;
    if(w.routing!==undefined&&w.routing!=='horizontal'&&w.routing!=='vertical')return false;
+   if(w.autoAvoid!==undefined&&(typeof w.autoAvoid!=='boolean'||(w.autoAvoid&&!w.routing)))return false;
    if(w.type!==undefined&&w.type!=='normal'&&w.type!=='hookup'&&w.type!=='alligator'&&w.type!=='automatic')return false;
    if(w.bends!==undefined&&(!Array.isArray(w.bends)||w.bends.length>32||w.bends.some(b=>!b||!Number.isFinite(b.x)||!Number.isFinite(b.y)||Math.abs(b.x)>100000||Math.abs(b.y)>100000)))return false;
    const from=p.parts.find(c=>c.id===w.from.componentId),to=p.parts.find(c=>c.id===w.to.componentId);

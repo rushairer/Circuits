@@ -24,7 +24,7 @@ export function insertWireWaypoint(
  // First manual edit takes ownership of the visible auto-detour shape:
  // persist its orthogonal corners as waypoints before inserting the handle.
  // Otherwise a double-click would cause the conductor to jump across a part.
- const visual=wire.routing&&!wire.bends?.length?
+ const visual=wire.routing&&wire.autoAvoid&&!wire.bends?.length?
    visibleWireVertices(wire,project.parts,points):null;
  const useVisual=visual&&visual.length>2&&visual.length-2<32;
  const index=useVisual?nearestSegment(visual,nextPoint):

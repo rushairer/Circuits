@@ -17,7 +17,7 @@ const sample=()=>{
   {id:'right',kind:'resistor',x:470,y:100,rotation:0,value:220}
  ];
  p.wires=[{id:'w1',from:{componentId:'left',pinId:'b'},to:{componentId:'right',pinId:'a'},
-  color:'#159f91',routing:'horizontal'}];
+  color:'#159f91',routing:'horizontal',autoAvoid:true}];
  p.insertions=[];return p;
 };
 const path=p=>visibleWireVertices(p.wires[0],p.parts);
@@ -120,7 +120,9 @@ test('opt-in upgrades legacy auto wires as one immutable visual edit; manual ben
  const changed=enableClearanceRouting(p);
  assert.notEqual(changed,p);
  assert.equal(changed.wires[0].routing,'horizontal');
+ assert.equal(changed.wires[0].autoAvoid,true);
  assert.equal(changed.wires[1].routing,undefined);
+ assert.equal(changed.wires[1].autoAvoid,undefined);
  assert.deepEqual(changed.wires[1].bends,[{x:600,y:110}]);
  assert.equal(changed.wires[2].routing,'horizontal');
  assert.deepEqual(changed.wires.map(w=>({id:w.id,from:w.from,to:w.to,color:w.color})),
@@ -172,4 +174,27 @@ test('even in a crowded diagram connected component bodies remain protected obst
   assert.equal(intersects(points[i-1],points[i],left),false);
   assert.equal(intersects(points[i-1],points[i],right),false);
  }
+});
+
+
+test('old routed HV/VH shapes retain their exact slide and click coordinates until opt-in',()=>{
+ const p=demo(),w={...p.wires[0],routing:'horizontal'};
+ const pts=wirePoints(w,p.parts),old=orthogonalRoute(pts,'horizontal');
+ assert.deepEqual(visibleWireVertices(w,p.parts),old);
+ assert.equal(paintCrossingWires([w],p.parts)[0].hitPath,
+   'M'+old.map(t=>t.x+' '+t.y).join(' L'));
+ assert.equal(nearestOrthogonalSegment(w,p.parts,{x:255,y:208})?.axis,'horizontal');
+ const flagged={...w,autoAvoid:true};
+ assert.notDeepEqual(visibleWireVertices(flagged,p.parts),old);
+ assert.equal(validProject({...p,wires:[flagged]}),true);
+ assert.equal(validProject({...p,wires:[{...w,autoAvoid:'unsafe'}]}),false);
+ assert.equal(validProject({...p,wires:[{...p.wires[0],autoAvoid:true}]}),false);
+});
+test('smart upgrade retains manually selected direction on a legacy routed wire',()=>{
+ const p=demo();p.wires[0].routing='vertical';
+ const routed=enableClearanceRouting(p,new Set(['w1']));
+ assert.equal(routed.wires[0].routing,'vertical');
+ assert.equal(routed.wires[0].autoAvoid,true);
+ assert.equal(routed.wires[1].autoAvoid,undefined);
+ assert.strictEqual(enableClearanceRouting(routed,new Set(['w1'])),routed);
 });

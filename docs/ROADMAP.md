@@ -147,3 +147,5 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 - [ ] Expand clearance routing for overlapping/rotated non-90-degree components and >240-part scenes; add lane congestion/crossing penalty for long bundles of colored jumper wires, plus authenticated original visual side-by-side
 
 - [x] Alpha.11 user-controlled retrofitting: toolbar command enables obstacle routing on selected or all unbent legacy wires, skips hand-set bends, and supports one-undo cleanups while simulation remains running
+
+- [x] Alpha.11 legacy drag-regression fix: opt-in `autoAvoid` for new/explicitly upgraded wires prevents older routed projects from unexpectedly changing their segment geometry, pick targets, bend counts and undo behavior
