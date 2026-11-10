@@ -6,7 +6,7 @@ import { orthogonalRoute, createPinResolver, type Point, type WireDirection } fr
  * exclusively the authored wire endpoints. Manually authored waypoints and
  * untagged legacy wires retain their existing shapes.
  */
-export const AUTO_ROUTE_PART_LIMIT=240;
+export const AUTO_ROUTE_PART_LIMIT=300;
 export const AUTO_ROUTE_OBSTACLE_LIMIT=18;
 const CLEARANCE=13;
 const OUTSIDE=7;
@@ -44,6 +44,37 @@ function blocked(a:Point,b:Point,boxes:readonly Bounds[]):boolean {
   }else return true;
  }
  return false;
+}
+const routeIsClear=(vertices:readonly Point[],boxes:readonly Bounds[]):boolean=>
+  vertices.every(finite)&&vertices.slice(1).every((p,i)=>
+   !blocked(vertices[i],p,boxes));
+
+/** When too many nearby bodies exceed the bounded graph's capacity,
+ * search four deterministic perimeter corridors instead of painting a wire
+ * directly through an omitted component. Any used corridor must be clear
+ * against *all* component bodies, not merely the sampled first 18.
+ */
+function perimeterRoute(from:Point,to:Point,boxes:readonly Bounds[],direction:WireDirection):Point[]|null{
+ if(!boxes.length)return null;
+ const up=Math.min(from.y,to.y,...boxes.map(b=>b.top))-CLEARANCE-OUTSIDE;
+ const down=Math.max(from.y,to.y,...boxes.map(b=>b.bottom))+CLEARANCE+OUTSIDE;
+ const left=Math.min(from.x,to.x,...boxes.map(b=>b.left))-CLEARANCE-OUTSIDE;
+ const right=Math.max(from.x,to.x,...boxes.map(b=>b.right))+CLEARANCE+OUTSIDE;
+ const candidates=[
+  [from,{x:from.x,y:up},{x:to.x,y:up},to],
+  [from,{x:from.x,y:down},{x:to.x,y:down},to],
+  [from,{x:left,y:from.y},{x:left,y:to.y},to],
+  [from,{x:right,y:from.y},{x:right,y:to.y},to]
+ ].map(simplify).filter(path=>routeIsClear(path,boxes));
+ if(!candidates.length)return null;
+ const cost=(route:Point[])=>{
+  const length=route.slice(1).reduce((sum,p,i)=>
+   sum+Math.abs(p.x-route[i].x)+Math.abs(p.y-route[i].y),0);
+  const first=route[0],next=route[1]??first;
+  const axis=Math.abs(first.x-next.x)>EPS?'horizontal':'vertical';
+  return length+BEND_COST*(route.length-2)+(axis===direction?0:12);
+ };
+ return candidates.sort((a,b)=>cost(a)-cost(b))[0];
 }
 function simplify(points:readonly Point[]):Point[]{
  const out:Point[]=[];
@@ -222,8 +253,20 @@ export function visibleWireVertices(
  // Endpoint devices may never be evicted by a crowded nearest-obstacle list.
  const boxes=[...kept,...extras.slice(0,Math.max(0,AUTO_ROUTE_OBSTACLE_LIMIT-kept.length))]
   .map(item=>item.bounds);
- if(boxes.some(b=>inside(start,b)||inside(end,b)))return fallback;
- const path=orthogonalSearch(start,end,boxes,wire.routing);
+ const allBoxes=all.map(item=>item.bounds);
+ if(allBoxes.some(b=>inside(start,b)||inside(end,b)))return fallback;
+ // Prefer the familiar clean elbow when no component is in its way.
+ // This also avoids building an A* graph for most wires in full-size projects.
+ const preferred=orthogonalRoute([start,end],wire.routing);
+ const alternative=orthogonalRoute([start,end],
+  wire.routing==='horizontal'?'vertical':'horizontal');
+ let path:Point[]|null=routeIsClear(preferred,allBoxes)?preferred:
+  routeIsClear(alternative,allBoxes)?alternative:null;
+ if(!path){
+  const searched=orthogonalSearch(start,end,boxes,wire.routing);
+  path=searched&&routeIsClear(searched,allBoxes)?searched:
+    perimeterRoute(start,end,allBoxes,wire.routing);
+ }
  if(!path)return fallback;
  const combined=simplify([from,start,...path,end,to]);
  // Pins and all manual connections retain exact identity and coordinates.

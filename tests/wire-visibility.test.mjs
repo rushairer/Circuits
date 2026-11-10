@@ -64,6 +64,19 @@ test('manual bends and old serialized untagged wire shapes are never altered',()
  const mx=(pins[0].x+pins.at(-1).x)/2;
  assert.deepEqual(legacy,[pins[0],{x:mx,y:pins[0].y},{x:mx,y:pins.at(-1).y},pins.at(-1)]);
 });
+test('300-part project still detours around nearby devices instead of always degrading to a straight line',()=>{
+ const p=sample();
+ for(let i=0;i<297;i++)p.parts.push({
+  id:'away-'+i,kind:'resistor',x:8000+i*150,y:9500,rotation:0,value:220
+ });
+ assert.equal(p.parts.length,AUTO_ROUTE_PART_LIMIT);
+ const actual=path(p),fallback=orthogonalRoute(wirePoints(p.wires[0],p.parts),'horizontal');
+ assert.equal(isOrthogonal(actual),true);
+ assert.notDeepEqual(actual,fallback);
+ const blocker={left:217,right:335,top:59,bottom:220};
+ for(let i=1;i<actual.length;i++)
+  assert.equal(intersects(actual[i-1],actual[i],blocker),false);
+});
 test('dense project bounds auto-router work and preserves canonical fallback',()=>{
  const p=sample(),other=p.parts.find(x=>x.id==='obstacle');
  for(let i=0;i<AUTO_ROUTE_PART_LIMIT;i++)
@@ -197,4 +210,30 @@ test('smart upgrade retains manually selected direction on a legacy routed wire'
  assert.equal(routed.wires[0].autoAvoid,true);
  assert.equal(routed.wires[1].autoAvoid,undefined);
  assert.strictEqual(enableClearanceRouting(routed,new Set(['w1'])),routed);
+});
+
+
+test('routed wire with 20+ nearby components never cuts through an omitted visual obstacle',()=>{
+ const p=sample();
+ // A staggered bank forces the route to evaluate all nearby bodies. When
+ // bounded graph selection cannot certify clearance, a perimeter lane is used.
+ for(let i=0;i<24;i++)p.parts.push({
+   id:'bank-'+i,kind:'resistor',
+   x:175+i*10,y:i%3===0?52:i%3===1?152:250,
+   rotation:0,value:220
+ });
+ const vertices=path(p);
+ const fullBoxes=p.parts.slice(1).map(b=>({
+  left:b.x-13,right:b.x+(b.kind==='resistor'?140:92)+13,
+  top:b.y-13,bottom:b.y+(b.kind==='resistor'?60:135)+13
+ }));
+ assert.equal(isOrthogonal(vertices),true);
+ // The initial/final pin-to-exit lead is allowed inside its own device;
+ // every free-space leg must avoid the bank of unrelated bodies.
+ for(let i=2;i<vertices.length-2;i++){
+  const a=vertices[i-1],b=vertices[i];
+  for(const rect of fullBoxes.slice(1,-1)){
+   assert.equal(intersects(a,b,rect),false);
+  }
+ }
 });

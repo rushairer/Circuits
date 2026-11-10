@@ -149,3 +149,5 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 - [x] Alpha.11 user-controlled retrofitting: toolbar command enables obstacle routing on selected or all unbent legacy wires, skips hand-set bends, and supports one-undo cleanups while simulation remains running
 
 - [x] Alpha.11 legacy drag-regression fix: opt-in `autoAvoid` for new/explicitly upgraded wires prevents older routed projects from unexpectedly changing their segment geometry, pick targets, bend counts and undo behavior
+
+- [x] alpha.11 clearance capacity: support up to 300 component layouts, prefer unobstructed natural elbows, validate A* detours against unsampled nearby bodies and use an outer lane when possible instead of hiding a conductor behind a part
