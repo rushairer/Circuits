@@ -219,11 +219,11 @@ test('routed wire with 20+ nearby components never cuts through an omitted visua
  // bounded graph selection cannot certify clearance, a perimeter lane is used.
  for(let i=0;i<24;i++)p.parts.push({
    id:'bank-'+i,kind:'resistor',
-   x:175+i*10,y:i%3===0?52:i%3===1?152:250,
+   x:175+i*4,y:i%3===0?52:i%3===1?152:250,
    rotation:0,value:220
  });
  const vertices=path(p);
- const fullBoxes=p.parts.slice(1).map(b=>({
+ const fullBoxes=p.parts.filter(p=>p.id!=='left'&&p.id!=='right').map(b=>({
   left:b.x-13,right:b.x+(b.kind==='resistor'?140:92)+13,
   top:b.y-13,bottom:b.y+(b.kind==='resistor'?60:135)+13
  }));
@@ -232,7 +232,7 @@ test('routed wire with 20+ nearby components never cuts through an omitted visua
  // every free-space leg must avoid the bank of unrelated bodies.
  for(let i=2;i<vertices.length-2;i++){
   const a=vertices[i-1],b=vertices[i];
-  for(const rect of fullBoxes.slice(1,-1)){
+  for(const rect of fullBoxes){
    assert.equal(intersects(a,b,rect),false);
   }
  }
