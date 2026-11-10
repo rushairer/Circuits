@@ -330,10 +330,11 @@ function art(c:Part){
  */
 function draftWireGeometry(from:Point,to:Point):{path:string;corner:Point;turns:Point[]}{
  let vertices:Point[]|null=null;
- if(wiring&&wiringHover&&!wiringBends.length&&validWireTarget(wiring,wiringHover.endpoint)){
-   const transient:Wire={id:'draft',from:wiring,to:wiringHover.endpoint,
+ if(wiring&&!wiringBends.length&&
+     (!wiringHover||validWireTarget(wiring,wiringHover.endpoint))){
+   const transient:Wire={id:'draft',from:wiring,to:wiringHover?.endpoint??wiring,
      color:activeWireColor,routing:wiringDirection,autoAvoid:true};
-   vertices=visibleWireVertices(transient,project.parts,[from,to]);
+   vertices=visibleWireVertices(transient,project.parts,[from,to],!wiringHover);
  }
  const first=wiringBends[0]??to;
  const fallback=wiringDirection==='horizontal'?{x:first.x,y:from.y}:{x:from.x,y:first.y};

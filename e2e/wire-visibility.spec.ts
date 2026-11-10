@@ -16,6 +16,15 @@ const setup=async(page:Page)=>{
  await expect(page.locator('.wire')).toHaveCount(0);
  return p;
 };
+async function screenFromWorld(page:Page,x:number,y:number){
+ return page.evaluate(({x,y})=>{
+  const svg=document.querySelector<SVGSVGElement>('#board')!;
+  const scene=document.querySelector<SVGGElement>('#scene')!;
+  const point=svg.createSVGPoint();point.x=x;point.y=y;
+  const pos=point.matrixTransform(scene.getScreenCTM()!);
+  return {x:pos.x,y:pos.y};
+ },{x,y});
+}
 async function center(page:Page,selector:string){
  const bounds=await page.locator(selector).boundingBox();
  expect(bounds).not.toBeNull();
@@ -32,6 +41,14 @@ const crosses=(a:{x:number;y:number},b:{x:number;y:number},r:{left:number;right:
 test('live auto-wire preview routes around another component and matches the committed SVG',async({page},testInfo)=>{
  await setup(page);
  await page.locator(pin('left','b')).click();
+ const free=await screenFromWorld(page,420,130);
+ await page.mouse.move(free.x,free.y,{steps:6});
+ const temporary=await page.locator('#wire-preview-path').getAttribute('d');
+ const withoutTarget=vertices(temporary!);
+ expect(withoutTarget.length).toBeGreaterThan(3);
+ const batteryPreview={left:217,right:335,top:59,bottom:220};
+ for(let i=1;i<withoutTarget.length;i++)
+  expect(crosses(withoutTarget[i-1],withoutTarget[i],batteryPreview)).toBe(false);
  const target=await center(page,pin('right','a'));
  await page.mouse.move(target.x,target.y,{steps:5});
  const draft=await page.locator('#wire-preview-path').getAttribute('d');

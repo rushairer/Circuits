@@ -214,7 +214,7 @@ function orthogonalSearch(from:Point,to:Point,boxes:readonly Bounds[],direction:
  * are intentionally visible on top of their sockets, not hidden behind them.
  */
 export function visibleWireVertices(
- wire:Wire,parts:readonly Part[],providedPoints?:readonly Point[]
+ wire:Wire,parts:readonly Part[],providedPoints?:readonly Point[],freeEnd=false
 ):Point[]|null {
  const points=providedPoints?providedPoints.map(p=>({...p})):(()=>{
   const pin=createPinResolver(parts),a=pin(wire.from),b=pin(wire.to);
@@ -234,9 +234,9 @@ export function visibleWireVertices(
  if(parts.length>AUTO_ROUTE_PART_LIMIT||points.some(p=>!finite(p)))return fallback;
  const from=points[0],to=points.at(-1)!;
  const find=(ep:Endpoint)=>parts.find(p=>p.id===ep.componentId);
- const source=find(wire.from),dest=find(wire.to);
+ const source=find(wire.from),dest=freeEnd?undefined:find(wire.to);
  const start=escapePort(wire.from,from,source);
- const end=escapePort(wire.to,to,dest);
+ const end=freeEnd?{...to}:escapePort(wire.to,to,dest);
  if(!start||!end||!finite(start)||!finite(end))return fallback;
  const corridor:Bounds={
   left:Math.min(start.x,end.x)-230,right:Math.max(start.x,end.x)+230,
@@ -244,7 +244,8 @@ export function visibleWireVertices(
  };
  const all=parts.filter(p=>p.kind!=='breadboard')
   .map(p=>({id:p.id,bounds:box(p)})).filter(item=>intersects(item.bounds,corridor));
- const mandatory=new Set([wire.from.componentId,wire.to.componentId]);
+ const mandatory=new Set(freeEnd?[wire.from.componentId]:
+  [wire.from.componentId,wire.to.componentId]);
  const kept=all.filter(item=>mandatory.has(item.id));
  const extras=all.filter(item=>!mandatory.has(item.id)).sort((a,b)=>{
    const relevance=(r:Bounds)=>Math.max(0,Math.max(r.left-Math.max(start.x,end.x),Math.min(start.x,end.x)-r.right))+

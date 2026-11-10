@@ -237,3 +237,18 @@ test('routed wire with 20+ nearby components never cuts through an omitted visua
   }
  }
 });
+
+
+test('pointer-to-empty-canvas ghost avoids component bodies without inventing electrical pins',()=>{
+ const p=sample(),start=wirePoints(p.wires[0],p.parts)[0],cursor={x:420,y:130};
+ const ghost=visibleWireVertices({...p.wires[0],to:p.wires[0].from},p.parts,
+  [start,cursor],true);
+ assert.ok(ghost.length>3);
+ assert.equal(isOrthogonal(ghost),true);
+ assert.deepEqual(ghost[0],start);
+ assert.deepEqual(ghost.at(-1),cursor);
+ const battery={left:217,right:335,top:59,bottom:220};
+ for(let i=1;i<ghost.length;i++)
+  assert.equal(intersects(ghost[i-1],ghost[i],battery),false);
+ assert.equal(p.wires[0].to.componentId,'right');
+});
