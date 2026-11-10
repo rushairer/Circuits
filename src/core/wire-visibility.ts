@@ -54,7 +54,8 @@ const routeIsClear=(vertices:readonly Point[],boxes:readonly Bounds[]):boolean=>
  * directly through an omitted component. Any used corridor must be clear
  * against *all* component bodies, not merely the sampled first 18.
  */
-function perimeterRoute(from:Point,to:Point,boxes:readonly Bounds[],direction:WireDirection):Point[]|null{
+function perimeterRoute(from:Point,to:Point,boxes:readonly Bounds[],direction:WireDirection,
+ verify:readonly Bounds[]=boxes):Point[]|null{
  if(!boxes.length)return null;
  const up=Math.min(from.y,to.y,...boxes.map(b=>b.top))-CLEARANCE-OUTSIDE;
  const down=Math.max(from.y,to.y,...boxes.map(b=>b.bottom))+CLEARANCE+OUTSIDE;
@@ -65,7 +66,7 @@ function perimeterRoute(from:Point,to:Point,boxes:readonly Bounds[],direction:Wi
   [from,{x:from.x,y:down},{x:to.x,y:down},to],
   [from,{x:left,y:from.y},{x:left,y:to.y},to],
   [from,{x:right,y:from.y},{x:right,y:to.y},to]
- ].map(simplify).filter(path=>routeIsClear(path,boxes));
+ ].map(simplify).filter(path=>routeIsClear(path,verify));
  if(!candidates.length)return null;
  const cost=(route:Point[])=>{
   const length=route.slice(1).reduce((sum,p,i)=>
@@ -254,6 +255,9 @@ export function visibleWireVertices(
  const boxes=[...kept,...extras.slice(0,Math.max(0,AUTO_ROUTE_OBSTACLE_LIMIT-kept.length))]
   .map(item=>item.bounds);
  const allBoxes=all.map(item=>item.bounds);
+ // Perimeter lanes may leave the initial corridor: verify them against ALL
+ // bodies in the project, never just the sampled corridor obstacles.
+ const fullBoxes=parts.filter(p=>p.kind!=='breadboard').map(box);
  if(allBoxes.some(b=>inside(start,b)||inside(end,b)))return fallback;
  // Prefer the familiar clean elbow when no component is in its way.
  // This also avoids building an A* graph for most wires in full-size projects.
@@ -265,7 +269,7 @@ export function visibleWireVertices(
  if(!path){
   const searched=orthogonalSearch(start,end,boxes,wire.routing);
   path=searched&&routeIsClear(searched,allBoxes)?searched:
-    perimeterRoute(start,end,allBoxes,wire.routing);
+    perimeterRoute(start,end,allBoxes,wire.routing,fullBoxes);
  }
  if(!path)return fallback;
  const combined=simplify([from,start,...path,end,to]);
