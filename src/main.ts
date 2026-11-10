@@ -328,7 +328,7 @@ function art(c:Part){
  * Mouse movement with no real destination remains user-directed HV/VH;
  * near a real pin and without manual waypoints it previews a safe detour.
  */
-function draftWireGeometry(from:Point,to:Point):{path:string;corner:Point}{
+function draftWireGeometry(from:Point,to:Point):{path:string;corner:Point;turns:Point[]}{
  let vertices:Point[]|null=null;
  if(wiring&&wiringHover&&!wiringBends.length&&validWireTarget(wiring,wiringHover.endpoint)){
    const transient:Wire={id:'draft',from:wiring,to:wiringHover.endpoint,
@@ -340,8 +340,19 @@ function draftWireGeometry(from:Point,to:Point):{path:string;corner:Point}{
  return {
    path:vertices?'M'+vertices.map(point=>point.x+' '+point.y).join(' L'):
      wirePath([from,...wiringBends,to],true,wiringDirection),
-   corner:vertices?.[1]??fallback
+   corner:vertices?.[1]??fallback,
+   turns:vertices?.slice(2,-1).filter((point,index)=>{
+     const before=vertices![index+1],after=vertices![index+3];
+     const priorVertical=before.x===point.x;
+     const followingVertical=point.x===after.x;
+     return priorVertical!==followingVertical;
+   })??[]
  };
+}
+function renderDraftTurns(turns:readonly Point[]):string {
+ return turns.slice(0,28).map((p,i)=>
+   '<circle class="wire-preview-auto-corner" data-route-turn="'+i+'" cx="'+p.x+
+   '" cy="'+p.y+'" r="3.5" pointer-events="none"/>').join('');
 }
 function canvas(){
  // The ordered visual stack defines which wire jumps over crossings;
@@ -420,6 +431,7 @@ function canvas(){
    '<circle class="wire-preview-source" cx="'+wireSource.x+'" cy="'+wireSource.y+'" r="9" style="stroke:'+activeWireColor+'"/>'+
    wiringBends.map(p=>'<circle class="wire-preview-bend" cx="'+p.x+'" cy="'+p.y+'" r="5"/>').join('')+
    '<circle id="wire-direction-corner" class="wire-preview-corner" cx="'+draftGeometry!.corner.x+'" cy="'+draftGeometry!.corner.y+'" r="4"/>'+
+    '<g id="wire-preview-auto-corners">'+renderDraftTurns(draftGeometry!.turns)+'</g>'+
    '<rect id="wire-preview-target" class="wire-preview-target" x="'+(wireEnd.x-7)+'" y="'+(wireEnd.y-7)+'" width="14" height="14" rx="2" opacity="'+(wiringHover?'1':'0')+'" data-valid="'+(wiringHover&&validWireTarget(wiring!,wiringHover.endpoint)?'true':'false')+'"/>'+
    '<g id="wire-target-label" class="wire-target-label" transform="translate('+(wireEnd.x+12)+' '+(wireEnd.y-16)+')" opacity="'+(wiringHover?'1':'0')+'"><rect x="0" y="-15" width="'+Math.max(48,endLabel.length*8+12)+'" height="22" rx="3"/><text x="7" y="0">'+escape(endLabel)+'</text></g>'+
    '</g>':'';
@@ -566,6 +578,8 @@ function updateWireCursor(point:Point){
  const corner=geometry.corner;
  const cornerNode=app.querySelector<SVGCircleElement>('#wire-direction-corner');
  if(cornerNode){cornerNode.setAttribute('cx',String(corner.x));cornerNode.setAttribute('cy',String(corner.y));}
+ const previewTurns=app.querySelector<SVGGElement>('#wire-preview-auto-corners');
+ if(previewTurns)previewTurns.innerHTML=renderDraftTurns(geometry.turns);
  const ring=app.querySelector<SVGRectElement>('#wire-preview-target');
  if(ring){
    ring.setAttribute('x',String(end.x-7));ring.setAttribute('y',String(end.y-7));

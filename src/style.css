@@ -340,3 +340,7 @@ header input[readonly]{color:#788d95}
 @media(max-width:800px){.workspace-tabs{right:86px}.topbar .workspace-tabs button{padding:7px 8px}
  .read-only-workspace{padding:10px;gap:8px}.readonly-inspector p{padding:0 10px}
  .readonly-inspector button{margin:3px 10px}}
+
+/* Readable auto-clearance waypoints; no pointer capture or electrical identity. */
+.wire-preview-auto-corner{fill:#fff;stroke:#078f83;stroke-width:1.8;
+ vector-effect:non-scaling-stroke;opacity:.95;pointer-events:none}

@@ -29,7 +29,7 @@ const vertices=(path:string)=>path.match(/-?\d+(?:\.\d+)?/g)?.map(Number).reduce
 const crosses=(a:{x:number;y:number},b:{x:number;y:number},r:{left:number;right:number;top:number;bottom:number})=>
  a.y===b.y?a.y>r.top&&a.y<r.bottom&&Math.max(Math.min(a.x,b.x),r.left)<Math.min(Math.max(a.x,b.x),r.right):
  a.x===b.x&&a.x>r.left&&a.x<r.right&&Math.max(Math.min(a.y,b.y),r.top)<Math.min(Math.max(a.y,b.y),r.bottom);
-test('live auto-wire preview routes around another component and matches the committed SVG',async({page})=>{
+test('live auto-wire preview routes around another component and matches the committed SVG',async({page},testInfo)=>{
  await setup(page);
  await page.locator(pin('left','b')).click();
  const target=await center(page,pin('right','a'));
@@ -38,11 +38,17 @@ test('live auto-wire preview routes around another component and matches the com
  expect(draft).not.toBeNull();
  const points=vertices(draft!);
  expect(points.length).toBeGreaterThan(3);
+ await expect(page.locator('.wire-preview-auto-corner')).not.toHaveCount(0);
+ await testInfo.attach('live-obstacle-route',{body:await page.screenshot(),
+   contentType:'image/png'});
  const battery={left:217,right:335,top:59,bottom:220};
  for(let i=1;i<points.length;i++)expect(crosses(points[i-1],points[i],battery)).toBe(false);
  await page.locator(pin('right','a')).click();
  const final=await page.locator('.wire[data-wire]').getAttribute('d');
  expect(final).toBe(draft);
+ await expect(page.locator('.wire-preview-auto-corner')).toHaveCount(0);
+ await testInfo.attach('committed-obstacle-route',{body:await page.screenshot(),
+   contentType:'image/png'});
  const updated=await saved(page);
  expect(updated.wires).toHaveLength(1);
  expect(updated.wires[0].routing).toBe('horizontal');
