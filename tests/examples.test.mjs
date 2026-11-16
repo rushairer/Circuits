@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validProject } from '../.test-dist/model.js';
+import { validProject, size } from '../.test-dist/model.js';
+import { buildNetlist } from '../.test-dist/core/netlist.js';
+import { visibleWireVertices } from '../.test-dist/core/wire-visibility.js';
 import { exampleCatalog,createExample } from '../.test-dist/core/examples.js';
 import { analyzeDC } from '../.test-dist/core/dc-analysis.js';
 import { analyzeRC } from '../.test-dist/core/rc-transient.js';
@@ -9,6 +11,36 @@ import { analyzeGpioD13 } from '../.test-dist/core/gpio-d13.js';
 import { compileUnoPreview, sampleUnoSerial } from '../.test-dist/core/uno-preview.js';
 import { createScopeCapture } from '../.test-dist/core/scope.js';
 import { readRcVoltageProbe, readRcCurrentProbe } from '../.test-dist/core/rc-probes.js';
+
+const EPS=1e-7;
+function segmentCrossesPart(a,b,part){
+ const [width,height]=size[part.kind];
+ if(Math.abs(a.y-b.y)<EPS){
+  return a.y>part.y+EPS&&a.y<part.y+height-EPS&&
+   Math.max(Math.min(a.x,b.x),part.x)<Math.min(Math.max(a.x,b.x),part.x+width)-EPS;
+ }
+ if(Math.abs(a.x-b.x)<EPS){
+  return a.x>part.x+EPS&&a.x<part.x+width-EPS&&
+   Math.max(Math.min(a.y,b.y),part.y)<Math.min(Math.max(a.y,b.y),part.y+height)-EPS;
+ }
+ return true;
+}
+function assertObstacleSafeWires(project){
+ for(const wire of project.wires){
+  assert.equal(wire.autoAvoid,true,wire.id+' must opt into obstacle avoidance');
+  assert.ok(wire.routing,wire.id+' must define an orthogonal preference');
+  const vertices=visibleWireVertices(wire,project.parts);
+  assert.ok(vertices,wire.id+' must produce a visible route');
+  for(let i=1;i<vertices.length;i++){
+   const a=vertices[i-1],b=vertices[i];
+   assert.ok(Math.abs(a.x-b.x)<EPS||Math.abs(a.y-b.y)<EPS,wire.id+' must remain orthogonal');
+   for(const part of project.parts){
+    if(part.id===wire.from.componentId||part.id===wire.to.componentId)continue;
+    assert.equal(segmentCrossesPart(a,b,part),false,wire.id+' crosses '+part.id);
+   }
+  }
+ }
+}
 
 test('all documented example circuits are valid versioned JSON projects',()=>{
  assert.equal(exampleCatalog.length,15);
@@ -26,16 +58,55 @@ test('all documented example circuits are valid versioned JSON projects',()=>{
  }
  assert.equal(createExample('nonexistent'),null);
 });
-test('dual-LED parallel example uses two limiting resistors and two independent currents',()=>{
- const p=createExample('parallel'),r=analyzeDC(p);
+test('dual-LED parallel example uses two clean, independent limiting branches',()=>{
+ const p=createExample('parallel'),r=analyzeDC(p),net=buildNetlist(p);
+ assert.equal(p.parts.length,5);
+ assert.equal(p.wires.length,6);
  assert.equal(p.parts.filter(x=>x.kind==='resistor').length,2);
  assert.equal(p.parts.filter(x=>x.kind==='led').length,2);
+ assert.equal(net.warnings.length,0);
+ const same=(a,b)=>assert.equal(net.netOf(a),net.netOf(b));
+ same({componentId:'b1',pinId:'positive'},{componentId:'r1',pinId:'a'});
+ same({componentId:'b1',pinId:'positive'},{componentId:'r2',pinId:'a'});
+ same({componentId:'r1',pinId:'b'},{componentId:'l1',pinId:'anode'});
+ same({componentId:'l1',pinId:'cathode'},{componentId:'b1',pinId:'negative'});
+ same({componentId:'r2',pinId:'b'},{componentId:'l2',pinId:'anode'});
+ same({componentId:'l2',pinId:'cathode'},{componentId:'b1',pinId:'negative'});
+ assert.notEqual(net.netOf({componentId:'r1',pinId:'b'}),net.netOf({componentId:'r2',pinId:'b'}));
  assert.ok(r.leds.l1.currentMilliAmps>r.leds.l2.currentMilliAmps);
  assert.equal(r.leds.l1.lit,true);assert.equal(r.leds.l2.lit,true);
 });
-test('series example has equal currents through both LEDs',()=>{
- const r=analyzeDC(createExample('series'));
+test('series example is a four-part closed loop with the correct terminal chain',()=>{
+ const p=createExample('series'),net=buildNetlist(p),r=analyzeDC(p);
+ assert.equal(p.parts.length,4);
+ assert.deepEqual(p.parts.map(x=>x.kind),['battery','resistor','led','led']);
+ assert.equal(p.wires.length,4);
+ assert.equal(p.code,'');
+ assert.equal(net.warnings.length,0);
+ const same=(a,b)=>assert.equal(net.netOf(a),net.netOf(b));
+ same({componentId:'b1',pinId:'positive'},{componentId:'r1',pinId:'a'});
+ same({componentId:'r1',pinId:'b'},{componentId:'l1',pinId:'anode'});
+ same({componentId:'l1',pinId:'cathode'},{componentId:'l2',pinId:'anode'});
+ same({componentId:'l2',pinId:'cathode'},{componentId:'b1',pinId:'negative'});
+ const nodes=[
+  net.netOf({componentId:'b1',pinId:'positive'}),
+  net.netOf({componentId:'r1',pinId:'b'}),
+  net.netOf({componentId:'l1',pinId:'cathode'}),
+  net.netOf({componentId:'l2',pinId:'cathode'})
+ ];
+ assert.equal(new Set(nodes).size,4,'each stage of the series loop must remain a distinct net');
+ assert.equal(r.ok,true,r.reason);
  assert.ok(Math.abs(r.leds.l1.currentMilliAmps-r.leds.l2.currentMilliAmps)<0.005);
+ assert.equal(r.leds.l1.lit,true);assert.equal(r.leds.l2.lit,true);
+});
+test('LED teaching fixtures use obstacle-aware orthogonal routes outside unrelated component bodies',()=>{
+ for(const id of ['basic','parallel','series','dc-ammeter']){
+  const p=createExample(id);
+  assert.ok(p,id);
+  assert.equal(p.code,'',id+' should not contain an unrelated Arduino sketch');
+  assert.equal(p.parts.some(x=>x.kind==='arduino'||x.kind==='breadboard'),false,id);
+  assertObstacleSafeWires(p);
+ }
 });
 test('meter example shows 9 volts without adding an electrically active load',()=>{
  const p=createExample('voltmeter');
