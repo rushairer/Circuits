@@ -4,7 +4,7 @@ import { demo, blankProject, type Project } from '../model.js';
 export const exampleCatalog=[
  {id:'basic',title:'基础 LED 限流',description:'9V 电池、330Ω 电阻与一只 LED 的串联回路'},
  {id:'parallel',title:'双 LED 并联',description:'两只 LED 各自配有独立限流电阻，比较不同支路电流'},
- {id:'series',title:'双 LED 串联',description:'同一个限流电阻串联两只 LED，比较各自压降'},
+ {id:'series',title:'双 LED 串联',description:'9V 电池、330Ω 限流电阻与两只 LED 串联构成闭合回路，比较各自压降'},
  {id:'voltmeter',title:'9V 万用表测量',description:'将理想直流电压表的正负表笔接到电池两端'},
  {id:'gpio-d13-led',title:'Arduino D13 外接 LED 闪烁',description:'Uno D13 → 330Ω 限流电阻 → LED → GND；打开代码预览控制外接 LED'},
  {id:'uno-serial',title:'Arduino 虚拟串口日志',description:'静态预览 Serial.begin / print / println 的输出，按时间光标查看消息'},
@@ -23,6 +23,26 @@ export type ExampleId=(typeof exampleCatalog)[number]['id'];
 const lead=(id:string,from:string,fromPin:string,to:string,toPin:string,color='#e45454')=>({
  id,from:{componentId:from,pinId:fromPin},to:{componentId:to,pinId:toPin},color
 });
+const routedLead=(id:string,from:string,fromPin:string,to:string,toPin:string,
+ color='#e45454',routing:'horizontal'|'vertical'='horizontal')=>({
+ ...lead(id,from,fromPin,to,toPin,color),routing,autoAvoid:true
+});
+function createLedBase(name:string):Project {
+ const p=blankProject();
+ p.name=name;
+ p.code='';
+ p.parts=[
+  {id:'b1',kind:'battery',x:90,y:170,rotation:0,value:9},
+  {id:'r1',kind:'resistor',x:340,y:178,rotation:0,value:330},
+  {id:'l1',kind:'led',x:570,y:143,rotation:0}
+ ];
+ p.wires=[
+  routedLead('w1','b1','positive','r1','a'),
+  routedLead('w2','r1','b','l1','anode'),
+  routedLead('w3','l1','cathode','b1','negative','#354553','vertical')
+ ];
+ return p;
+}
 export function createExample(id:string):Project|null {
  if(!exampleCatalog.some(e=>e.id===id))return null;
  if(id==='uno-for-pulse'){
@@ -51,6 +71,53 @@ export function createExample(id:string):Project|null {
      lead('w1','a1','d13','r1','a','#e45454'),
      lead('w2','r1','b','l1','anode','#e45454'),
      lead('w3','l1','cathode','a1','gnd','#354553')
+   ];
+   return p;
+ }
+ if(id==='basic')return createLedBase('基础 LED 限流');
+ if(id==='parallel'){
+   const p=blankProject();
+   p.name='双 LED 并联 · 独立限流';
+   p.code='';
+   p.parts=[
+     {id:'b1',kind:'battery',x:90,y:170,rotation:0,value:9},
+     {id:'r1',kind:'resistor',x:340,y:65,rotation:0,value:330},
+     {id:'l1',kind:'led',x:570,y:30,rotation:0},
+     {id:'r2',kind:'resistor',x:340,y:300,rotation:0,value:470},
+     {id:'l2',kind:'led',x:570,y:265,rotation:0}
+   ];
+   p.wires=[
+     routedLead('w1','b1','positive','r1','a'),
+     routedLead('w2','r1','b','l1','anode'),
+     routedLead('w3','l1','cathode','b1','negative','#354553','vertical'),
+     routedLead('w4','b1','positive','r2','a'),
+     routedLead('w5','r2','b','l2','anode'),
+     routedLead('w6','l2','cathode','b1','negative','#354553','vertical')
+   ];
+   return p;
+ }
+ if(id==='series'){
+   const p=createLedBase('双 LED 串联 · 压降分配');
+   p.parts.push({id:'l2',kind:'led',x:770,y:143,rotation:0});
+   p.wires[2]=routedLead('w3','l1','cathode','l2','anode');
+   p.wires.push(routedLead('w4','l2','cathode','b1','negative','#354553','vertical'));
+   return p;
+ }
+ if(id==='dc-ammeter'){
+   const p=blankProject();
+   p.name='LED 串联电流表 · 0.1Ω';
+   p.code='';
+   p.parts=[
+     {id:'b1',kind:'battery',x:90,y:170,rotation:0,value:9},
+     {id:'i1',kind:'ammeter',x:220,y:48,rotation:0},
+     {id:'r1',kind:'resistor',x:420,y:178,rotation:0,value:330},
+     {id:'l1',kind:'led',x:650,y:143,rotation:0}
+   ];
+   p.wires=[
+     routedLead('w1','b1','positive','i1','positive'),
+     routedLead('wa','i1','negative','r1','a'),
+     routedLead('w2','r1','b','l1','anode'),
+     routedLead('w3','l1','cathode','b1','negative','#354553','vertical')
    ];
    return p;
  }
@@ -93,13 +160,6 @@ export function createExample(id:string):Project|null {
    p.wires.push(lead('ws','s1','b','r1','a'));
    return p;
  }
- if(id==='dc-ammeter'){
-   const p=demo();p.name='LED 串联电流表 · 0.1Ω';
-   p.parts.push({id:'i1',kind:'ammeter',x:425,y:75,rotation:0});
-   p.wires[0]=lead('w1','b1','positive','i1','positive');
-   p.wires.push(lead('wa','i1','negative','r1','a'));
-   return p;
- }
  if(id==='rc-resistor-meter'){
    const p=createExample('rc-charge')!;
    p.name='RC 充电 · 万用表测量电阻压降';
@@ -137,20 +197,7 @@ export function createExample(id:string):Project|null {
    return p;
  }
  const p=demo();
- if(id==='basic')return p;
- if(id==='parallel'){
-   p.name='双 LED 并联 · 独立限流';
-   p.parts.push({id:'r2',kind:'resistor',x:430,y:95,rotation:0,value:470},
-                {id:'l2',kind:'led',x:750,y:45,rotation:0});
-   p.wires.push(lead('w4','b1','positive','r2','a'),
-                lead('w5','r2','b','l2','anode'),
-                lead('w6','l2','cathode','b1','negative','#354553'));
- }else if(id==='series'){
-   p.name='双 LED 串联 · 压降分配';
-   p.parts.push({id:'l2',kind:'led',x:915,y:170,rotation:0});
-   p.wires[2]=lead('w3','l1','cathode','l2','anode');
-   p.wires.push(lead('w4','l2','cathode','b1','negative','#354553'));
- }else if(id==='voltmeter'){
+ if(id==='voltmeter'){
    p.name='数字万用表 · 测量 9V 电池';
    p.parts.push({id:'m1',kind:'multimeter',x:890,y:420,rotation:0});
    p.wires.push(lead('w4','m1','positive','b1','positive'),
