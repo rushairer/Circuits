@@ -159,7 +159,7 @@ function createRawExample(id:string):Project|null {
    p.wires.push(lead('w4','l2','cathode','b1','negative','#354553'));
  }else if(id==='voltmeter'){
    p.name='数字万用表 · 测量 9V 电池';
-   p.parts.push({id:'m1',kind:'multimeter',x:890,y:420,rotation:0});
+   p.parts.push({id:'m1',kind:'multimeter',x:965,y:355,rotation:0});
    p.wires.push(lead('w4','m1','positive','b1','positive'),
                 lead('w5','m1','negative','b1','negative','#354553'));
  }
