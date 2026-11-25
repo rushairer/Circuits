@@ -318,3 +318,40 @@ test('shared-pin automatic wires reserve separate lanes without changing manual 
  assert.deepEqual(evaluate(p),analysis);
  assert.deepEqual(p,before);
 });
+
+
+test('cooperative routing shifts an individual congested detour leg when full-width lanes are blocked',()=>{
+ const p=sample(),wire=p.wires[0],baseline=path(p);
+ // Both escaped endpoints are at y=130. A battery blocks a global
+ // horizontal path, so offsetting only a vertical corridor from start
+ // to end cannot clear the obstruction. Reserve one real vertical leg.
+ const i=baseline.findIndex((v,i)=>i>0&&v.x===baseline[i-1].x&&Math.abs(v.y-baseline[i-1].y)>60);
+ assert.ok(i>0);
+ const lane=baseline[i].x;
+ p.parts.push(
+  {id:'lane-top',kind:'resistor',x:lane-140,y:-430,rotation:0,value:220},
+  {id:'lane-bottom',kind:'resistor',x:lane,y:400,rotation:0,value:220}
+ );
+ const fixed={id:'fixed',from:{componentId:'lane-top',pinId:'b'},to:{componentId:'lane-bottom',pinId:'a'},
+  color:'#1a79b2',routing:'vertical'};
+ p.wires=[fixed,wire];
+ const before=structuredClone(p),analysis=evaluate(p);
+ const independent=visibleWireVertices(wire,p.parts);
+ const routes=projectWireRoutes(p.wires,p.parts),routed=routes.get(wire.id);
+ const overlapLength=points=>points.slice(1).reduce((sum,v,i)=>{
+  const a=points[i];
+  return sum+(a.x===v.x&&Math.abs(v.x-lane)<12-1e-7?
+   Math.max(0,Math.min(Math.max(a.y,v.y),430)-Math.max(Math.min(a.y,v.y),-400)):0);
+ },0);
+ assert.ok(overlapLength(independent)>60);
+ assert.ok(overlapLength(routed)<overlapLength(independent));
+ assert.deepEqual(routes.get(fixed.id),visibleWireVertices(fixed,p.parts));
+ assert.equal(isOrthogonal(routed),true);
+ assert.deepEqual(routed[0],independent[0]);
+ assert.deepEqual(routed.at(-1),independent.at(-1));
+ const battery={left:217,right:335,top:59,bottom:220};
+ for(let j=1;j<routed.length;j++)assert.equal(intersects(routed[j-1],routed[j],battery),false);
+ assert.deepEqual(draftWireVertices(wire,[fixed],p.parts,[routed[0],routed.at(-1)],false),routed);
+ assert.deepEqual(evaluate(p),analysis);
+ assert.deepEqual(p,before);
+});

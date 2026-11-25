@@ -60,6 +60,35 @@ function chooseLane(path:Point[],start:Point,end:Point,boxes:readonly Bounds[],o
     [start,{x:lane,y:start.y},{x:lane,y:end.y},end]));
   }
  }
+ // A full start-to-end corridor can be blocked even though a single
+ // congested leg of a multi-turn detour has room to fan out. Shift that
+ // leg locally, absorbing its jogs into adjacent perpendicular legs
+ // where possible. Never move either escaped pin or rewrite waypoints.
+ const localSeen=new Set<string>();
+ localCandidates:
+ for(let i=0;i+1<path.length;i++){
+  const a=path[i],b=path[i+1],leg=legs([a,b])[0];
+  if(!leg)continue;
+  for(const other of occupied){
+   if(overlap(leg,other)<=EPS)continue;
+   for(const lane of [other.lane-LANE_GAP,other.lane+LANE_GAP]){
+    const key=i+':'+lane;
+    if(localSeen.has(key))continue;
+    if(localSeen.size>=16)break localCandidates;
+    localSeen.add(key);
+    const shifted=(p:Point):Point=>leg.axis===1?{x:p.x,y:lane}:{x:lane,y:p.y};
+    const prev=path[i-1],next=path[i+2];
+    const perpendicular=(p:Point,q:Point)=>leg.axis===1?p.x===q.x:p.y===q.y;
+    candidates.push(simplify([
+     ...path.slice(0,i),
+     ...(!prev||!perpendicular(prev,a)?[a]:[]),
+     shifted(a),shifted(b),
+     ...(!next||!perpendicular(b,next)?[b]:[]),
+     ...path.slice(i+2)
+    ]));
+   }
+  }
+ }
  for(const candidate of candidates){
   if(lengthOf(candidate)>baselineLength+Math.max(48,baselineLength*0.25)||!routeIsClear(candidate,boxes))continue;
   const score=cost(candidate);
