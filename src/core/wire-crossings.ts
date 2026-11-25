@@ -156,15 +156,18 @@ export function paintCrossingWires(
  preview:WireEndpointPreview|null=null,routeOrder:readonly Wire[]=wires
 ):PaintedWire[] {
  if(!wires.length)return [];
- const resolvePin=createPinResolver(parts),routes=projectWireRoutes(routeOrder,parts);
+ const resolvePin=createPinResolver(parts),routes=projectWireRoutes(routeOrder,parts,resolvePin);
  const prepared=wires.map(w=>{
-   const start=resolvePin(w.from),end=resolvePin(w.to);
-   const points=start&&end?[start,...(w.bends??[]).map(p=>({...p})),end]:null;
-   if(points&&preview?.id===w.id){
-     const index=preview.side==='from'?0:points.length-1;
-     points[index]={...preview.point};
+   let vertices:Point[]|null=routes.get(w.id)??null;
+   if(preview?.id===w.id){
+     const start=resolvePin(w.from),end=resolvePin(w.to);
+     const points=start&&end?[start,...(w.bends??[]).map(p=>({...p})),end]:null;
+     if(points){
+       const index=preview.side==='from'?0:points.length-1;
+       points[index]={...preview.point};
+     }
+     vertices=visualVertices(w,parts,points,true);
    }
-   const vertices=preview?.id===w.id?visualVertices(w,parts,points,true):routes.get(w.id)??null;
    return {id:w.id,vertices,
      original:vertices?'M'+vertices.map(coordinate).join(' L'):''};
  });

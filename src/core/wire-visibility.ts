@@ -347,13 +347,21 @@ export function visibleWireVertices(
  * automatic routes follow stable project order, never selection/painter order.
  * Large scenes retain the independent clearance router.
  */
-export function projectWireRoutes(wires:readonly Wire[],parts:readonly Part[]):Map<string,Point[]>{
+export function projectWireRoutes(
+ wires:readonly Wire[],parts:readonly Part[],resolvePin?:ReturnType<typeof createPinResolver>
+):Map<string,Point[]>{
  const result=new Map<string,Point[]>(),occupied:OccupiedLeg[]=[];
+ if(!wires.length)return result;
+ // Share one immutable pin snapshot across the entire scene, including paint.
+ const resolve=resolvePin??createPinResolver(parts);
  const automatic=(w:Wire)=>!!w.routing&&!!w.autoAvoid&&!w.bends?.length;
  const cooperative=wires.length<=COOPERATIVE_WIRE_LIMIT;
  const ordered=cooperative?[...wires.filter(w=>!automatic(w)),...wires.filter(automatic)]:wires;
  for(const w of ordered){
-  const route=visibleWireVertices(w,parts,undefined,false,
+  const start=resolve(w.from),end=resolve(w.to);
+  if(!start||!end)continue;
+  const points=[start,...(w.bends??[]),end];
+  const route=visibleWireVertices(w,parts,points,false,
    cooperative&&automatic(w)&&occupied.length<=OCCUPIED_LEG_LIMIT?occupied:[]);
   if(!route)continue;
   result.set(w.id,route);

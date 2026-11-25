@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {pins,size} from '../.test-dist/model.js';
 import {createPinResolver,pinWorld,wirePath,wirePoints} from '../.test-dist/core/geometry.js';
 import {paintCrossingWires,MAX_BRIDGES_PER_WIRE} from '../.test-dist/core/wire-crossings.js';
+import {projectWireRoutes} from '../.test-dist/core/wire-visibility.js';
 import {wireScene,wireReferenceCases} from './fixtures/wire-scenes.mjs';
 const reference=JSON.parse(readFileSync(new URL('./fixtures/wire-paint-alpha10.json',import.meta.url),'utf8'));
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -56,9 +57,25 @@ test('large wire rendering does not scan the part list once per endpoint',()=>{
  assert.equal(paintCrossingWires(p.wires,parts).length,2000);
  assert.ok(idReads<=parts.length*4,'part lookup must be linear in part count, not wire count');
 });
+test('scene routing and retarget painting share bounded pin snapshots',()=>{
+ const p=wireScene(2000,{routed:true});
+ let idReads=0;
+ const parts=p.parts.map(part=>new Proxy(part,{get(target,key,receiver){
+  if(key==='id')idReads++;return Reflect.get(target,key,receiver);
+ }}));
+ assert.equal(projectWireRoutes(p.wires,parts).size,2000);
+ assert.ok(idReads<=parts.length*4,'scene routing must resolve pins from one snapshot');
+ idReads=0;
+ const preview={id:'wire-0',side:'to',point:{x:4000,y:5000}};
+ const result=paintCrossingWires(p.wires,parts,6,preview);
+ assert.equal(result.length,2000);
+ assert.ok(idReads<=parts.length*4,'retarget painting must reuse the scene snapshot');
+ assert.ok(result[0].hitPath.endsWith('4000 5000'));
+});
 test('empty scene does not allocate a pin snapshot',()=>{
  const parts=new Proxy([],{get(){throw new Error('empty wire list must not inspect parts');}});
  assert.deepEqual(paintCrossingWires([],parts),[]);
+ assert.equal(projectWireRoutes([],parts).size,0);
 });
 for(const item of wireReferenceCases)test('alpha.10 painting remains identical: '+item.name,()=>{
  const p=wireScene(item.count,item.options);
