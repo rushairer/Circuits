@@ -100,7 +100,6 @@ function escapePort(endpoint:Endpoint,position:Point,part:Part|undefined):Point|
  const raw=pins[part.kind][endpoint.pinId];
  if(!raw)return null;
  const rot=((part.rotation%360)+360)%360;
- if(Math.abs(rot/90-Math.round(rot/90))>1e-8)return null;
  const [w,h]=size[part.kind];
  const sides=[
   {gap:raw[0],dx:-1,dy:0},
@@ -109,8 +108,17 @@ function escapePort(endpoint:Endpoint,position:Point,part:Part|undefined):Point|
   {gap:h-raw[1],dx:0,dy:1}
  ].sort((a,b)=>a.gap-b.gap);
  const side=sides[0],turn=Math.round(rot/90)%4;
- const dx=[side.dx,-side.dy,-side.dx,side.dy][turn];
- const dy=[side.dy,side.dx,-side.dy,-side.dx][turn];
+ // Retain cardinal escape directions. For arbitrary imported rotations,
+ // use the dominant axis of the rotated outward normal. The endpoint stays
+ // at its exact pin coordinate and the escape stub stays orthogonal.
+ let dx=[side.dx,-side.dy,-side.dx,side.dy][turn];
+ let dy=[side.dy,side.dx,-side.dy,-side.dx][turn];
+ if(Math.abs(rot/90-Math.round(rot/90))>1e-8){
+  const rad=part.rotation*Math.PI/180,c=Math.cos(rad),s=Math.sin(rad);
+  const nx=side.dx*c-side.dy*s,ny=side.dx*s+side.dy*c;
+  if(Math.abs(nx)>=Math.abs(ny)-EPS){dx=nx>=0?1:-1;dy=0;}
+  else{dx=0;dy=ny>=0?1:-1;}
+ }
  const rect=box(part);
  if(dx===1)return {x:rect.right+OUTSIDE,y:position.y};
  if(dx===-1)return {x:rect.left-OUTSIDE,y:position.y};

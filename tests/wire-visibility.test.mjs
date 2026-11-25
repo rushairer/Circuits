@@ -252,3 +252,38 @@ test('pointer-to-empty-canvas ghost avoids component bodies without inventing el
   assert.equal(intersects(ghost[i-1],ghost[i],battery),false);
  assert.equal(p.wires[0].to.componentId,'right');
 });
+
+
+test('non-cardinal imported rotations keep real pins and visibly clear the blocker',()=>{
+ for(const angle of [15,30,45,-15,-30,-45,135,225,315]){
+  const p=sample();
+  p.parts[0].rotation=angle;
+  p.parts[2].rotation=-angle;
+  const before=structuredClone(p),analysis=evaluate(p),pins=wirePoints(p.wires[0],p.parts);
+  const vertices=path(p);
+  assert.equal(validProject(p),true);
+  assert.ok(vertices.length>3,'angle '+angle);
+  assert.equal(isOrthogonal(vertices),true,'angle '+angle);
+  assert.deepEqual(vertices[0],pins[0]);
+  assert.deepEqual(vertices.at(-1),pins.at(-1));
+  const obstacle={left:217,right:335,top:59,bottom:220};
+  for(let i=1;i<vertices.length;i++)
+   assert.equal(intersects(vertices[i-1],vertices[i],obstacle),false,'angle '+angle);
+  assert.deepEqual(evaluate(p),analysis);
+  assert.deepEqual(p,before);
+ }
+});
+
+test('free-space preview also avoids blockers with a rotated source pin',()=>{
+ const p=sample();
+ p.parts[0].rotation=30;
+ const before=structuredClone(p),start=wirePoints(p.wires[0],p.parts)[0],cursor={x:420,y:130};
+ const ghost=visibleWireVertices({...p.wires[0],to:p.wires[0].from},p.parts,[start,cursor],true);
+ assert.ok(ghost.length>3);
+ assert.equal(isOrthogonal(ghost),true);
+ assert.deepEqual(ghost[0],start);
+ assert.deepEqual(ghost.at(-1),cursor);
+ const obstacle={left:217,right:335,top:59,bottom:220};
+ for(let i=1;i<ghost.length;i++)assert.equal(intersects(ghost[i-1],ghost[i],obstacle),false);
+ assert.deepEqual(p,before);
+});

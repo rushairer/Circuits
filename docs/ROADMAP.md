@@ -155,3 +155,5 @@ See [Alpha.11 scope, implementation and acceptance](ALPHA11.md).
 - [x] alpha.11 preview readability: mark automatically predicted wire elbows with tiny noninteractive circles while hovering a real target; include paired preview/commit screenshots in browser E2E evidence
 
 - [x] alpha.11 free-space routing ghost: pointer move from a pin to blank canvas now previews safe orthogonal clearance, not only after acquiring the destination; terminal identity remains preview-only until committed
+
+- [x] Alpha.11 non-cardinal imported component rotations: dominant-axis projection of the rotated pin-facing normal preserves orthogonal escape stubs and true terminal coordinates in both committed paths and free-pointer previews. Overlapping bodies, congested bundles and live reference visual acceptance remain separate tasks; CI must validate the new regression cases.
