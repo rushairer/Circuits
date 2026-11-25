@@ -392,3 +392,41 @@ test('crossing-only congestion chooses an equally short clear elbow when availab
  assert.deepEqual(draftWireVertices(auto,[fixed],p.parts,[actual[0],actual.at(-1)],false),actual);
  assert.deepEqual(p,before);
 });
+
+
+test('dense breadboard uses a clear intermediate corridor when both shortest elbows cross three wires',()=>{
+ const p=sample();
+ p.parts=[{id:'board',kind:'breadboard',x:0,y:0,rotation:0}];
+ const ep=pinId=>({componentId:'board',pinId});
+ const fixed=(id,from,to,routing)=>({id,from:ep(from),to:ep(to),routing,color:'#159f91'});
+ p.wires=[
+  ...[10,11,12].map(c=>fixed('v'+c,'top-plus-'+c,'hole-c-'+c,'vertical')),
+  ...['c','d','e'].map(r=>fixed('h'+r,'hole-'+r+'-2','hole-'+r+'-5','horizontal')),
+  {...fixed('auto','hole-a-4','hole-j-14','horizontal'),autoAvoid:true,color:'#e45454'}
+ ];
+ assert.equal(validProject(p),true);
+ const before=structuredClone(p),analysis=evaluate(p),auto=p.wires.at(-1);
+ const routes=projectWireRoutes(p.wires,p.parts),actual=routes.get(auto.id);
+ const independent=visibleWireVertices(auto,p.parts);
+ assert.deepEqual(independent,[{x:100,y:67},{x:280,y:67},{x:280,y:148}]);
+ const crossingCount=path=>p.wires.slice(0,-1).reduce((count,w)=>{
+  const [c,d]=routes.get(w.id);
+  return count+path.slice(1).filter((b,i)=>{
+   const a=path[i];
+   const between=(x,y,z)=>x>Math.min(y,z)&&x<Math.max(y,z);
+   return a.y===b.y&&c.x===d.x&&between(c.x,a.x,b.x)&&between(a.y,c.y,d.y)||
+    a.x===b.x&&c.y===d.y&&between(a.x,c.x,d.x)&&between(c.y,a.y,b.y);
+  }).length;
+ },0);
+ assert.equal(crossingCount(independent),3);
+ assert.equal(crossingCount([{x:100,y:67},{x:100,y:148},{x:280,y:148}]),3);
+ assert.equal(crossingCount(actual),0);
+ assert.equal(isOrthogonal(actual),true);
+ assert.deepEqual(actual[0],independent[0]);
+ assert.deepEqual(actual.at(-1),independent.at(-1));
+ assert.equal(actual.slice(1).reduce((n,b,i)=>n+Math.abs(b.x-actual[i].x)+Math.abs(b.y-actual[i].y),0),261);
+ for(const w of p.wires.slice(0,-1))assert.deepEqual(routes.get(w.id),visibleWireVertices(w,p.parts));
+ assert.deepEqual(draftWireVertices(auto,p.wires.slice(0,-1),p.parts,[actual[0],actual.at(-1)],false),actual);
+ assert.deepEqual(evaluate(p),analysis);
+ assert.deepEqual(p,before);
+});

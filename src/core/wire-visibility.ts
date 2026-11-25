@@ -29,6 +29,10 @@ function overlap(a:OccupiedLeg,b:OccupiedLeg):number{
  if(a.axis!==b.axis||Math.abs(a.lane-b.lane)>=LANE_GAP-EPS)return 0;
  return Math.max(0,Math.min(a.high,b.high)-Math.max(a.low,b.low));
 }
+function crosses(a:OccupiedLeg,b:OccupiedLeg):boolean{
+ return a.axis!==b.axis&&a.lane>b.low+EPS&&a.lane<b.high-EPS&&
+  b.lane>a.low+EPS&&b.lane<a.high-EPS;
+}
 function lengthOf(path:readonly Point[]):number{
  return path.slice(1).reduce((sum,p,i)=>sum+Math.abs(p.x-path[i].x)+Math.abs(p.y-path[i].y),0);
 }
@@ -37,7 +41,7 @@ function congestion(path:readonly Point[],occupied:readonly OccupiedLeg[]):numbe
  for(const a of legs(path))for(const b of occupied){
   result+=overlap(a,b)*3;
   // Penalize true interior perpendicular crossings, not shared endpoints.
-  if(a.axis!==b.axis&&a.lane>b.low+EPS&&a.lane<b.high-EPS&&b.lane>a.low+EPS&&b.lane<a.high-EPS)result+=16;
+  if(crosses(a,b))result+=16;
  }
  return result;
 }
@@ -57,16 +61,27 @@ function chooseLane(path:Point[],start:Point,end:Point,boxes:readonly Bounds[],o
   orthogonalRoute([start,end],'vertical')
  ];
  const seen=new Set<string>();
+ const addCorridor=(axis:1|2,lane:number)=>{
+  const key=axis+':'+lane;
+  if(seen.has(key)||seen.size>=16)return;
+  seen.add(key);
+  candidates.push(simplify(axis===1?
+   [start,{x:start.x,y:lane},{x:end.x,y:lane},end]:
+   [start,{x:lane,y:start.y},{x:lane,y:end.y},end]));
+ };
+ // Preserve the existing overlap candidates and their priority.
  for(const a of legs(path))for(const b of occupied){
   if(overlap(a,b)<=EPS)continue;
-  for(const lane of [b.lane-LANE_GAP,b.lane+LANE_GAP]){
-   const key=a.axis+':'+lane;
-   if(seen.has(key)||seen.size>=16)continue;
-   seen.add(key);
-   candidates.push(simplify(a.axis===1?
-    [start,{x:start.x,y:lane},{x:end.x,y:lane},end]:
-    [start,{x:lane,y:start.y},{x:lane,y:end.y},end]));
-  }
+  for(const lane of [b.lane-LANE_GAP,b.lane+LANE_GAP])addCorridor(a.axis,lane);
+ }
+ // Both shortest elbows may cross other wires. Try a channel beside
+ // a crossed leg, or beyond its ends, using the remaining corridor
+ // budget. A channel between the endpoint coordinates can be just as
+ // short as an elbow, even though it has one extra bend.
+ for(const a of legs(path))for(const b of occupied){
+  if(seen.size>=16||!crosses(a,b))continue;
+  for(const lane of [b.lane-LANE_GAP,b.lane+LANE_GAP])addCorridor(b.axis,lane);
+  for(const lane of [b.low-LANE_GAP,b.high+LANE_GAP])addCorridor(a.axis,lane);
  }
  // A full start-to-end corridor can be blocked even though a single
  // congested leg of a multi-turn detour has room to fan out. Shift that
