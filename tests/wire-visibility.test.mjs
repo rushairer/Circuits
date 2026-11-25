@@ -355,3 +355,40 @@ test('cooperative routing shifts an individual congested detour leg when full-wi
  assert.deepEqual(evaluate(p),analysis);
  assert.deepEqual(p,before);
 });
+
+
+test('shared breadboard socket fans out using a shortest clear alternative elbow',()=>{
+ const p=sample();
+ p.parts=[{id:'board',kind:'breadboard',x:0,y:0,rotation:0}];
+ const from={componentId:'board',pinId:'hole-a-0'};
+ const fixed={id:'fixed',from,to:{componentId:'board',pinId:'hole-j-10'},color:'#159f91',routing:'horizontal'};
+ const auto={id:'auto',from,to:{componentId:'board',pinId:'hole-i-12'},color:'#e45454',routing:'horizontal',autoAvoid:true};
+ p.wires=[fixed,auto];
+ assert.equal(validProject(p),true);
+ const before=structuredClone(p),analysis=evaluate(p);
+ const routes=projectWireRoutes(p.wires,p.parts),actual=routes.get(auto.id);
+ assert.deepEqual(routes.get(fixed.id),visibleWireVertices(fixed,p.parts));
+ assert.deepEqual(visibleWireVertices(auto,p.parts),[{x:28,y:67},{x:244,y:67},{x:244,y:139}]);
+ assert.deepEqual(actual,[{x:28,y:67},{x:28,y:139},{x:244,y:139}]);
+ assert.deepEqual(draftWireVertices(auto,[fixed],p.parts,[actual[0],actual.at(-1)],false),actual);
+ // Reversing the endpoint order must preserve the same physical fan-out.
+ const reversed={...auto,from:auto.to,to:auto.from,routing:'vertical'};
+ assert.deepEqual(projectWireRoutes([fixed,reversed],p.parts).get(auto.id),[...actual].reverse());
+ assert.deepEqual(evaluate(p),analysis);
+ assert.deepEqual(p,before);
+});
+
+test('crossing-only congestion chooses an equally short clear elbow when available',()=>{
+ const p=sample();
+ p.parts=[{id:'board',kind:'breadboard',x:0,y:0,rotation:0}];
+ const fixed={id:'fixed',from:{componentId:'board',pinId:'top-plus-4'},to:{componentId:'board',pinId:'hole-g-4'},color:'#159f91',routing:'vertical'};
+ const auto={id:'auto',from:{componentId:'board',pinId:'hole-a-0'},to:{componentId:'board',pinId:'hole-j-10'},color:'#e45454',routing:'horizontal',autoAvoid:true};
+ p.wires=[fixed,auto];
+ const before=structuredClone(p);
+ const routes=projectWireRoutes(p.wires,p.parts),actual=routes.get(auto.id);
+ assert.deepEqual(routes.get(fixed.id),[{x:100,y:26},{x:100,y:121}]);
+ assert.deepEqual(visibleWireVertices(auto,p.parts),[{x:28,y:67},{x:208,y:67},{x:208,y:148}]);
+ assert.deepEqual(actual,[{x:28,y:67},{x:28,y:148},{x:208,y:148}]);
+ assert.deepEqual(draftWireVertices(auto,[fixed],p.parts,[actual[0],actual.at(-1)],false),actual);
+ assert.deepEqual(p,before);
+});

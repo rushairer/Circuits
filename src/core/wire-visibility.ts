@@ -43,11 +43,19 @@ function congestion(path:readonly Point[],occupied:readonly OccupiedLeg[]):numbe
 }
 /** Try bounded orthogonal alternative corridors only if the ordinary clear route is crowded. */
 function chooseLane(path:Point[],start:Point,end:Point,boxes:readonly Bounds[],occupied:readonly OccupiedLeg[]):Point[]{
- if(!occupied.length||!legs(path).some(a=>occupied.some(b=>overlap(a,b)>EPS)))return path;
+ // Crossing-only congestion matters too: an equally short alternate
+ // elbow may remove a crossing or fan out immediately at a shared socket.
+ if(!occupied.length||congestion(path,occupied)<=EPS)return path;
  const baselineLength=lengthOf(path);
  const cost=(p:Point[])=>lengthOf(p)+BEND_COST*Math.max(0,p.length-2)+congestion(p,occupied);
  let best=path,bestCost=cost(path);
- const candidates:Point[][]=[];
+ // Include the two shortest orthogonal elbows. Unlike shifted
+ // corridors, these can split a common breadboard pin without adding
+ // a dogleg; clearance and the same cost function still gate selection.
+ const candidates:Point[][]=[
+  orthogonalRoute([start,end],'horizontal'),
+  orthogonalRoute([start,end],'vertical')
+ ];
  const seen=new Set<string>();
  for(const a of legs(path))for(const b of occupied){
   if(overlap(a,b)<=EPS)continue;
