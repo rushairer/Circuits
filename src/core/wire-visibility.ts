@@ -12,6 +12,61 @@ const CLEARANCE=13;
 const OUTSIDE=7;
 const BEND_COST=28;
 const EPS=1e-7;
+export const COOPERATIVE_WIRE_LIMIT=48;
+const OCCUPIED_LEG_LIMIT=240;
+const LANE_GAP=12;
+interface OccupiedLeg {axis:1|2;lane:number;low:number;high:number}
+function legs(points:readonly Point[]):OccupiedLeg[]{
+ const result:OccupiedLeg[]=[];
+ for(let i=1;i<points.length;i++){
+  const a=points[i-1],b=points[i];
+  if(a.y===b.y&&a.x!==b.x)result.push({axis:1,lane:a.y,low:Math.min(a.x,b.x),high:Math.max(a.x,b.x)});
+  else if(a.x===b.x&&a.y!==b.y)result.push({axis:2,lane:a.x,low:Math.min(a.y,b.y),high:Math.max(a.y,b.y)});
+ }
+ return result;
+}
+function overlap(a:OccupiedLeg,b:OccupiedLeg):number{
+ if(a.axis!==b.axis||Math.abs(a.lane-b.lane)>=LANE_GAP-EPS)return 0;
+ return Math.max(0,Math.min(a.high,b.high)-Math.max(a.low,b.low));
+}
+function lengthOf(path:readonly Point[]):number{
+ return path.slice(1).reduce((sum,p,i)=>sum+Math.abs(p.x-path[i].x)+Math.abs(p.y-path[i].y),0);
+}
+function congestion(path:readonly Point[],occupied:readonly OccupiedLeg[]):number{
+ let result=0;
+ for(const a of legs(path))for(const b of occupied){
+  result+=overlap(a,b)*3;
+  // Penalize true interior perpendicular crossings, not shared endpoints.
+  if(a.axis!==b.axis&&a.lane>b.low+EPS&&a.lane<b.high-EPS&&b.lane>a.low+EPS&&b.lane<a.high-EPS)result+=16;
+ }
+ return result;
+}
+/** Try bounded orthogonal alternative corridors only if the ordinary clear route is crowded. */
+function chooseLane(path:Point[],start:Point,end:Point,boxes:readonly Bounds[],occupied:readonly OccupiedLeg[]):Point[]{
+ if(!occupied.length||!legs(path).some(a=>occupied.some(b=>overlap(a,b)>EPS)))return path;
+ const baselineLength=lengthOf(path);
+ const cost=(p:Point[])=>lengthOf(p)+BEND_COST*Math.max(0,p.length-2)+congestion(p,occupied);
+ let best=path,bestCost=cost(path);
+ const candidates:Point[][]=[];
+ const seen=new Set<string>();
+ for(const a of legs(path))for(const b of occupied){
+  if(overlap(a,b)<=EPS)continue;
+  for(const lane of [b.lane-LANE_GAP,b.lane+LANE_GAP]){
+   const key=a.axis+':'+lane;
+   if(seen.has(key)||seen.size>=16)continue;
+   seen.add(key);
+   candidates.push(simplify(a.axis===1?
+    [start,{x:start.x,y:lane},{x:end.x,y:lane},end]:
+    [start,{x:lane,y:start.y},{x:lane,y:end.y},end]));
+  }
+ }
+ for(const candidate of candidates){
+  if(lengthOf(candidate)>baselineLength+Math.max(48,baselineLength*0.25)||!routeIsClear(candidate,boxes))continue;
+  const score=cost(candidate);
+  if(score<bestCost-EPS){best=candidate;bestCost=score;}
+ }
+ return best;
+}
 type Axis=0|1|2;
 interface Bounds {left:number;right:number;top:number;bottom:number}
 const finite=(p:Point)=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&
@@ -222,7 +277,8 @@ function orthogonalSearch(from:Point,to:Point,boxes:readonly Bounds[],direction:
  * are intentionally visible on top of their sockets, not hidden behind them.
  */
 export function visibleWireVertices(
- wire:Wire,parts:readonly Part[],providedPoints?:readonly Point[],freeEnd=false
+ wire:Wire,parts:readonly Part[],providedPoints?:readonly Point[],freeEnd=false,
+ occupied:readonly OccupiedLeg[]=[]
 ):Point[]|null {
  const points=providedPoints?providedPoints.map(p=>({...p})):(()=>{
   const pin=createPinResolver(parts),a=pin(wire.from),b=pin(wire.to);
@@ -281,10 +337,35 @@ export function visibleWireVertices(
     perimeterRoute(start,end,allBoxes,wire.routing,fullBoxes);
  }
  if(!path)return fallback;
- const combined=simplify([from,start,...path,end,to]);
+ const combined=simplify([from,start,...chooseLane(path,start,end,fullBoxes,occupied),end,to]);
  // Pins and all manual connections retain exact identity and coordinates.
  if(!same(combined[0],from)||!same(combined.at(-1)!,to))return fallback;
  return combined;
+}
+/**
+ * One scene snapshot for paint, pick and edits. Fixed routes reserve lanes first;
+ * automatic routes follow stable project order, never selection/painter order.
+ * Large scenes retain the independent clearance router.
+ */
+export function projectWireRoutes(wires:readonly Wire[],parts:readonly Part[]):Map<string,Point[]>{
+ const result=new Map<string,Point[]>(),occupied:OccupiedLeg[]=[];
+ const automatic=(w:Wire)=>!!w.routing&&!!w.autoAvoid&&!w.bends?.length;
+ const cooperative=wires.length<=COOPERATIVE_WIRE_LIMIT;
+ const ordered=cooperative?[...wires.filter(w=>!automatic(w)),...wires.filter(automatic)]:wires;
+ for(const w of ordered){
+  const route=visibleWireVertices(w,parts,undefined,false,
+   cooperative&&automatic(w)&&occupied.length<=OCCUPIED_LEG_LIMIT?occupied:[]);
+  if(!route)continue;
+  result.set(w.id,route);
+  if(cooperative&&occupied.length<=OCCUPIED_LEG_LIMIT)occupied.push(...legs(route));
+ }
+ return result;
+}
+/** Preview uses the same reservation order as an appended unbent automatic wire. */
+export function draftWireVertices(wire:Wire,wires:readonly Wire[],parts:readonly Part[],points:readonly Point[],freeEnd:boolean):Point[]|null{
+ const occupied=wires.length<COOPERATIVE_WIRE_LIMIT?
+  [...projectWireRoutes(wires,parts).values()].flatMap(legs):[];
+ return visibleWireVertices(wire,parts,points,freeEnd,occupied.length<=OCCUPIED_LEG_LIMIT?occupied:[]);
 }
 export function visibleWirePath(wire:Wire,parts:readonly Part[],points?:readonly Point[]):string{
  const vertices=visibleWireVertices(wire,parts,points);

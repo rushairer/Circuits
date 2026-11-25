@@ -1,6 +1,6 @@
 import type { Part, Wire } from '../model.js';
 import { createPinResolver, orthogonalRoute, type Point } from './geometry.js';
-import { visibleWireVertices } from './wire-visibility.js';
+import { projectWireRoutes, visibleWireVertices } from './wire-visibility.js';
 
 /**
  * A jumper wire is physically above/below another at an interior crossing,
@@ -153,10 +153,10 @@ function bridgePath(vertices:readonly Point[],crosses:readonly Intersection[],ra
  */
 export function paintCrossingWires(
  wires:readonly Wire[],parts:readonly Part[],bridgeRadius=DEFAULT_RADIUS,
- preview:WireEndpointPreview|null=null
+ preview:WireEndpointPreview|null=null,routeOrder:readonly Wire[]=wires
 ):PaintedWire[] {
  if(!wires.length)return [];
- const resolvePin=createPinResolver(parts);
+ const resolvePin=createPinResolver(parts),routes=projectWireRoutes(routeOrder,parts);
  const prepared=wires.map(w=>{
    const start=resolvePin(w.from),end=resolvePin(w.to);
    const points=start&&end?[start,...(w.bends??[]).map(p=>({...p})),end]:null;
@@ -164,7 +164,7 @@ export function paintCrossingWires(
      const index=preview.side==='from'?0:points.length-1;
      points[index]={...preview.point};
    }
-   const vertices=visualVertices(w,parts,points,preview?.id===w.id);
+   const vertices=preview?.id===w.id?visualVertices(w,parts,points,true):routes.get(w.id)??null;
    return {id:w.id,vertices,
      original:vertices?'M'+vertices.map(coordinate).join(' L'):''};
  });

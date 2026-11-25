@@ -1,6 +1,6 @@
 import { type Project } from '../model.js';
 import { nearestWireSegment, nearestSegment, snap, wirePoints, type Point } from './geometry.js';
-import { visibleWireVertices } from './wire-visibility.js';
+import { projectWireRoutes } from './wire-visibility.js';
 
 export interface WaypointInserted { project:Project; index:number }
 const validPoint=(point:Point)=>Number.isFinite(point.x)&&Number.isFinite(point.y)&&
@@ -25,7 +25,7 @@ export function insertWireWaypoint(
  // persist its orthogonal corners as waypoints before inserting the handle.
  // Otherwise a double-click would cause the conductor to jump across a part.
  const visual=wire.routing&&wire.autoAvoid&&!wire.bends?.length?
-   visibleWireVertices(wire,project.parts,points):null;
+   projectWireRoutes(project.wires,project.parts).get(wire.id):null;
  const useVisual=visual&&visual.length>2&&visual.length-2<32;
  const index=useVisual?nearestSegment(visual,nextPoint):
    nearestWireSegment(points,nextPoint,wire.routing);

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {demo,validProject} from '../.test-dist/model.js';
 import {evaluate} from '../.test-dist/core/dc.js';
-import {visibleWireVertices,visibleWirePath,enableClearanceRouting,AUTO_ROUTE_PART_LIMIT} from '../.test-dist/core/wire-visibility.js';
+import {projectWireRoutes,draftWireVertices,visibleWireVertices,visibleWirePath,enableClearanceRouting,AUTO_ROUTE_PART_LIMIT} from '../.test-dist/core/wire-visibility.js';
 import {orthogonalRoute,wirePoints} from '../.test-dist/core/geometry.js';
 import {paintCrossingWires} from '../.test-dist/core/wire-crossings.js';
 import {wirePickCandidates} from '../.test-dist/core/wire-picking.js';
@@ -285,5 +285,36 @@ test('free-space preview also avoids blockers with a rotated source pin',()=>{
  assert.deepEqual(ghost.at(-1),cursor);
  const obstacle={left:217,right:335,top:59,bottom:220};
  for(let i=1;i<ghost.length;i++)assert.equal(intersects(ghost[i-1],ghost[i],obstacle),false);
+ assert.deepEqual(p,before);
+});
+
+
+test('shared-pin automatic wires reserve separate lanes without changing manual wires or electrical topology',()=>{
+ const p=sample();
+ // Move blocker away; use a fixed manual jumper to reserve the direct lane.
+ p.parts[1].y=600;
+ const w=p.wires[0];
+ p.wires=[{...w,id:'manual',autoAvoid:undefined,bends:[{x:315,y:130}]}, {...w,id:'auto'}];
+ // Distinct endpoints on the same y coordinate, with coincident portions of the routes.
+ p.parts.push({id:'far',kind:'resistor',x:720,y:100,rotation:0,value:220});
+ p.wires[0].to={componentId:'far',pinId:'a'};
+ const before=structuredClone(p),analysis=evaluate(p),routes=projectWireRoutes(p.wires,p.parts);
+ const fixed=routes.get('manual'),auto=routes.get('auto');
+ assert.deepEqual(fixed,visibleWireVertices(p.wires[0],p.parts));
+ assert.notDeepEqual(auto,visibleWireVertices(p.wires[1],p.parts));
+ assert.equal(isOrthogonal(auto),true);
+ assert.deepEqual(auto[0],{x:140,y:130});
+ assert.deepEqual(auto.at(-1),{x:470,y:130});
+ assert.ok(auto.some(v=>Math.abs(v.y-130)>=12));
+ const point=auto.find(v=>v.y!==130);
+ assert.ok(point);
+ const painted=paintCrossingWires([...p.wires].reverse(),p.parts,6,null,p.wires);
+ assert.equal(painted.find(x=>x.id==='auto').hitPath,'M'+auto.map(v=>v.x+' '+v.y).join(' L'));
+ assert.equal(wirePickCandidates(p.wires,p.parts,point,1,4)[0]?.id,'auto');
+ const seg=nearestOrthogonalSegment(p.wires[1],p.parts,point,p.wires);
+ assert.ok(seg&&seg.distance<1e-6);
+ const draft=draftWireVertices(p.wires[1],p.wires.slice(0,1),p.parts,[auto[0],auto.at(-1)],false);
+ assert.deepEqual(draft,auto);
+ assert.deepEqual(evaluate(p),analysis);
  assert.deepEqual(p,before);
 });

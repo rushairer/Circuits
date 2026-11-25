@@ -4,7 +4,7 @@ import { DEFAULT_WIRE_COLOR, WIRE_COLOR_PRESETS, wireColorForDigit, wireColorOpt
 import { insertWireWaypoint, moveWireWaypoint, removeWireWaypoint } from './core/wire-edit.js';
 import { nearestOrthogonalSegment, slideOrthogonalSegment } from './core/wire-segments.js';
 import { paintCrossingWires } from './core/wire-crossings.js';
-import { visibleWireVertices,enableClearanceRouting } from './core/wire-visibility.js';
+import { draftWireVertices,enableClearanceRouting } from './core/wire-visibility.js';
 import { wirePickCandidates, pickWireCandidate, type WirePickCycle, type WirePickCandidate } from './core/wire-picking.js';
 import { recolorWires, removeWires } from './core/wire-batch.js';
 import { LED_COLORS, isLedColor, ledAppearance, changeLedColor } from './core/led-colors.js';
@@ -334,7 +334,7 @@ function draftWireGeometry(from:Point,to:Point):{path:string;corner:Point;turns:
      (!wiringHover||validWireTarget(wiring,wiringHover.endpoint))){
    const transient:Wire={id:'draft',from:wiring,to:wiringHover?.endpoint??wiring,
      color:activeWireColor,routing:wiringDirection,autoAvoid:true};
-   vertices=visibleWireVertices(transient,project.parts,[from,to],!wiringHover);
+   vertices=draftWireVertices(transient,project.wires,project.parts,[from,to],!wiringHover);
  }
  const first=wiringBends[0]??to;
  const fallback=wiringDirection==='horizontal'?{x:first.x,y:from.y}:{x:from.x,y:first.y};
@@ -362,7 +362,7 @@ function canvas(){
    Number(a.id===selection||selectedWireIds.has(a.id))-
    Number(b.id===selection||selectedWireIds.has(b.id)));
  const painted=paintCrossingWires(orderedWires,project.parts,6,
-   endpointDrag?{id:endpointDrag.id,side:endpointDrag.side,point:endpointDrag.preview}:null);
+   endpointDrag?{id:endpointDrag.id,side:endpointDrag.side,point:endpointDrag.preview}:null,project.wires);
  const wireColors=new Map(project.wires.map(w=>[w.id,w.color]));
  const wireModels=new Map(project.wires.map(w=>[w.id,w]));
  const wireRoutes=painted.filter(w=>w.hitPath).map(w=>{
@@ -1543,7 +1543,7 @@ function handlePointerDown(e:CanvasPointer){
        candidates.find(c=>c.id===selection&&c.distancePx<=candidates[0].distancePx+3);
      const wire=project.wires.find(w=>w.id===(preferred?.id??candidates[0].id));
      if(at&&wire){
-       const leg=nearestOrthogonalSegment(wire,project.parts,at);
+       const leg=nearestOrthogonalSegment(wire,project.parts,at,project.wires);
        segmentDrag={id:wire.id,start:at,
          screenX:e.clientX,screenY:e.clientY,pointerId:e.pointerId,
          before:copy(),active:false,index:-1,routeIndex:leg?.index??null,changed:false};
@@ -1578,7 +1578,7 @@ function handlePointerMove(e:CanvasPointer){
      if(stroke){
        const wire=project.wires.find(w=>w.id===stroke.getAttribute('data-wire'));
        const point=canvasPoint(e.clientX,e.clientY);
-       const leg=wire&&point?nearestOrthogonalSegment(wire,project.parts,point):null;
+       const leg=wire&&point?nearestOrthogonalSegment(wire,project.parts,point,project.wires):null;
        stroke.style.cursor=leg?.axis==='horizontal'?'ns-resize':
          leg?.axis==='vertical'?'ew-resize':'grab';
      }

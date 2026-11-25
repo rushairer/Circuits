@@ -1,6 +1,6 @@
 import type { Part, Project, Wire } from '../model.js';
 import { snap, wirePoints, type Point } from './geometry.js';
-import { visibleWireVertices } from './wire-visibility.js';
+import { projectWireRoutes, visibleWireVertices } from './wire-visibility.js';
 
 export type SegmentAxis='horizontal'|'vertical';
 export interface VisibleWireSegment {
@@ -41,11 +41,11 @@ function simplify(points:readonly Point[]):Point[]{
  * authored bends is a legacy literal polyline and must not be auto-converted
  * into a new orthogonal route during a segment drag.
  */
-export function orthogonalWireVertices(wire:Wire,parts:readonly Part[]):Point[]|null{
+export function orthogonalWireVertices(wire:Wire,parts:readonly Part[],wires?:readonly Wire[]):Point[]|null{
  const pts=wirePoints(wire,parts);
  if(!pts)return null;
  if(!wire.routing&&wire.bends?.length)return null;
- const route=visibleWireVertices(wire,parts,pts);
+ const route=wires?projectWireRoutes(wires,parts).get(wire.id):visibleWireVertices(wire,parts,pts);
  return route?simplify(route):null;
 }
 
@@ -55,9 +55,9 @@ export function orthogonalWireVertices(wire:Wire,parts:readonly Part[]):Point[]|
  * null; its old waypoint drag behavior stays available.
  */
 export function nearestOrthogonalSegment(
- wire:Wire,parts:readonly Part[],target:Point
+ wire:Wire,parts:readonly Part[],target:Point,wires?:readonly Wire[]
 ):VisibleWireSegment|null {
- const points=orthogonalWireVertices(wire,parts);
+ const points=orthogonalWireVertices(wire,parts,wires);
  if(!points||!valid(target))return null;
  let best:VisibleWireSegment|null=null;
  for(let i=0;i<points.length-1;i++){
@@ -88,7 +88,7 @@ export function slideOrthogonalSegment(
 ):SlidWireSegment|null {
  const wire=project.wires.find(w=>w.id===wireId);
  if(!wire||!valid(worldDelta)||!Number.isInteger(segmentIndex))return null;
- const points=orthogonalWireVertices(wire,project.parts);
+ const points=orthogonalWireVertices(wire,project.parts,project.wires);
  if(!points||segmentIndex<0||segmentIndex>=points.length-1)return null;
  const a=points[segmentIndex],b=points[segmentIndex+1];
  const axis:SegmentAxis|null=a.y===b.y&&a.x!==b.x?'horizontal':

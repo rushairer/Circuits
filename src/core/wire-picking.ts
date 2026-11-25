@@ -1,6 +1,6 @@
 import type { Part, Wire } from '../model.js';
-import { createPinResolver, type Point } from './geometry.js';
-import { visibleWireVertices } from './wire-visibility.js';
+import { type Point } from './geometry.js';
+import { projectWireRoutes } from './wire-visibility.js';
 
 /** Exact underlying wire strokes, not the broad transparent SVG hit paths or jump arcs. */
 export interface WirePickCandidate {
@@ -31,13 +31,10 @@ export function wirePickCandidates(
  if(!validPoint(point)||!finite(pixelsPerWorldUnit)||pixelsPerWorldUnit<=0||
     !finite(tolerancePx)||tolerancePx<=0)return [];
  const radius=tolerancePx/pixelsPerWorldUnit;
- const resolve=createPinResolver(parts);
+ const routes=projectWireRoutes(wires,parts);
  const result:(WirePickCandidate & {order:number})[]=[];
  for(let order=0;order<wires.length;order++){
-   const wire=wires[order],from=resolve(wire.from),to=resolve(wire.to);
-   if(!from||!to)continue;
-   const points=[from,...(wire.bends??[]),to];
-   const route=visibleWireVertices(wire,parts,points);
+   const wire=wires[order],route=routes.get(wire.id);
    if(!route)continue;
    let best=Infinity,legIndex=-1;
    for(let i=1;i<route.length;i++){
