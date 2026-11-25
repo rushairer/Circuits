@@ -1,4 +1,5 @@
 import { demo, blankProject, type Project } from '../model.js';
+import { enableClearanceRouting } from './wire-visibility.js';
 
 /** Ready-to-run educational fixtures: original assets, no MCU execution. */
 export const exampleCatalog=[
@@ -23,7 +24,13 @@ export type ExampleId=(typeof exampleCatalog)[number]['id'];
 const lead=(id:string,from:string,fromPin:string,to:string,toPin:string,color='#e45454')=>({
  id,from:{componentId:from,pinId:fromPin},to:{componentId:to,pinId:toPin},color
 });
+/** Only newly generated starters opt into clearance routing. Imported or
+ * previously saved projects must keep their authored geometry. */
 export function createExample(id:string):Project|null {
+ const project=createRawExample(id);
+ return project?enableClearanceRouting(project):null;
+}
+function createRawExample(id:string):Project|null {
  if(!exampleCatalog.some(e=>e.id===id))return null;
  if(id==='uno-for-pulse'){
    const p=blankProject();p.name='Arduino D13 · 有界 for 循环脉冲';
@@ -78,7 +85,7 @@ export function createExample(id:string):Project|null {
    return doc;
  }
  if(id==='rc-ammeter'){
-   const p=createExample('rc-charge')!;
+   const p=createRawExample('rc-charge')!;
    p.name='RC 充电 · 串联电流表';
    p.parts.push({id:'i1',kind:'ammeter',x:600,y:355,rotation:0});
    p.wires[1]=lead('w2','r1','b','i1','positive');
@@ -86,7 +93,7 @@ export function createExample(id:string):Project|null {
    return p;
  }
  if(id==='rc-contact-switch'){
-   const p=createExample('rc-charge')!;
+   const p=createRawExample('rc-charge')!;
    p.name='RC 充电 · 100Ω 接触开关';
    p.parts.push({id:'s1',kind:'switch',x:260,y:390,rotation:0,closed:true,contactOhms:100});
    p.wires[0]=lead('w1','b1','positive','s1','a');
@@ -95,13 +102,13 @@ export function createExample(id:string):Project|null {
  }
  if(id==='dc-ammeter'){
    const p=demo();p.name='LED 串联电流表 · 0.1Ω';
-   p.parts.push({id:'i1',kind:'ammeter',x:425,y:75,rotation:0});
+   p.parts.push({id:'i1',kind:'ammeter',x:260,y:35,rotation:0});
    p.wires[0]=lead('w1','b1','positive','i1','positive');
    p.wires.push(lead('wa','i1','negative','r1','a'));
    return p;
  }
  if(id==='rc-resistor-meter'){
-   const p=createExample('rc-charge')!;
+   const p=createRawExample('rc-charge')!;
    p.name='RC 充电 · 万用表测量电阻压降';
    p.parts.push({id:'m1',kind:'multimeter',x:910,y:455,rotation:0});
    p.wires.push(

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validProject } from '../.test-dist/model.js';
+import { validProject, size, demo } from '../.test-dist/model.js';
+import { visibleWireVertices } from '../.test-dist/core/wire-visibility.js';
+import { wirePoints } from '../.test-dist/core/geometry.js';
 import { exampleCatalog,createExample } from '../.test-dist/core/examples.js';
 import { analyzeDC } from '../.test-dist/core/dc-analysis.js';
 import { analyzeRC } from '../.test-dist/core/rc-transient.js';
@@ -130,4 +132,48 @@ test('bounded for sample previews three D13 pulses with a valid stored project',
  assert.equal(r.periodMs,1000);
  assert.equal(r.events.length,6);
  assert.deepEqual(sampleUnoSerial(r,400).lines.map(x=>x.text),['pulse','pulse','pulse']);
+});
+
+
+// All current starter parts have cardinal rotation zero. Check real body
+// bounds independently of the production clearance router.
+const bounds=p=>({left:p.x,right:p.x+size[p.kind][0],top:p.y,bottom:p.y+size[p.kind][1]});
+const overlaps=(a,b)=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
+const crosses=(a,b,r)=>a.y===b.y?
+ a.y>r.top&&a.y<r.bottom&&Math.max(Math.min(a.x,b.x),r.left)<Math.min(Math.max(a.x,b.x),r.right):
+ a.x===b.x&&a.x>r.left&&a.x<r.right&&Math.max(Math.min(a.y,b.y),r.top)<Math.min(Math.max(a.y,b.y),r.bottom);
+test('new starter circuits have non-overlapping bodies and visible orthogonal leads',()=>{
+ for(const {id} of exampleCatalog){
+  const p=createExample(id),before=structuredClone(p);
+  for(let i=0;i<p.parts.length;i++){
+   assert.equal(p.parts[i].rotation,0,id);
+   for(const other of p.parts.slice(i+1))
+    assert.equal(overlaps(bounds(p.parts[i]),bounds(other)),false,id+': '+p.parts[i].id+' overlaps '+other.id);
+  }
+  for(const w of p.wires){
+   assert.equal(w.autoAvoid,true,id+': '+w.id);
+   assert.equal(w.bends,undefined);
+   const points=visibleWireVertices(w,p.parts),terminals=wirePoints(w,p.parts);
+   assert.deepEqual(points[0],terminals[0]);
+   assert.deepEqual(points.at(-1),terminals.at(-1));
+   for(let i=1;i<points.length;i++){
+    const a=points[i-1],b=points[i];
+    assert.ok(a.x===b.x||a.y===b.y,id+': diagonal '+w.id);
+    for(const part of p.parts){
+     if(part.id===w.from.componentId||part.id===w.to.componentId||part.kind==='breadboard')continue;
+     assert.equal(crosses(a,b,bounds(part)),false,id+': '+w.id+' crosses '+part.id);
+    }
+   }
+  }
+  assert.deepEqual(p,before);
+  assert.equal(validProject(p),true,id);
+ }
+});
+test('opening a routed starter preserves the original demo and its electrical endpoints',()=>{
+ const original=demo(),before=structuredClone(original),starter=createExample('basic');
+ assert.deepEqual(starter.parts,original.parts);
+ assert.deepEqual(starter.wires.map(({id,from,to,color})=>({id,from,to,color})),original.wires);
+ assert.deepEqual(analyzeDC(starter),analyzeDC(original));
+ assert.deepEqual(original,before);
+ assert.deepEqual(demo(),before);
 });
