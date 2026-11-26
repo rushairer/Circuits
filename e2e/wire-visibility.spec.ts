@@ -113,3 +113,88 @@ test('one-click smart cleanup upgrades legacy unbent circuits with atomic undo a
  await page.locator('[data-action="redo"]').click();
  expect((await saved(page)).wires).toEqual(routed.wires);
 });
+
+
+test('dense breadboard corridor is visibly clear, selectable and stable through manual editing',async({page},testInfo)=>{
+ await page.goto('/');
+ const p=await saved(page);
+ const ox=220,oy=180;
+ p.parts=[{id:'board',kind:'breadboard',x:ox,y:oy,rotation:0}];
+ p.insertions=[];
+ const ep=(pinId:string)=>({componentId:'board',pinId});
+ const fixed=(id:string,from:string,to:string,routing:'horizontal'|'vertical')=>
+  ({id,from:ep(from),to:ep(to),routing,color:'#159f91'});
+ p.wires=[
+  ...[10,11,12].map(c=>fixed('v'+c,'top-plus-'+c,'hole-c-'+c,'vertical')),
+  ...['c','d','e'].map(r=>fixed('h'+r,'hole-'+r+'-2','hole-'+r+'-5','horizontal')),
+  {...fixed('auto','hole-a-4','hole-j-14','horizontal'),autoAvoid:true,color:'#e45454'}
+ ];
+ await page.locator('#file').setInputFiles({
+  name:'dense-board.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(p))
+ });
+ await expect(page.locator('.wire')).toHaveCount(7);
+ const original=await saved(page);
+ const wire=page.locator('.wire[data-wire="auto"]');
+ const hit=page.locator('.wire-hit[data-wire="auto"]');
+ await expect(wire).toHaveAttribute('data-crossovers','0');
+ const before=await hit.getAttribute('d');
+ expect(before).not.toBeNull();
+ expect(await wire.getAttribute('d')).toBe(before);
+ const points=vertices(before!);
+ expect(points[0]).toEqual({x:ox+100,y:oy+67});
+ expect(points.at(-1)).toEqual({x:ox+280,y:oy+148});
+ expect(points.length).toBe(4);
+ expect(points.slice(1).reduce((n,b,i)=>n+Math.abs(b.x-points[i].x)+Math.abs(b.y-points[i].y),0)).toBe(261);
+ const fixedPaths=await page.locator('.wire-hit:not([data-wire="auto"])').evaluateAll(els=>
+  Object.fromEntries(els.map(el=>[el.getAttribute('data-wire'),el.getAttribute('d')])));
+ for(const d of Object.values(fixedPaths)){
+  const [c,dest]=vertices(d!);
+  const between=(x:number,a:number,b:number)=>x>Math.min(a,b)&&x<Math.max(a,b);
+  for(let i=1;i<points.length;i++){
+   const a=points[i-1],b=points[i];
+   expect(a.y===b.y&&c.x===dest.x&&between(c.x,a.x,b.x)&&between(a.y,c.y,dest.y)||
+    a.x===b.x&&c.y===dest.y&&between(a.x,c.x,dest.x)&&between(c.y,a.y,b.y)).toBe(false);
+  }
+ }
+ await testInfo.attach('dense-board-clear-corridor',{body:await page.screenshot(),contentType:'image/png'});
+ // Choose a real painted point on the middle leg, not a hole center or a bend.
+ const pick=await wire.evaluate((el,pts)=>{
+  const path=el as SVGPathElement,mat=path.getScreenCTM()!;
+  const a=pts[1],b=pts[2];
+  for(let i=2;i<=18;i++){
+   const t=i/20,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;
+   const screen=new DOMPoint(x,y).matrixTransform(mat);
+   const target=document.elementFromPoint(screen.x,screen.y);
+   if(target===path)return {x:screen.x,y:screen.y,wx:x,wy:y,axis:a.x===b.x?'vertical':'horizontal'};
+  }
+  return null;
+ },points);
+ expect(pick,'a real conductor point must be accessible between sockets').not.toBeNull();
+ await page.mouse.click(pick!.x,pick!.y);
+ await expect(page.locator('.endpoint-handle[data-wire="auto"]')).toHaveCount(2);
+ expect(await hit.getAttribute('d')).toBe(before);
+ expect((await saved(page)).wires).toEqual(original.wires);
+ const target=await screenFromWorld(page,pick!.wx+(pick!.axis==='vertical'?30:0),
+  pick!.wy+(pick!.axis==='horizontal'?30:0));
+ await page.mouse.move(pick!.x,pick!.y);
+ await page.mouse.down();
+ await page.mouse.move(target.x,target.y,{steps:8});
+ await page.mouse.up();
+ const edited=await saved(page);
+ expect(edited.wires.slice(0,-1)).toEqual(original.wires.slice(0,-1));
+ expect(edited.wires.at(-1).from).toEqual(original.wires.at(-1).from);
+ expect(edited.wires.at(-1).to).toEqual(original.wires.at(-1).to);
+ expect(edited.wires.at(-1).bends?.length).toBeGreaterThan(0);
+ expect(await hit.getAttribute('d')).not.toBe(before);
+ await page.locator('[data-action="undo"]').click();
+ expect((await saved(page)).wires).toEqual(original.wires);
+ expect(await hit.getAttribute('d')).toBe(before);
+ await page.locator('[data-action="redo"]').click();
+ expect((await saved(page)).wires).toEqual(edited.wires);
+ const editedPath=await hit.getAttribute('d');
+ await page.reload();
+ await expect(page.locator('.wire')).toHaveCount(7);
+ expect((await saved(page)).wires).toEqual(edited.wires);
+ expect(await hit.getAttribute('d')).toBe(editedPath);
+ await testInfo.attach('dense-board-edited-corridor',{body:await page.screenshot(),contentType:'image/png'});
+});
