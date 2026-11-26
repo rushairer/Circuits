@@ -14,6 +14,9 @@ const BEND_COST=28;
 const EPS=1e-7;
 export const COOPERATIVE_WIRE_LIMIT=48;
 const OCCUPIED_LEG_LIMIT=240;
+// Medium scenes can cooperate regionally without increasing each lane search.
+export const REGIONAL_WIRE_LIMIT=256;
+const REGIONAL_LEG_LIMIT=2048;
 const LANE_GAP=12;
 interface OccupiedLeg {axis:1|2;lane:number;low:number;high:number}
 function legs(points:readonly Point[]):OccupiedLeg[]{
@@ -35,6 +38,31 @@ function crosses(a:OccupiedLeg,b:OccupiedLeg):boolean{
 }
 function lengthOf(path:readonly Point[]):number{
  return path.slice(1).reduce((sum,p,i)=>sum+Math.abs(p.x-path[i].x)+Math.abs(p.y-path[i].y),0);
+}
+/**
+ * Any accepted candidate is at most baseline + max(48, 25%) long.
+ * Its excursion outside the endpoint rectangle cannot exceed half the
+ * excess over Manhattan distance. Include the lane-gap margin as well.
+ * Distant reservations cannot influence any accepted path. In a region
+ * exceeding the per-wire budget, keep independent routing instead of
+ * silently ignoring a subset of conflicting legs.
+ */
+function regionalLegs(path:readonly Point[],start:Point,end:Point,occupied:readonly OccupiedLeg[]):OccupiedLeg[]{
+ const baseline=lengthOf(path);
+ const slack=Math.max(0,(baseline+Math.max(48,baseline*0.25)-
+   Math.abs(start.x-end.x)-Math.abs(start.y-end.y))/2)+LANE_GAP;
+ const left=Math.min(start.x,end.x)-slack,right=Math.max(start.x,end.x)+slack;
+ const top=Math.min(start.y,end.y)-slack,bottom=Math.max(start.y,end.y)+slack;
+ const local:OccupiedLeg[]=[];
+ for(const leg of occupied){
+  const relevant=leg.axis===1?
+   leg.lane>=top&&leg.lane<=bottom&&leg.high>=left&&leg.low<=right:
+   leg.lane>=left&&leg.lane<=right&&leg.high>=top&&leg.low<=bottom;
+  if(!relevant)continue;
+  if(local.length===OCCUPIED_LEG_LIMIT)return [];
+  local.push(leg);
+ }
+ return local;
 }
 function congestion(path:readonly Point[],occupied:readonly OccupiedLeg[]):number{
  let result=0;
@@ -369,7 +397,7 @@ export function visibleWireVertices(
 }
 function routeWithScene(
  wire:Wire,parts:readonly Part[],providedPoints:readonly Point[]|undefined,freeEnd:boolean,
- occupied:readonly OccupiedLeg[],getScene:()=>RoutingScene
+ occupied:readonly OccupiedLeg[],getScene:()=>RoutingScene,regional=false
 ):Point[]|null {
  const points=providedPoints?providedPoints.map(p=>({...p})):(()=>{
   const pin=createPinResolver(parts),a=pin(wire.from),b=pin(wire.to);
@@ -428,7 +456,8 @@ function routeWithScene(
     perimeterRoute(start,end,allBoxes,wire.routing,fullBoxes);
  }
  if(!path)return fallback;
- const combined=simplify([from,start,...chooseLane(path,start,end,fullBoxes,occupied),end,to]);
+ const relevant=regional&&occupied.length?regionalLegs(path,start,end,occupied):occupied;
+ const combined=simplify([from,start,...chooseLane(path,start,end,fullBoxes,relevant),end,to]);
  // Pins and all manual connections retain exact identity and coordinates.
  if(!same(combined[0],from)||!same(combined.at(-1)!,to))return fallback;
  return combined;
@@ -436,38 +465,52 @@ function routeWithScene(
 /**
  * One scene snapshot for paint, pick and edits. Fixed routes reserve lanes first;
  * automatic routes follow stable project order, never selection/painter order.
- * Large scenes retain the independent clearance router.
+ * Medium scenes use regional congestion checks; very large scenes retain
+ * independent clearance routing. Drafts use the appended scene's budget.
  */
+function collectSceneRoutes(
+ wires:readonly Wire[],parts:readonly Part[],wireCount:number,
+ resolvePin?:ReturnType<typeof createPinResolver>
+){
+ const routes=new Map<string,Point[]>(),occupied:OccupiedLeg[]=[];
+ let scene:RoutingScene|undefined,saturated=false;
+ const getScene=()=>scene??(scene=routingScene(parts));
+ const regional=wireCount>COOPERATIVE_WIRE_LIMIT&&wireCount<=REGIONAL_WIRE_LIMIT;
+ const cooperative=wireCount<=REGIONAL_WIRE_LIMIT;
+ const budget=regional?REGIONAL_LEG_LIMIT:OCCUPIED_LEG_LIMIT;
+ const automatic=(w:Wire)=>!!w.routing&&!!w.autoAvoid&&!w.bends?.length;
+ if(wires.length){
+  const resolve=resolvePin??createPinResolver(parts);
+  const ordered=cooperative?[...wires.filter(w=>!automatic(w)),...wires.filter(automatic)]:wires;
+  for(const w of ordered){
+   const start=resolve(w.from),end=resolve(w.to);
+   if(!start||!end)continue;
+   const points=[start,...(w.bends??[]),end];
+   const route=routeWithScene(w,parts,points,false,
+    cooperative&&automatic(w)&&!saturated?occupied:[],getScene,regional);
+   if(!route)continue;
+   routes.set(w.id,route);
+   if(cooperative&&!saturated){
+    const reserved=legs(route);
+    if(occupied.length+reserved.length>budget){
+     saturated=true;
+     occupied.length=0;
+    }else occupied.push(...reserved);
+   }
+  }
+ }
+ return {routes,occupied,getScene,regional};
+}
 export function projectWireRoutes(
  wires:readonly Wire[],parts:readonly Part[],resolvePin?:ReturnType<typeof createPinResolver>
 ):Map<string,Point[]>{
- const result=new Map<string,Point[]>(),occupied:OccupiedLeg[]=[];
- if(!wires.length)return result;
- // Share one immutable pin snapshot across the entire scene, including paint.
- const resolve=resolvePin??createPinResolver(parts);
- let scene:RoutingScene|undefined;
- // Legacy/manual-only scenes never build an obstacle index.
- const getScene=()=>scene??(scene=routingScene(parts));
- const automatic=(w:Wire)=>!!w.routing&&!!w.autoAvoid&&!w.bends?.length;
- const cooperative=wires.length<=COOPERATIVE_WIRE_LIMIT;
- const ordered=cooperative?[...wires.filter(w=>!automatic(w)),...wires.filter(automatic)]:wires;
- for(const w of ordered){
-  const start=resolve(w.from),end=resolve(w.to);
-  if(!start||!end)continue;
-  const points=[start,...(w.bends??[]),end];
-  const route=routeWithScene(w,parts,points,false,
-   cooperative&&automatic(w)&&occupied.length<=OCCUPIED_LEG_LIMIT?occupied:[],getScene);
-  if(!route)continue;
-  result.set(w.id,route);
-  if(cooperative&&occupied.length<=OCCUPIED_LEG_LIMIT)occupied.push(...legs(route));
- }
- return result;
+ return collectSceneRoutes(wires,parts,wires.length,resolvePin).routes;
 }
-/** Preview uses the same reservation order as an appended unbent automatic wire. */
+/** Preview uses the same reservation order and size tier as an appended auto wire. */
 export function draftWireVertices(wire:Wire,wires:readonly Wire[],parts:readonly Part[],points:readonly Point[],freeEnd:boolean):Point[]|null{
- const occupied=wires.length<COOPERATIVE_WIRE_LIMIT?
-  [...projectWireRoutes(wires,parts).values()].flatMap(legs):[];
- return visibleWireVertices(wire,parts,points,freeEnd,occupied.length<=OCCUPIED_LEG_LIMIT?occupied:[]);
+ if(wires.length>=REGIONAL_WIRE_LIMIT)return visibleWireVertices(wire,parts,points,freeEnd);
+ const {occupied,getScene,regional}=collectSceneRoutes(wires,parts,wires.length+1);
+ return routeWithScene(wire,parts,points,freeEnd,occupied,getScene,regional);
 }
 export function visibleWirePath(wire:Wire,parts:readonly Part[],points?:readonly Point[]):string{
  const vertices=visibleWireVertices(wire,parts,points);

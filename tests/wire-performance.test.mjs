@@ -126,7 +126,8 @@ test('automatic scene routes share one obstacle geometry snapshot and refresh af
   {id:'blocker',kind:'battery',x:230,y:72,rotation:0,value:9},
   ...Array.from({length:60},(_,i)=>({id:'remote-'+i,kind:'resistor',x:1000+i*150,y:900,rotation:0,value:220}))
  ];
- const wires=Array.from({length:49},(_,i)=>({
+ // Above the regional cooperation limit, all paths remain independent.
+ const wires=Array.from({length:257},(_,i)=>({
   id:'auto-'+i,from:{componentId:'left',pinId:'b'},to:{componentId:'right',pinId:'a'},
   color:'#159f91',routing:'horizontal',autoAvoid:true
  }));

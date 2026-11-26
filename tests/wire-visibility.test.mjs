@@ -475,3 +475,38 @@ test('alternate elbow exposes a better lane beyond the preferred elbow congestio
  assert.deepEqual(evaluate(p),analysis);
  assert.deepEqual(p,before);
 });
+
+
+for(const remoteCount of [47,125])test('regional routing ignores distant reservations and preserves draft parity: '+remoteCount,()=>{
+ const p=sample();
+ p.parts=[
+  {id:'board',kind:'breadboard',x:0,y:0,rotation:0},
+  {id:'remote',kind:'breadboard',x:5000,y:5000,rotation:0}
+ ];
+ const ep=(componentId,pinId)=>({componentId,pinId});
+ const fixed={id:'fixed',from:ep('board','top-plus-4'),to:ep('board','hole-g-4'),color:'#159f91',routing:'vertical'};
+ const auto={id:'auto',from:ep('board','hole-a-0'),to:ep('board','hole-j-10'),color:'#e45454',routing:'horizontal',autoAvoid:true};
+ // Each remote wire has two legs. The larger fixture exceeds the former
+ // global 240-leg budget but has just one relevant local reservation.
+ const remote=Array.from({length:remoteCount},(_,i)=>{
+  const c=i%20,r=Math.floor(i/20);
+  return {id:'remote-'+i,from:ep('remote','hole-'+'abcdefghij'[r]+'-'+c),
+   to:ep('remote','hole-'+'abcdefghij'[r+1]+'-'+(c+1)),color:'#159f91',routing:'horizontal'};
+ });
+ p.wires=[...remote,fixed,auto];
+ assert.equal(validProject(p),true);
+ const before=structuredClone(p),analysis=evaluate(p);
+ const independent=visibleWireVertices(auto,p.parts);
+ const expected=projectWireRoutes([fixed,auto],p.parts).get(auto.id);
+ assert.notDeepEqual(expected,independent);
+ assert.deepEqual(expected,[{x:28,y:67},{x:28,y:148},{x:208,y:148}]);
+ const routes=projectWireRoutes(p.wires,p.parts),actual=routes.get(auto.id);
+ assert.deepEqual(actual,expected);
+ assert.deepEqual(draftWireVertices(auto,p.wires.slice(0,-1),p.parts,[actual[0],actual.at(-1)],false),actual);
+ for(const w of p.wires.slice(0,-1))assert.deepEqual(routes.get(w.id),visibleWireVertices(w,p.parts));
+ assert.equal(isOrthogonal(actual),true);
+ const painted=paintCrossingWires([...p.wires].reverse(),p.parts,6,null,p.wires);
+ assert.equal(painted.find(w=>w.id===auto.id).hitPath,'M'+actual.map(v=>v.x+' '+v.y).join(' L'));
+ assert.deepEqual(evaluate(p),analysis);
+ assert.deepEqual(p,before);
+});
