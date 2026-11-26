@@ -276,3 +276,20 @@ Run [45804823856](https://github.com/rushairer/Circuits/actions/runs/45804823856
 In large WebKit, zoom camera/inspector measures were both 0 ms at the timer's resolution, while the first/second rAFs arrived at 33/1042 ms. Nudge routing was 3 ms, geometry writes 2 ms, inspector 28 ms and inclusive translation patch 38 ms; first/second rAFs were 818/1663 ms. Undo routing was 2 ms, patch 11 ms, first/second rAFs 49/969 ms. These observations do not identify exclusive paint/GPU time; they establish that measured synchronous routing alone cannot explain the delay.
 
 Retain the two wire sublayers and the 17 CSS-pixel native hit stroke, but set the hit path's paint to none while retaining pointer-events:stroke and non-scaling-stroke. This is a bounded rendering experiment intended to avoid submitting thousands of transparent strokes for painting; no actual speedup is claimed. The existing cross-engine zoomed selection regression now checks the unpainted halo's native hit target and unchanged electrical save. Also reuse one real bounding rectangle per part within each floating-inspector placement pass, without changing the candidate geometry, scoring, protected pins or cache lifetime. CI, new phase samples, and native Safari verification are still required.
+
+### Offscreen wire visibility experiment (2026-11-26)
+
+Quality & Pages run 45814626968 passed for 3d63d85. All six browser-performance JSON reports were available. Second-rAF P50 (ms; one sample for the large scene):
+
+| Scene | Browser | Zoom | Nudge | Undo |
+| --- | --- | ---: | ---: | ---: |
+| 126 wires | Chromium | 25.6 | 33.7 | 33.1 |
+| 126 wires | Firefox | 15 | 24 | 14 |
+| 126 wires | WebKit | 48 | 74 | 69 |
+| 2,000 wires | Chromium | 28.2 | 34.4 | 35.3 |
+| 2,000 wires | Firefox | 32 | 55 | 91 |
+| 2,000 wires | WebKit | 947 | 1667 | 924 |
+
+The WebKit dense scene still has large frame-callback delays; synchronous routing for nudge/undo was 2 ms each, and quick properties on nudge was 11 ms. These shared-runner samples are not controlled benchmarks or hardware display latency.
+
+For sparse large scenes, hide only plain wire paint and hit paths whose entire conservative linear bounds lie outside the actual CSS viewport with a 40px margin. Keep selected wires, all DOM nodes, full model geometry and routing; never cull an uncertain or decorated stack. The threshold is 1,000 wires; ordinary scenes are untouched. Unit tests cover projected bounds, viewport edge cases and re-entry. A browser fixture checks offscreen hit/paint consistency, a through-going wire and fit restoration without replacing nodes or changing persistence. This is not expected to solve a dense scene in which most wires are visible. CI and native device profiling are separate acceptance gates.

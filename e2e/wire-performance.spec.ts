@@ -343,3 +343,45 @@ test('history with changed rotation uses full render instead of translation patc
  await expect(part).toHaveAttribute('aria-pressed','false');
  await beforeUndo?.dispose();
 });
+
+test('large sparse scene culls only offscreen wire paint and hit geometry, then restores on fit',async({page})=>{
+ await page.setViewportSize({width:1440,height:1000});
+ await page.goto('/');
+ const fixture=wireScene(1000);
+ for(let i=0;i<fixture.parts.length;i++){
+  const p=fixture.parts[i];
+  p.x=1700+(i%10)*40;p.y=300+Math.floor(i/10)*10;
+ }
+ Object.assign(fixture.parts[0],{x:100,y:150});
+ Object.assign(fixture.parts[1],{x:350,y:150});
+ Object.assign(fixture.parts[2],{x:1700,y:150});
+ Object.assign(fixture.parts[3],{x:1950,y:150});
+ Object.assign(fixture.parts[4],{x:-500,y:600});
+ Object.assign(fixture.parts[5],{x:2100,y:600});
+ for(const w of fixture.wires)delete w.bends;
+ fixture.wires[2].routing='horizontal';
+ await page.locator('#file').setInputFiles({name:'sparse-viewport.json',mimeType:'application/json',
+  buffer:Buffer.from(JSON.stringify(fixture))});
+ const near=page.locator('.wire[data-wire="wire-0"]');
+ const far=page.locator('.wire[data-wire="wire-1"]');
+ const farHit=page.locator('.wire-hit[data-wire="wire-1"]');
+ const crossing=page.locator('.wire[data-wire="wire-2"]');
+ await expect(page.locator('.wire[data-wire]')).toHaveCount(1000);
+ await expect(far).toHaveAttribute('data-viewport-culled','');
+ await expect(farHit).toHaveAttribute('data-viewport-culled','');
+ await expect(far).toHaveCSS('display','none');
+ expect(await near.getAttribute('data-viewport-culled')).toBeNull();
+ expect(await crossing.getAttribute('data-viewport-culled')).toBeNull();
+ const before=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ const node=await far.elementHandle(),hitNode=await farHit.elementHandle();
+ const path=await far.getAttribute('d');
+ try{
+  await page.locator('[data-action="fit"]').click();
+  await expect(far).not.toHaveAttribute('data-viewport-culled','');
+  await expect(farHit).not.toHaveAttribute('data-viewport-culled','');
+  await expect(far).toHaveAttribute('d',path!);
+  expect(await far.evaluate((el,old)=>el===old,node)).toBe(true);
+  expect(await farHit.evaluate((el,old)=>el===old,hitNode)).toBe(true);
+  expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(before);
+ }finally{await node?.dispose();await hitNode?.dispose();}
+});

@@ -344,3 +344,6 @@ header input[readonly]{color:#788d95}
 /* Readable auto-clearance waypoints; no pointer capture or electrical identity. */
 .wire-preview-auto-corner{fill:#fff;stroke:#078f83;stroke-width:1.8;
  vector-effect:non-scaling-stroke;opacity:.95;pointer-events:none}
+
+/* Offscreen plain wire paint and hit targets are culled together, without removing nodes. */
+#scene .wire[data-viewport-culled],#scene .wire-hit[data-viewport-culled]{display:none}

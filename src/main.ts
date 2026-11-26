@@ -41,6 +41,7 @@ import { blankProject } from './model.js';
 import { createExample, exampleCatalog } from './core/examples.js';
 import { COMPONENT_CATEGORIES, isComponentCategory, isStarterCategory, matchingComponents, matchingStarters, type ComponentCategory } from './core/component-browser.js';
 import { zoomAt, panBy, fitCircuit } from './core/viewport.js';
+import { linearPathBounds, wireViewportBounds, outsideWireViewport, WIRE_CULL_THRESHOLD, type WireBounds } from './core/wire-viewport.js';
 import { translateComponents, removeComponents, rotateComponents, componentsWithinRect } from './core/selection.js';
 import { appendConnection, reconnectEndpoint, nearestTerminal, identicalConnection, type TerminalHit } from './core/connections.js';
 import { reconcileInsertions, snapPartToBreadboard, suggestPalettePosition } from './core/placement.js';
@@ -507,13 +508,43 @@ function canvas(){
   return '<svg id="board" viewBox="0 0 1100 800"><defs><pattern id="dot" width="21" height="21" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#c5cfd3"/></pattern></defs><rect width="1100" height="800" fill="#f3f5f6"/><rect width="1100" height="800" fill="url(#dot)"/><g id="scene" transform="translate('+panX+' '+panY+') scale('+zoom+')">'+layers+'</g></svg>';
 }
 
-  function refreshScene(){
+/** Hide only offscreen plain conductors and their matching native hit
+ * geometry. Keep DOM identity, full paths and project routing intact.
+ * Cache by node + exact path; moving an obstacle or part invalidates changed
+ * paths automatically, and replaced scenes cannot retain old geometry.
+ */
+const wireBoundsCache=new WeakMap<SVGPathElement,{path:string;bounds:WireBounds|null}>();
+function syncWireViewport(){
+ if(project.wires.length<WIRE_CULL_THRESHOLD)return;
+ profileEditorPhase('wire-viewport',()=>{
+  const board=app.querySelector<SVGSVGElement>('#board');
+  const scene=app.querySelector<SVGGElement>('#scene');
+  if(!board||!scene)return;
+  // Crossovers and connector decorations must retain their full visual stack.
+  const matrix=scene.getScreenCTM();
+  const viewport=matrix&&!scene.querySelector('.wire-bridge-clear,.wire-connectors')?
+   wireViewportBounds(board.getBoundingClientRect(),matrix):null;
+  for(const node of Array.from(scene.querySelectorAll<SVGPathElement>('.wire[data-wire],.wire-hit[data-wire]'))){
+   const id=node.getAttribute('data-wire')??'';
+   const path=node.getAttribute('d')??'';
+   let cached=wireBoundsCache.get(node);
+   if(!cached||cached.path!==path){
+    cached={path,bounds:linearPathBounds(path)};
+    wireBoundsCache.set(node,cached);
+   }
+   const hidden=id!==selection&&!selectedWireIds.has(id)&&outsideWireViewport(cached.bounds,viewport);
+   if(node.hasAttribute('data-viewport-culled')!==hidden)node.toggleAttribute('data-viewport-culled',hidden);
+  }
+ });
+}
+function refreshScene(){
  const original=app.querySelector('#scene');
  if(!original)return;
  const wrapper=document.createElement('div');
  wrapper.innerHTML=canvas();
  const latest=wrapper.querySelector('#scene');
  if(latest)original.innerHTML=latest.innerHTML;
+ syncWireViewport();
 }
 /** Camera-only updates keep the existing SVG, focus and circuit geometry.
  * During an active gesture or simulation/modal workflow retain the full
@@ -534,6 +565,7 @@ function renderCamera(){
  // An old hover highlight no longer describes the point under the mouse.
  app.querySelector('#pin-hover')?.setAttribute('opacity','0');
  endEditorPhase('camera-transform',cameraStart);
+ syncWireViewport();
  positionQuickProperties();
 }
 /**
@@ -631,6 +663,7 @@ function patchTranslation(before:Project,clearSelection:boolean):boolean{
  status.textContent=persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON';
  scene.querySelector('#pin-hover')?.setAttribute('opacity','0');
  endEditorPhase('translation-ui',uiStart);
+ syncWireViewport();
  positionQuickProperties();
  return true;
 }
@@ -1074,10 +1107,14 @@ function renderImpl(){
    (bomOpen?renderBomPanel(createBom(project)):'')+
    (schematicOpen?renderSchematicPanel(createSchematic(project),schematicZoom):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button><output id="canvas-zoom" aria-label="电路画布缩放比例">'+Math.round(zoom*100)+'%</output><button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div>':workspaceView==='schematic'?renderSchematicWorkspace(createSchematic(project),schematicZoom):renderBomWorkspace(createBom(project)))+'</section><aside class="inspector">'+(workspaceView==='circuit'?side():renderReadonlyInspector(workspaceView))+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'
  endEditorPhase('markup-and-dom',markupStart);
+ syncWireViewport();
  positionQuickProperties();
  applySchematicFocus();
 }
-window.addEventListener('resize',positionQuickProperties);
+window.addEventListener('resize',()=>{
+ syncWireViewport();
+ positionQuickProperties();
+});
 function add(kind:Kind,x?:number,y?:number){
  const before=copy(),spot=x===undefined&&y===undefined?
    suggestPalettePosition(project,kind):{x:x??300,y:y??300};
@@ -1777,6 +1814,7 @@ function handlePointerMove(e:CanvasPointer){
    });
    panX=view.panX;panY=view.panY;
    app.querySelector<SVGGElement>('#scene')?.setAttribute('transform','translate('+panX+' '+panY+') scale('+zoom+')');
+   syncWireViewport();
    return;
  }
  if(wireDrag&&e.pointerId===wireDrag.pointerId){
