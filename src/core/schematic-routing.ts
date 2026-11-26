@@ -23,6 +23,7 @@ export const SCHEMATIC_MAX_CROSSINGS=240;
 // Bridge semicircle radius is 10px: adjacent trunks need at least 28px
 // to avoid overlapping insulated crossing glyphs at the same horizontal row.
 const BRIDGE_CLEARANCE=10;
+const UNSAFE_CROSSING='交叉线接近另一个网络的真实接点或线路端点，改用网络编号避免错误的连接暗示。';
 const empty=(reason:string):SchematicRoutes=>({
  mode:'labels',links:[],buses:[],junctions:[],crossings:[],reason
 });
@@ -39,6 +40,15 @@ export function routeSchematic(diagram:SchematicDiagram):SchematicRoutes {
     group.push(terminal);
     pins.set(terminal.netId,group);
    }
+ const preferred=routeWithOrder(nets,pins);
+ // Preserve existing safe layouts. A single deterministic alternate lane
+ // order may remove a near-junction conflict without changing any net ID.
+ if(preferred.reason!==UNSAFE_CROSSING||nets.length<2)return preferred;
+ const alternate=routeWithOrder([...nets].reverse(),pins);
+ return alternate.mode==='orthogonal'?alternate:preferred;
+}
+
+function routeWithOrder(nets:SchematicDiagram['nets'],pins:Map<string,SchematicTerminal[]>):SchematicRoutes {
  const links:SchematicLink[]=[],buses:SchematicBus[]=[],junctions:SchematicJunction[]=[];
  const horizontals:Horizontal[]=[],verticals:Vertical[]=[];
  for(let i=0;i<nets.length;i++){
@@ -83,17 +93,22 @@ export function routeSchematic(diagram:SchematicDiagram):SchematicRoutes {
  for(const horizontal of horizontals)
   for(const vertical of verticals){
    if(horizontal.netId===vertical.netId)continue;
+   // First test the actual closed segments, not the bridge-safe interior.
+   // Otherwise an endpoint intersection is silently painted as a short.
+   if(vertical.x<horizontal.x1||vertical.x>horizontal.x2||
+      horizontal.y<vertical.y1||horizontal.y>vertical.y2)continue;
    if(vertical.x<=horizontal.x1+BRIDGE_CLEARANCE||
       vertical.x>=horizontal.x2-BRIDGE_CLEARANCE||
       horizontal.y<=vertical.y1+BRIDGE_CLEARANCE||
-      horizontal.y>=vertical.y2-BRIDGE_CLEARANCE)continue;
+      horizontal.y>=vertical.y2-BRIDGE_CLEARANCE)
+     return empty(UNSAFE_CROSSING);
    const key=vertical.x+':'+horizontal.y;
    if(seen.has(key))continue;
    // A foreign horizontal line through a real trunk junction would appear
    // shorted because the filled junction dot paints over the crossover arch.
    if(junctions.some(j=>j.netId===vertical.netId&&j.x===vertical.x&&
         Math.abs(j.y-horizontal.y)<BRIDGE_CLEARANCE+2))
-     return empty('交叉线接近另一个网络的真实接点，改用网络编号避免错误的连接暗示。');
+     return empty(UNSAFE_CROSSING);
    seen.add(key);
    crossings.push({x:vertical.x,y:horizontal.y,
      horizontalNet:horizontal.netId,verticalNet:vertical.netId});
