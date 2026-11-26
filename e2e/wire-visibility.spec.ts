@@ -157,19 +157,38 @@ test('dense breadboard corridor is visibly clear, selectable and stable through 
   }
  }
  await testInfo.attach('dense-board-clear-corridor',{body:await page.screenshot(),contentType:'image/png'});
- // Choose a real painted point on the middle leg, not a hole center or a bend.
+ // Browser hit testing and native mouse event coordinates can round fractional
+ // CSS pixels differently. Probe the same integer coordinates we actually
+ // send to Playwright, preferring a stable run of exposed conductor pixels.
  const pick=await wire.evaluate((el,pts)=>{
   const path=el as SVGPathElement,mat=path.getScreenCTM()!;
-  const a=pts[1],b=pts[2];
-  for(let i=2;i<=18;i++){
-   const t=i/20,x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;
-   const screen=new DOMPoint(x,y).matrixTransform(mat);
-   const target=document.elementFromPoint(screen.x,screen.y);
-   if(target===path)return {x:screen.x,y:screen.y,wx:x,wy:y,axis:a.x===b.x?'vertical':'horizontal'};
+  const a=pts[1],b=pts[2],axis=a.x===b.x?'vertical':'horizontal';
+  const start=new DOMPoint(a.x,a.y).matrixTransform(mat);
+  const end=new DOMPoint(b.x,b.y).matrixTransform(mat);
+  const length=Math.hypot(end.x-start.x,end.y-start.y);
+  const steps=Math.max(1,Math.ceil(length));
+  const candidates:{x:number;y:number;wx:number;wy:number;axis:string;stable:boolean;centerDistance:number}[]=[];
+  const seen=new Set<string>();
+  for(let i=Math.ceil(steps*.15);i<=Math.floor(steps*.85);i++){
+   const t=i/steps;
+   const x=Math.round(start.x+(end.x-start.x)*t),y=Math.round(start.y+(end.y-start.y)*t);
+   const key=x+':'+y;
+   if(seen.has(key))continue;
+   seen.add(key);
+   if(document.elementFromPoint(x,y)!==path)continue;
+   const dx=axis==='horizontal'?1:0,dy=axis==='vertical'?1:0;
+   const stable=document.elementFromPoint(x-dx,y-dy)===path&&
+    document.elementFromPoint(x+dx,y+dy)===path;
+   const world=new DOMPoint(x,y).matrixTransform(mat.inverse());
+   candidates.push({x,y,wx:world.x,wy:world.y,axis,stable,centerDistance:Math.abs(t-.5)});
   }
-  return null;
+  candidates.sort((a,b)=>Number(b.stable)-Number(a.stable)||a.centerDistance-b.centerDistance);
+  return candidates[0]??null;
  },points);
- expect(pick,'a real conductor point must be accessible between sockets').not.toBeNull();
+ expect(pick,'a real conductor pixel must be accessible between sockets').not.toBeNull();
+ await page.mouse.move(pick!.x,pick!.y);
+ // Assert hover has not covered the real conductor before a native click.
+ expect(await wire.evaluate((el,p)=>document.elementFromPoint(p.x,p.y)===el,pick!)).toBe(true);
  await page.mouse.click(pick!.x,pick!.y);
  await expect(page.locator('.endpoint-handle[data-wire="auto"]')).toHaveCount(2);
  expect(await hit.getAttribute('d')).toBe(before);
