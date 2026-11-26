@@ -45,6 +45,26 @@ import { translateComponents, removeComponents, rotateComponents, componentsWith
 import { appendConnection, reconnectEndpoint, nearestTerminal, identicalConnection, type TerminalHit } from './core/connections.js';
 import { reconcileInsertions, snapPartToBreadboard, suggestPalettePosition } from './core/placement.js';
 const app=document.querySelector<HTMLDivElement>('#app')!;
+
+// Explicit opt-in for reproducible browser diagnostics; no project data,
+// telemetry uploads, persistent state or extra layout reads. Bound the
+// number of timeline entries per page, even during repeated gestures.
+const editorProfiling=new URLSearchParams(window.location.search).get('profile')==='1';
+let editorPhaseCount=0;
+function startEditorPhase():number|null{
+ return editorProfiling&&editorPhaseCount<2048?performance.now():null;
+}
+function endEditorPhase(name:string,start:number|null):void{
+ if(start===null||editorPhaseCount>=2048)return;
+ editorPhaseCount++;
+ performance.measure('circuits:'+name,{start,end:performance.now()});
+}
+function profileEditorPhase<T>(name:string,work:()=>T):T{
+ const start=startEditorPhase();
+ if(start===null)return work();
+ try{return work();}finally{endEditorPhase(name,start);}
+}
+
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 const savedJSON=(key:string):unknown=>{try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}};
 let workspace=migrateWorkspace(savedJSON(WORKSPACE_KEY),savedJSON('circuits-project'));
@@ -104,7 +124,7 @@ let connectionNotice='';
 let activeWireColor:string=DEFAULT_WIRE_COLOR;
 let activeWireType:WireType='normal';
 let undo:Project[]=[],redo:Project[]=[],drag:{ids:string[];x:number;y:number;before:Project}|null=null;
-const copy=():Project=>structuredClone(project);
+const copy=():Project=>profileEditorPhase('history-copy',()=>structuredClone(project));
 /** Only align to this wire's existing endpoints/bends; no hidden junctions. */
 function waypointGuides(wireId:string,excludeIndex:number):WaypointGuide[]{
  const wire=project.wires.find(w=>w.id===wireId);
@@ -118,14 +138,14 @@ function waypointGuides(wireId:string,excludeIndex:number):WaypointGuide[]{
  }
  return guides;
 }
-const save=()=>{
+const save=()=>profileEditorPhase('persistence',()=>{
  workspace=saveCurrent(workspace,project,Date.now());
  try{
    localStorage.setItem(WORKSPACE_KEY,JSON.stringify(workspace));
    localStorage.setItem('circuits-project',JSON.stringify(project));
    persistOK=true;
  }catch(error){persistOK=false;console.warn('Circuit project could not be persisted',error)}
-};
+});
 function resetUnoPreview(){unoPreview=null;unoPreviewTimeMs=0;lastGpio=null;}
 /** In-progress wires are UI-only; project JSON receives only completed connections. */
 function clearWireDraft(){
@@ -142,7 +162,7 @@ function openWorkspace(id:string){
 function commit(before:Project,nudge=false){
  const incremental=nudge&&canPatchNudge();
  wirePickCycle=null;clearWireDraft();resetUnoPreview();rcConvergence=null;
- project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();
+ project=profileEditorPhase('contact-reconcile',()=>reconcileInsertions(project));undo.push(before);if(undo.length>50)undo.shift();redo=[];save();
  if(!incremental||!patchNudge(before))render();
 }
 /** Presentation-only edits preserve active simulator/previews; they have no electrical effect. */
@@ -166,7 +186,7 @@ function revert(stack:Project[],other:Project[]){
  const prev=stack.pop();if(!prev)return;
  clearWireDraft();resetUnoPreview();rcConvergence=null;
  const before=copy();
- const incremental=idle&&translationOnly(before,prev);
+ const incremental=idle&&profileEditorPhase('history-compare',()=>translationOnly(before,prev));
  other.push(before);project=prev;
  selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();
  selectedNoteId=null;notePlacement=false;noteDrag=null;marquee=null;
@@ -379,8 +399,8 @@ function canvas(){
  const orderedWires=[...project.wires].sort((a,b)=>
    Number(a.id===selection||selectedWireIds.has(a.id))-
    Number(b.id===selection||selectedWireIds.has(b.id)));
- const painted=paintCrossingWires(orderedWires,project.parts,6,
-   endpointDrag?{id:endpointDrag.id,side:endpointDrag.side,point:endpointDrag.preview}:null,project.wires);
+ const painted=profileEditorPhase('wire-routes',()=>paintCrossingWires(orderedWires,project.parts,6,
+   endpointDrag?{id:endpointDrag.id,side:endpointDrag.side,point:endpointDrag.preview}:null,project.wires));
  const wireColors=new Map(project.wires.map(w=>[w.id,w.color]));
  const wireModels=new Map(project.wires.map(w=>[w.id,w]));
  const wireRoutes=painted.filter(w=>w.hitPath).map(w=>{
@@ -507,10 +527,12 @@ function renderCamera(){
     marquee||panDrag||wireDrag||wiring||spaceHeld){
    render();return;
  }
+ const cameraStart=startEditorPhase();
  scene.setAttribute('transform','translate('+panX+' '+panY+') scale('+zoom+')');
  readout.textContent=Math.round(zoom*100)+'%';
  // An old hover highlight no longer describes the point under the mouse.
  app.querySelector('#pin-hover')?.setAttribute('opacity','0');
+ endEditorPhase('camera-transform',cameraStart);
  positionQuickProperties();
 }
 /**
@@ -543,6 +565,10 @@ function translationOnly(before:Project,after:Project):boolean{
  return JSON.stringify({...before,parts:[]})===JSON.stringify({...after,parts:[]});
 }
 function patchNudge(before:Project,clearSelection=false):boolean{
+ return profileEditorPhase('translation-total',()=>patchTranslation(before,clearSelection));
+}
+function patchTranslation(before:Project,clearSelection:boolean):boolean{
+ const preflightStart=startEditorPhase();
  // Contact changes affect pin artwork and electrical connectivity.
  if(JSON.stringify(before.insertions??[])!==JSON.stringify(project.insertions??[]))return false;
  const scene=app.querySelector<SVGGElement>('#scene');
@@ -559,8 +585,10 @@ function patchNudge(before:Project,clearSelection=false):boolean{
  // crossover or a connector just to take the faster rendering path.
  if(project.wires.some(w=>w.type&&w.type!=='normal')||
     scene.querySelector('.wire-bridge-clear,.wire-connectors,.endpoint-handle,.bend-handle,#wire-preview'))return false;
- const painted=paintCrossingWires(project.wires,project.parts);
+ endEditorPhase('translation-guards',preflightStart);
+ const painted=profileEditorPhase('wire-routes',()=>paintCrossingWires(project.wires,project.parts));
  if(painted.some(w=>w.bridgeCount||!w.hitPath))return false;
+ const lookupStart=startEditorPhase();
  const hits=new Map(Array.from(scene.querySelectorAll<SVGPathElement>('.wire-hit[data-wire]'))
    .map(node=>[node.getAttribute('data-wire'),node] as const));
  const conductors=new Map(Array.from(scene.querySelectorAll<SVGPathElement>('.wire[data-wire]'))
@@ -573,6 +601,8 @@ function patchNudge(before:Project,clearSelection=false):boolean{
  const movedNodes=Array.from(scene.querySelectorAll<SVGGElement>('.item[data-part],.breadboard-sockets[data-part]'))
   .filter(node=>changedById.has(node.getAttribute('data-part')??''));
  if(movedNodes.length!==changed.reduce((n,p)=>n+(p.kind==='breadboard'?2:1),0))return false;
+ endEditorPhase('svg-node-lookup',lookupStart);
+ const patchStart=startEditorPhase();
  // All preconditions checked before mutating any live DOM. Keep the native
  // SVG groups and only touch attributes whose geometry actually changed.
  for(const node of movedNodes){
@@ -584,6 +614,8 @@ function patchNudge(before:Project,clearSelection=false):boolean{
   if(hit.getAttribute('d')!==w.hitPath)hit.setAttribute('d',w.hitPath);
   if(line.getAttribute('d')!==w.displayPath)line.setAttribute('d',w.displayPath);
  }
+ endEditorPhase('svg-geometry-write',patchStart);
+ const uiStart=startEditorPhase();
  if(part&&coordinate)coordinate.textContent='坐标 '+Math.round(part.x)+', '+Math.round(part.y)+' · 旋转 '+part.rotation+'°';
  if(clearSelection){
   // Undo/redo still clears selection exactly as the full history render did.
@@ -597,6 +629,7 @@ function patchNudge(before:Project,clearSelection=false):boolean{
  undoButton.disabled=!undo.length;redoButton.disabled=!redo.length;
  status.textContent=persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON';
  scene.querySelector('#pin-hover')?.setAttribute('opacity','0');
+ endEditorPhase('translation-ui',uiStart);
  positionQuickProperties();
  return true;
 }
@@ -898,6 +931,9 @@ function rcNetworkPanel(analysis:RcNetworkAnalysis):string {
   '<small>固定步长向后欧拉积分，仅作教学近似。t=0 电流不估算；并非真实示波器或 SPICE。</small></section>';
 }
 function positionQuickProperties(){
+ profileEditorPhase('quick-properties',positionQuickPropertiesImpl);
+}
+function positionQuickPropertiesImpl(){
  const card=app.querySelector<HTMLElement>('.quick-properties');
  const stage=app.querySelector<HTMLElement>('.canvas');
  if(!card||!stage)return;
@@ -979,6 +1015,9 @@ function activateWorkspaceView(view:WorkspaceView){
  app.querySelector<HTMLElement>('#tab-'+view)?.focus();
 }
 function render(){
+ profileEditorPhase('render-total',renderImpl);
+}
+function renderImpl(){
  const gpioFrame=unoPreview?.ok?sampleUnoPreview(unoPreview,unoPreviewTimeMs):null;
  lastGpio=gpioFrame&&unoPreview?.ok&&unoPreview.d13Configured?analyzeGpioD13(project,gpioFrame.high):null;
  lastAnalysis=isRunning&&simulationMode==='nonlinear'?analyzeDC(project):null;
@@ -1024,11 +1063,13 @@ function render(){
  const quickMarkup=quickPart?renderQuickProperties(quickPart):
    quickWire?renderQuickWireProperties(quickWire):'';
  const bottomReading=isRunning?(simulationMode==='rc'?'RC 暂态 · '+(lastNetwork?.reason??lastTransient?.reason??'计算失败'):simulationMode==='nonlinear'?'实验直流 · '+(details?.reason??'计算失败'):(report?.reason??'暂不可用')+' · '+(report?.currentMilliAmps??0)+'mA'):null;
+ const markupStart=startEditorPhase();
  app.innerHTML='<header><span class="brand">◉ Circuits</span><button data-action="projects" class="project-switcher">我的电路 ('+workspace.slots.length+') ▾</button><input id="name" maxlength="120" value="'+escape(project.name)+'" '+(workspaceView==='circuit'?'':'readonly aria-readonly="true"')+'/><span class="status">'+(persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON')+'</span><button data-action="import">导入</button><button data-action="export">导出</button></header><div class="topbar" aria-label="编辑器工具栏"><div class="tool-group" role="group" aria-label="工程与历史"><button data-action="new" '+editDisabled+'>＋ 新建</button><button data-action="sample" '+editDisabled+'>示例电路</button><button data-action="undo" '+(editDisabled||(!undo.length?'disabled':''))+'>↶ 撤销</button><button data-action="redo" '+(editDisabled||(!redo.length?'disabled':''))+'>↷ 重做</button></div><div class="tool-group" role="group" aria-label="编辑和注释"><button data-action="note-add" '+editDisabled+' aria-pressed="'+notePlacement+'" title="N · 添加注释">▤ 注释</button><button data-action="notes-visibility" aria-pressed="'+notesVisible+'" title="Shift+N · 显示或隐藏注释">'+(notesVisible?'◉ 显示注释':'◯ 隐藏注释')+'</button><button data-action="select-all" '+editDisabled+'>全选</button><button data-action="rotate" '+editDisabled+' title="R · 旋转">⟳ 旋转</button><button data-action="delete" '+editDisabled+'>删除</button></div><div class="tool-group" role="group" aria-label="线缆工具">'+toolbarPalette+toolbarType+
   '<button type="button" data-action="auto-route-wires" '+editDisabled+
   ' title="自动绕开器件：选中导线时只整理所选，否则整理全部无手动折点的导线">↱ 智能避让</button></div><div class="tool-group" role="group" aria-label="代码与报表"><button data-action="code">〈/〉 代码</button><button data-action="bom-open" aria-label="查看自动生成的物料清单">▤ BOM</button><button data-action="schematic-open" aria-label="查看自动生成的原理图">◇ 原理图</button></div>'+renderWorkspaceTabs(workspaceView)+'<div class="tool-group" role="group" aria-label="视图与模型"><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button></div><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+(notePlacement?' note-mode':'')+'" id="workspace-main" role="tabpanel" aria-labelledby="tab-'+workspaceView+'" data-view="'+workspaceView+'">' +(workspaceView==='circuit'?canvas()+quickMarkup+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+
    (bomOpen?renderBomPanel(createBom(project)):'')+
    (schematicOpen?renderSchematicPanel(createSchematic(project),schematicZoom):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button><output id="canvas-zoom" aria-label="电路画布缩放比例">'+Math.round(zoom*100)+'%</output><button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div>':workspaceView==='schematic'?renderSchematicWorkspace(createSchematic(project),schematicZoom):renderBomWorkspace(createBom(project)))+'</section><aside class="inspector">'+(workspaceView==='circuit'?side():renderReadonlyInspector(workspaceView))+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'
+ endEditorPhase('markup-and-dom',markupStart);
  positionQuickProperties();
  applySchematicFocus();
 }
@@ -2063,7 +2104,7 @@ window.addEventListener('keydown',e=>{
    const step=e.altKey?1:gridEnabled?10:5;
    const delta={x:e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0,
                 y:e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0};
-   const updated=translateComponents(project,[...selectedIds],delta,null);
+   const updated=profileEditorPhase('model-translation',()=>translateComponents(project,[...selectedIds],delta,null));
    if(updated!==project){
      const before=copy();
      project=updated;commit(before,true);

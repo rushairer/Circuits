@@ -5,12 +5,17 @@ import {wireScene} from '../tests/fixtures/wire-scenes.mjs';
 
 // Browser-side diagnostics: a frame callback is a rendering opportunity,
 // not a guarantee of display presentation. Never gate shared CI on wall time.
-type InputSample={action:string;firstFrameMs:number;secondFrameMs:number};
-type ProfileData={frameIntervalsMs:number[];inputs:InputSample[];longTasksMs:number[]|null};
+type InputSample={action:string;startTimeMs:number;firstFrameMs:number;secondFrameMs:number};
+type PhaseSample={name:string;startTimeMs:number;durationMs:number};
+type ProfileData={frameIntervalsMs:number[];inputs:InputSample[];longTasksMs:number[]|null;phases:PhaseSample[]};
 type ProfileWindow=Window&{__circuitsProfileStop?:()=>ProfileData};
 async function startProfile(page:Page){
  await page.evaluate(()=>{
   const profileWindow=window as ProfileWindow;
+  // Ignore startup/import work; retain only this explicit profiling window.
+  for(const entry of performance.getEntriesByType('measure')){
+   if(entry.name.startsWith('circuits:'))performance.clearMeasures(entry.name);
+  }
   const frameIntervalsMs:number[]=[],inputs:InputSample[]=[];
   let last:number|undefined,frameId=0,active=true;
   const frame=(stamp:number)=>{
@@ -41,7 +46,7 @@ async function startProfile(page:Page){
    requestAnimationFrame(()=>{
     const firstFrameMs=performance.now()-start;
     requestAnimationFrame(()=>{
-     if(active&&inputs.length<1000)inputs.push({action,firstFrameMs,secondFrameMs:performance.now()-start});
+     if(active&&inputs.length<1000)inputs.push({action,startTimeMs:start,firstFrameMs,secondFrameMs:performance.now()-start});
     });
    });
   };
@@ -56,7 +61,9 @@ async function startProfile(page:Page){
     observer.disconnect();
    }
    delete profileWindow.__circuitsProfileStop;
-   return {frameIntervalsMs,inputs,longTasksMs};
+   const phases=performance.getEntriesByType('measure').filter(entry=>entry.name.startsWith('circuits:'))
+    .map(entry=>({name:entry.name.slice('circuits:'.length),startTimeMs:entry.startTime,durationMs:entry.duration}));
+   return {frameIntervalsMs,inputs,longTasksMs,phases};
   };
  });
 }
@@ -71,6 +78,10 @@ function summary(values:number[]){
 async function saveProfile(page:Page,testInfo:TestInfo,scene:{parts:unknown[];wires:unknown[]},importRoundtripMs:number){
  await settleFrames(page);
  const data=await page.evaluate(()=>(window as ProfileWindow).__circuitsProfileStop!());
+ // Phase windows are capture-to-first-rAF, not causal traces. Nested
+ // measures overlap: never sum them or call the remaining time GPU paint.
+ const phasesFor=(input:InputSample)=>data.phases.filter(phase=>
+  phase.startTimeMs>=input.startTimeMs&&phase.startTimeMs<=input.startTimeMs+input.firstFrameMs);
  const report={
   revision:process.env.GITHUB_SHA??'local',browser:testInfo.project.name,viewport:page.viewportSize(),
   parts:scene.parts.length,wires:scene.wires.length,importRoundtripMs,
@@ -80,6 +91,10 @@ async function saveProfile(page:Page,testInfo:TestInfo,scene:{parts:unknown[];wi
    const samples=data.inputs.filter(item=>item.action===action);
    return [action,{firstFrame:summary(samples.map(item=>item.firstFrameMs)),secondFrame:summary(samples.map(item=>item.secondFrameMs))}];
   })),
+  phaseScope:'Opt-in synchronous application timings, possibly including forced layout. Nested measurements overlap. Per-action phase windows are temporal associations, not exclusive CPU attribution or paint timing.',
+  phasesByAction:data.inputs.map(input=>({...input,phases:phasesFor(input)})),
+  phaseSummary:Object.fromEntries([...new Set(data.phases.map(phase=>phase.name))].map(name=>
+   [name,summary(data.phases.filter(phase=>phase.name===name).map(phase=>phase.durationMs))])),
   longTasks:data.longTasksMs===null?null:summary(data.longTasksMs),
   samples:data
  };
@@ -91,6 +106,21 @@ async function saveProfile(page:Page,testInfo:TestInfo,scene:{parts:unknown[];wi
  expect(data.frameIntervalsMs.length).toBeGreaterThan(0);
  for(const action of ['zoom-in','nudge-right','undo'])expect(data.inputs.some(item=>item.action===action),action+' capture').toBe(true);
  expect(data.inputs.every(item=>Number.isFinite(item.firstFrameMs)&&item.firstFrameMs>=0&&item.secondFrameMs>=item.firstFrameMs)).toBe(true);
+ expect(data.phases.length).toBeGreaterThan(0);
+ expect(data.phases.length).toBeLessThanOrEqual(2048);
+ expect(data.phases.every(item=>Number.isFinite(item.durationMs)&&item.durationMs>=0)).toBe(true);
+ for(const action of ['zoom-in','nudge-right','undo']){
+  const input=data.inputs.find(item=>item.action===action)!;
+  const names=phasesFor(input).map(item=>item.name);
+  const required=action==='zoom-in'?['camera-transform','quick-properties']:
+   action==='nudge-right'?['model-translation','persistence','wire-routes','quick-properties']:
+   ['history-copy','persistence','wire-routes','quick-properties'];
+  for(const name of required)expect(names,action+' phase '+name).toContain(name);
+  if(scene.wires.length===2000&&action!=='zoom-in'){
+   for(const name of ['translation-total','svg-node-lookup','svg-geometry-write','translation-ui'])expect(names,action+' phase '+name).toContain(name);
+   if(action==='undo')expect(names).toContain('history-compare');
+  }
+ }
 }
 
 /** A pure camera change must not replace thousands of SVG nodes. */
@@ -119,7 +149,7 @@ test('300 parts and 2000 wires stay editable after import, zoom, nudge and undo'
  const errors:string[]=[];
  page.on('pageerror',error=>errors.push(error.message));
  await page.setViewportSize({width:1440,height:1000});
- await page.goto('/');
+ await page.goto('/?profile=1');
  await expect(page).toHaveTitle(/Circuits/);
  const fixture=wireScene(2000);
  const importStarted=performance.now();
@@ -201,7 +231,7 @@ test('126-wire regional routing remains clear through repeated keyboard edits an
  const errors:string[]=[];
  page.on('pageerror',error=>errors.push(error.message));
  await page.setViewportSize({width:1440,height:1000});
- await page.goto('/');
+ await page.goto('/?profile=1');
  const parts=Array.from({length:7},(_,i)=>({
   id:'board-'+i,kind:'breadboard',x:220+(i%3)*1200,y:180+Math.floor(i/3)*1200,rotation:0
  }));
@@ -269,6 +299,7 @@ test('idle keyboard, wheel and fit navigation preserve live scene nodes and save
  const scene=page.locator('#scene'),wire=page.locator('.wire[data-wire="w1"]');
  const original=await scene.elementHandle(),originalWire=await wire.elementHandle();
  const saved=await page.evaluate(()=>localStorage.getItem('circuits-project'));
+ expect(await page.evaluate(()=>performance.getEntriesByType('measure').filter(entry=>entry.name.startsWith('circuits:')).length)).toBe(0);
  const before=await scene.getAttribute('transform');
  try{
   await page.locator('.item[data-part="r1"]').focus();
@@ -287,6 +318,7 @@ test('idle keyboard, wheel and fit navigation preserve live scene nodes and save
   const scale=Number((await scene.getAttribute('transform'))!.match(/scale\(([^)]+)\)/)![1]);
   await expect(page.locator('#canvas-zoom')).toHaveText(Math.round(scale*100)+'%');
   expect(await page.evaluate(()=>localStorage.getItem('circuits-project'))).toBe(saved);
+  expect(await page.evaluate(()=>performance.getEntriesByType('measure').filter(entry=>entry.name.startsWith('circuits:')).length)).toBe(0);
  }finally{
   await original?.dispose();await originalWire?.dispose();
  }
