@@ -1293,17 +1293,22 @@ test('crossing bridge: hit tolerance remains in screen pixels across camera zoom
  await page.goto('/');
  await loadCrossingFixture(page);
  const before=await page.evaluate(()=>localStorage.getItem('circuits-project'));
- await expect(page.locator('.wire-hit[data-wire="w1"]')).toHaveAttribute('vector-effect','non-scaling-stroke');
+ const hit=page.locator('.wire-hit[data-wire="w1"]');
+ await expect(hit).toHaveAttribute('vector-effect','non-scaling-stroke');
+ await expect(hit).toHaveAttribute('stroke','none');
+ await expect(hit).toHaveCSS('pointer-events','stroke');
  for(const action of ['zoom-out','zoom-in','zoom-in']){
    await page.locator('[data-action="'+action+'"]').click();
    // Six client pixels off the thin visible wire must still resolve to its
-   // transparent hit stroke, regardless of SVG camera zoom.
+   // unpainted hit stroke, regardless of SVG camera zoom. At the initial
+   // zoom-out, verify the native target is the halo, not the colored line.
    const onWire=await screenFromWorld(page,400,315);
    const picked=await page.evaluate(({x,y})=>{
      const node=document.elementFromPoint(x,y-6);
-     return node?.getAttribute('data-wire')??null;
+     return {id:node?.getAttribute('data-wire')??null,halo:node?.classList.contains('wire-hit')??false};
    },onWire);
-   expect(picked).toBe('w1');
+   expect(picked.id).toBe('w1');
+   if(action==='zoom-out')expect(picked.halo).toBe(true);
    await page.mouse.click(onWire.x,onWire.y-6);
    await expect(page.locator('.endpoint-handle[data-wire="w1"]')).toHaveCount(2);
    const after=await page.evaluate(()=>localStorage.getItem('circuits-project'));

@@ -259,3 +259,20 @@ Large WebKit remains slow despite node identity passing; the new sample is worse
 ## Opt-in editor phase diagnostics
 
 Run [45795476444](https://github.com/rushairer/Circuits/actions/runs/45795476444), revision `608393ffe93e1b69e92c01db8c9bacaf331b848a`, passed typecheck, unit tests, three-engine browser tests, build and Pages reachability after the DOM.Iterable compatibility fix. To isolate the remaining large WebKit interaction cost, `?profile=1` enables bounded User Timing measures for persistence, snapshot copy/comparison, model translation, contact reconciliation, routing, SVG lookup/write, camera transform, inspector positioning and full render/markup-plus-DOM. Normal browsing creates no diagnostic entries. The pressure suite clears startup measures, exports raw phases and per-action capture-to-first-rAF windows alongside existing rAF/Long Task data, and asserts expected phase presence without enforcing noisy time limits. A normal-navigation test asserts no measures are emitted without opt-in. These are synchronous application wall times, may include forced layout, and can overlap (e.g. wire routing within markup/DOM). Do not add nested timings or attribute the remainder to GPU paint. No new performance improvement is claimed until measurements are available; native Safari profiling and reference editor parity remain open.
+
+## Phase evidence and unpainted SVG hit geometry
+
+Run [45804823856](https://github.com/rushairer/Circuits/actions/runs/45804823856) completed successfully at revision `0ebce1ab591227954c5308b0c834caa53eeb5e9a`. All six browser-performance JSON reports were downloaded and read. Capture-to-second-rAF observations (ms; regional nudge/undo p50 of five, large operations one sample):
+
+| Fixture / action | Chromium | Firefox | WebKit |
+|---|---:|---:|---:|
+| 7 boards / 126 wires: zoom | 29.4 | 5 | 63 |
+| Regional nudge | 47.1 | 31 | 77 |
+| Regional undo | 33.4 | 14 | 83 |
+| 300 parts / 2000 wires: zoom | 32.1 | 46 | 1042 |
+| Large nudge | 38.8 | 81 | 1663 |
+| Large undo | 37.1 | 109 | 969 |
+
+In large WebKit, zoom camera/inspector measures were both 0 ms at the timer's resolution, while the first/second rAFs arrived at 33/1042 ms. Nudge routing was 3 ms, geometry writes 2 ms, inspector 28 ms and inclusive translation patch 38 ms; first/second rAFs were 818/1663 ms. Undo routing was 2 ms, patch 11 ms, first/second rAFs 49/969 ms. These observations do not identify exclusive paint/GPU time; they establish that measured synchronous routing alone cannot explain the delay.
+
+Retain the two wire sublayers and the 17 CSS-pixel native hit stroke, but set the hit path's paint to none while retaining pointer-events:stroke and non-scaling-stroke. This is a bounded rendering experiment intended to avoid submitting thousands of transparent strokes for painting; no actual speedup is claimed. The existing cross-engine zoomed selection regression now checks the unpainted halo's native hit target and unchanged electrical save. Also reuse one real bounding rectangle per part within each floating-inspector placement pass, without changing the candidate geometry, scoring, protected pins or cache lifetime. CI, new phase samples, and native Safari verification are still required.

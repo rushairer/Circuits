@@ -405,10 +405,11 @@ function canvas(){
  const wireModels=new Map(project.wires.map(w=>[w.id,w]));
  const wireRoutes=painted.filter(w=>w.hitPath).map(w=>{
    const selected=selection===w.id||selectedWireIds.has(w.id);
-   // 17 CSS-pixel hit tolerance is stable when zoomed: no huge hit area
-   // at high zoom or a target that disappears at low zoom.
+   // Keep the 17 CSS-pixel hit geometry without submitting a transparent
+   // stroke for painting. SVG pointer-events:stroke tests the stroke area
+   // regardless of the stroke paint value. The colored conductor is separate.
    const hit='<path class="wire-hit" data-wire="'+w.id+'" d="'+w.hitPath+
-     '" fill="none" stroke="transparent" stroke-width="17" vector-effect="non-scaling-stroke"/>';
+     '" fill="none" stroke="none" stroke-width="17" vector-effect="non-scaling-stroke"/>';
    const clear=w.bridgeBackdrops.map(arc=>
      '<path class="wire-bridge-clear" data-bridge-for="'+w.id+'" d="'+arc+
      '" stroke-width="'+(selected?12:9)+'" fill="none" pointer-events="none"/>').join('');
@@ -947,16 +948,19 @@ function positionQuickPropertiesImpl(){
  const local=(r:DOMRect):ScreenRect=>({
   left:r.left-base.left,top:r.top-base.top,right:r.right-base.left,bottom:r.bottom-base.top
  });
- const targetBounds=local(target.getBoundingClientRect());
- const obstacles=partNodes.filter(node=>node!==target)
-   .map(node=>local(node.getBoundingClientRect()));
+ // Capture each actual SVG bounding rectangle only once per positioning pass.
+ // Reuse it for obstacle scoring and nearest-pin ranking; do not cache across
+ // camera changes, edits or resize, and keep the original candidate order.
+ const measuredParts=partNodes.map(node=>({node,bounds:local(node.getBoundingClientRect())}));
+ const targetBounds=measuredParts.find(item=>item.node===target)?.bounds??
+   local(target.getBoundingClientRect());
+ const obstacles=measuredParts.filter(item=>item.node!==target).map(item=>item.bounds);
  // Only nearby electronic components are inspected for real SVG pin targets.
  // Reading thousands of breadboard holes on every render would be expensive;
  // the board body is still considered by the normal rectangle avoidance.
  const midpoint=(box:ScreenRect)=>({x:(box.left+box.right)/2,y:(box.top+box.bottom)/2});
  const a=midpoint(targetBounds);
- const closestParts=partNodes.filter(node=>node.querySelector('.pin-hit'))
-   .map(node=>({node,bounds:local(node.getBoundingClientRect())}))
+ const closestParts=measuredParts.filter(({node})=>node.querySelector('.pin-hit'))
    .sort((left,right)=>{
      const l=midpoint(left.bounds),r=midpoint(right.bounds);
      return Math.hypot(l.x-a.x,l.y-a.y)-Math.hypot(r.x-a.x,r.y-a.y);
