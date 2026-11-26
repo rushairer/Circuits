@@ -240,3 +240,18 @@ Run [45770352576](https://github.com/rushairer/Circuits/actions/runs/45770352576
 Large-scene nudge/undo samples were 101.2/90.7 (Chromium), 178/357 (Firefox), 1716/1012 (WebKit). These are single samples for the large fixture on shared CI, not a controlled performance comparison or hardware display latency. WebKit remains a priority.
 
 For idle keyboard translation with unchanged physical contacts, no connector decorations and no previous/new crossing bridges, use the existing full scene router to obtain current hit/paint paths, then update only changed SVG attributes, selected part positions (including breadboard socket groups), inspector coordinates, history buttons and persistence status. Preserve native nodes and focus; do not approximate electrical contacts or change routing semantics. All guard failures, active solver/gesture states, changed insertion identities, undo and redo continue to use full rendering. The large fixture now checks native node identity, unrelated path stability, coordinates and focus in addition to existing persistence/undo assertions. CI and follow-up timing remain required.
+
+## Translation-only history restoration
+
+Run [45778488765](https://github.com/rushairer/Circuits/actions/runs/45778488765), revision `de9d208c119927b4c90a56e7e0cefbdaa805af2f`, passed all quality and deployment gates. The six archived browser-performance reports gave these capture-to-second-rAF observations (ms; regional nudge/undo are p50 of five, large fixture each one sample):
+
+| Fixture / action | Chromium | Firefox | WebKit |
+|---|---:|---:|---:|
+| 7 boards / 126 wires: zoom | 22.8 | 35 | 78 |
+| Regional nudge | 29.7 | 37 | 92 |
+| Regional undo | 52.5 | 79 | 215 |
+| 300 parts / 2000 wires: zoom | 33.3 | 48 | 1217 |
+| Large nudge | 44.9 | 75 | 2090 |
+| Large undo | 102.7 | 486 | 1321 |
+
+Large WebKit remains slow despite node identity passing; the new sample is worse than the preceding run. Do not claim a universal speedup from shared CI. Translation-only undo and redo now reuse the guarded geometry patch when both snapshots differ solely in part positions and no active/selected-wire/selected-note or decorated/contact-changing state requires a full render. Preserve historical deselection, accessibility state, catalog, status and history controls. A rotation regression requires full rendering; large-fixture undo/redo checks DOM identity, saved project, deselection, history controls and unrelated paths. CI and native Safari profiling remain pending.

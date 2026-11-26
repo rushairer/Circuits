@@ -159,7 +159,20 @@ function commitVisualEdit(before:Project,refresh=true){
  const status=app.querySelector<HTMLElement>('header .status');
  if(status)status.textContent=persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON';
 }
-function revert(stack:Project[],other:Project[]){wirePickCycle=null;pointerInput.cancel();const prev=stack.pop();if(!prev)return;clearWireDraft();resetUnoPreview();rcConvergence=null;other.push(copy());project=prev;selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;noteDrag=null;marquee=null;save();render()}
+function revert(stack:Project[],other:Project[]){
+ wirePickCycle=null;
+ const idle=canPatchTranslation()&&(!selection||selectedIds.has(selection));
+ pointerInput.cancel();
+ const prev=stack.pop();if(!prev)return;
+ clearWireDraft();resetUnoPreview();rcConvergence=null;
+ const before=copy();
+ const incremental=idle&&translationOnly(before,prev);
+ other.push(before);project=prev;
+ selection=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();
+ selectedNoteId=null;notePlacement=false;noteDrag=null;marquee=null;
+ save();
+ if(!incremental||!patchNudge(before,true))render();
+}
 const uid=()=>crypto.randomUUID().slice(0,8);
 const pos=(e:Endpoint):[number,number]|null=>{
  const p=pinWorld(e,project.parts);return p?[p.x,p.y]:null;
@@ -501,18 +514,35 @@ function renderCamera(){
  positionQuickProperties();
 }
 /**
- * Only keyboard translation in an idle design view may use this fast path.
+ * Only translation in an idle design view may use this fast path.
  * No solver, connector decoration or physical contact change is approximated.
  * Full rendering remains the fallback for all other edits.
  */
-function canPatchNudge(){
+function canPatchTranslation(){
  return workspaceView==='circuit'&&!showProjects&&!showExamples&&!showCode&&
   !bomOpen&&!schematicOpen&&!scopeOpen&&!isRunning&&!unoPreview&&
   !drag&&!noteDrag&&!notePlacement&&!bendDrag&&!segmentDrag&&!endpointDrag&&
   !marquee&&!panDrag&&!wireDrag&&!wiring&&!spaceHeld&&!selectedNoteId&&
-  !selectedBend&&!selectedWireIds.size&&selectedIds.size>0;
+  !selectedBend&&!selectedWireIds.size;
 }
-function patchNudge(before:Project):boolean{
+function canPatchNudge(){return canPatchTranslation()&&selectedIds.size>0;}
+/** History may contain arbitrary edits. Ignore only part x/y when checking
+ * identity, not rotation, properties, wire geometry, insertions or notes.
+ * A conservative false negative simply uses the ordinary full render.
+ */
+function translationOnly(before:Project,after:Project):boolean{
+ if(before.parts.length!==after.parts.length)return false;
+ let moved=false;
+ for(let i=0;i<before.parts.length;i++){
+  const a=before.parts[i],b=after.parts[i];
+  if(a.id!==b.id)return false;
+  if(a.x!==b.x||a.y!==b.y)moved=true;
+  if(JSON.stringify({...a,x:b.x,y:b.y})!==JSON.stringify(b))return false;
+ }
+ if(!moved)return false;
+ return JSON.stringify({...before,parts:[]})===JSON.stringify({...after,parts:[]});
+}
+function patchNudge(before:Project,clearSelection=false):boolean{
  // Contact changes affect pin artwork and electrical connectivity.
  if(JSON.stringify(before.insertions??[])!==JSON.stringify(project.insertions??[]))return false;
  const scene=app.querySelector<SVGGElement>('#scene');
@@ -521,7 +551,10 @@ function patchNudge(before:Project):boolean{
  const redoButton=app.querySelector<HTMLButtonElement>('[data-action="redo"]');
  const coordinate=app.querySelector<HTMLElement>('#part-coordinates');
  const part=project.parts.find(p=>p.id===selection);
- if(!scene||!status||!undoButton||!redoButton||(part&&!coordinate))return false;
+ const inspector=clearSelection?app.querySelector<HTMLElement>('.inspector'):null;
+ const bottom=clearSelection?app.querySelector<HTMLElement>('.bottom span'):null;
+ if(!scene||!status||!undoButton||!redoButton||(part&&!coordinate)||
+    (clearSelection&&(!inspector||!bottom)))return false;
  // Complex decorations need the complete painter ordering. Never remove a
  // crossover or a connector just to take the faster rendering path.
  if(project.wires.some(w=>w.type&&w.type!=='normal')||
@@ -552,6 +585,15 @@ function patchNudge(before:Project):boolean{
   if(line.getAttribute('d')!==w.displayPath)line.setAttribute('d',w.displayPath);
  }
  if(part&&coordinate)coordinate.textContent='坐标 '+Math.round(part.x)+', '+Math.round(part.y)+' · 旋转 '+part.rotation+'°';
+ if(clearSelection){
+  // Undo/redo still clears selection exactly as the full history render did.
+  for(const node of scene.querySelectorAll<SVGGElement>('.item.selected[data-part]')){
+   node.classList.remove('selected');node.setAttribute('aria-pressed','false');
+  }
+  app.querySelector('.quick-properties')?.remove();
+  inspector!.innerHTML=side();
+  bottom!.textContent=connectionNotice||'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布';
+ }
  undoButton.disabled=!undo.length;redoButton.disabled=!redo.length;
  status.textContent=persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON';
  scene.querySelector('#pin-hover')?.setAttribute('opacity','0');

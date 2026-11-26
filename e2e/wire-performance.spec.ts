@@ -161,15 +161,38 @@ test('300 parts and 2000 wires stay editable after import, zoom, nudge and undo'
  expect(await wire.evaluate((el,old)=>el===old,wireNode)).toBe(true);
  expect(await unrelatedWire.evaluate((el,old)=>el===old,unrelatedNode)).toBe(true);
  expect(await page.locator('#scene').evaluate((el,old)=>el===old,sceneNode)).toBe(true);
- await partNode?.dispose();await wireNode?.dispose();await unrelatedNode?.dispose();await sceneNode?.dispose();
  await expect(page.locator('.wire[data-wire]')).toHaveCount(2000);
  const after=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!));
  expect(after.wires).toEqual(original.wires);
- await page.locator('button[data-action="undo"]').click();
+ const undoButton=page.locator('button[data-action="undo"]');
+ const redoButton=page.locator('button[data-action="redo"]');
+ await undoButton.click();
  await expect(wire).toHaveAttribute('d',originalPath!);
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!))).toEqual(original);
- expect(errors).toEqual([]);
+ await expect(movedPart).toHaveAttribute('aria-pressed','false');
+ await expect(page.locator('.item.selected')).toHaveCount(0);
+ await expect(page.locator('.quick-properties')).toHaveCount(0);
+ await expect(page.locator('#component-category')).toBeVisible();
+ await expect(redoButton).toBeEnabled();
+ expect(await movedPart.evaluate((el,old)=>el===old,partNode)).toBe(true);
+ expect(await wire.evaluate((el,old)=>el===old,wireNode)).toBe(true);
+ expect(await page.locator('#scene').evaluate((el,old)=>el===old,sceneNode)).toBe(true);
  await saveProfile(page,testInfo,fixture,importRoundtripMs);
+ // Keep the original one-nudge/one-undo timing sample comparable.
+ await redoButton.click();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!))).toEqual(after);
+ await expect(wire).not.toHaveAttribute('d',originalPath!);
+ await expect(movedPart).toHaveAttribute('aria-pressed','false');
+ await expect(redoButton).toBeDisabled();
+ expect(await movedPart.evaluate((el,old)=>el===old,partNode)).toBe(true);
+ expect(await unrelatedWire.evaluate((el,old)=>el===old,unrelatedNode)).toBe(true);
+ await expect(unrelatedWire).toHaveAttribute('d',oldUnrelatedPath!);
+ expect(await page.locator('#scene').evaluate((el,old)=>el===old,sceneNode)).toBe(true);
+ await undoButton.click();
+ await expect(wire).toHaveAttribute('d',originalPath!);
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!))).toEqual(original);
+ await partNode?.dispose();await wireNode?.dispose();await unrelatedNode?.dispose();await sceneNode?.dispose();
+ expect(errors).toEqual([]);
 });
 
 
@@ -267,4 +290,24 @@ test('idle keyboard, wheel and fit navigation preserve live scene nodes and save
  }finally{
   await original?.dispose();await originalWire?.dispose();
  }
+});
+
+
+test('history with changed rotation uses full render instead of translation patch',async({page})=>{
+ await page.goto('/');
+ const part=page.locator('.item[data-part="r1"]');
+ const initial=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!));
+ await part.focus();
+ await page.keyboard.press('Enter');
+ await part.focus();
+ await page.keyboard.press('r');
+ const rotated=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!));
+ expect(rotated.parts.find((p:{id:string})=>p.id==='r1').rotation)
+  .not.toBe(initial.parts.find((p:{id:string})=>p.id==='r1').rotation);
+ const scene=page.locator('#scene'),beforeUndo=await scene.elementHandle();
+ await page.locator('button[data-action="undo"]').click();
+ expect(await scene.evaluate((el,old)=>el===old,beforeUndo)).toBe(false);
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!))).toEqual(initial);
+ await expect(part).toHaveAttribute('aria-pressed','false');
+ await beforeUndo?.dispose();
 });
