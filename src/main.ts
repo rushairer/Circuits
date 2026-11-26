@@ -587,7 +587,7 @@ function patchNudge(before:Project,clearSelection=false):boolean{
  if(part&&coordinate)coordinate.textContent='坐标 '+Math.round(part.x)+', '+Math.round(part.y)+' · 旋转 '+part.rotation+'°';
  if(clearSelection){
   // Undo/redo still clears selection exactly as the full history render did.
-  for(const node of scene.querySelectorAll<SVGGElement>('.item.selected[data-part]')){
+  for(const node of Array.from(scene.querySelectorAll<SVGGElement>('.item.selected[data-part]'))){
    node.classList.remove('selected');node.setAttribute('aria-pressed','false');
   }
   app.querySelector('.quick-properties')?.remove();
