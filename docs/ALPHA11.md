@@ -216,3 +216,14 @@ npm run bench:wires -- --baseline /path/to/alpha10/.test-dist/core/wire-crossing
 测试在浏览器中采集 rAF 间隔、document 捕获阶段至第一次/第二次 rAF 回调的耗时、浏览器支持时的 Long Task 时长（不支持为 null），保存原始样本及 p50/p95/max。导入耗时为 Playwright 端往返时间；rAF 样本包含测试驱动等待和空闲帧，不是硬件实际 FPS；事件捕获后的耗时不包含硬件输入排队，也不证明像素已呈现。共享 CI 绝对耗时只作为诊断，不作脆弱的通过阈值。
 
 执行：`npx playwright test e2e/wire-performance.spec.ts --project=chromium --project=firefox --project=webkit`。每个测试/引擎输出独立 browser-performance.json，CI 的 browser-performance artifact 保存 14 天。后续依据实际样本定位瓶颈；原生 Safari、实体触控设备及 Tinkercad 登录态逐像素验收仍未完成。
+
+## Camera-only navigation and measured baseline
+
+The completed Quality & Pages run [45763690965](https://github.com/rushairer/Circuits/actions/runs/45763690965), revision `2664c843ccea92002bcc7c36e8da2e03726bbb57`, produced six browser-performance JSON reports. Observed capture-to-first/second-rAF zoom samples (ms, one zoom sample per fixture/engine):
+
+| Fixture | Chromium | Firefox | WebKit |
+|---|---:|---:|---:|
+| 7 boards / 126 wires | 48.1 / 56.4 | 55 / 104 | 93 / 217 |
+| 300 parts / 2000 wires | 70.9 / 82.1 | 64 / 155 | 153 / 1442 |
+
+These are shared CI measurements, not hardware display latency. The large WebKit fixture also reported 223 / 1435 ms for nudge and 160 / 1305 ms for undo. This establishes a reason to remove unnecessary DOM replacement on camera-only actions, but does not prove the specific cost of layout versus paint versus JS. The new idle camera path preserves the actual scene/wire DOM nodes and zoom control focus, updating only the transform, readout, hover and floating property position. Active gesture, simulation and modal states retain the full render path. The same profiling suite now checks real node identity; compare its next run with this baseline before claiming a speedup. Nudge/undo rendering and native Safari remain open.

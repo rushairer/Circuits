@@ -476,14 +476,33 @@ function canvas(){
  const latest=wrapper.querySelector('#scene');
  if(latest)original.innerHTML=latest.innerHTML;
 }
+/** Camera-only updates keep the existing SVG, focus and circuit geometry.
+ * During an active gesture or simulation/modal workflow retain the full
+ * render path, which also refreshes its transient state and solver panels.
+ */
+function renderCamera(){
+ const scene=app.querySelector<SVGGElement>('#scene');
+ const readout=app.querySelector<HTMLOutputElement>('#canvas-zoom');
+ if(!scene||!readout||workspaceView!=='circuit'||showProjects||showExamples||
+    showCode||bomOpen||schematicOpen||scopeOpen||isRunning||unoPreview||
+    drag||noteDrag||notePlacement||bendDrag||segmentDrag||endpointDrag||
+    marquee||panDrag||wireDrag||wiring||spaceHeld){
+   render();return;
+ }
+ scene.setAttribute('transform','translate('+panX+' '+panY+') scale('+zoom+')');
+ readout.textContent=Math.round(zoom*100)+'%';
+ // An old hover highlight no longer describes the point under the mouse.
+ app.querySelector('#pin-hover')?.setAttribute('opacity','0');
+ positionQuickProperties();
+}
 function fitView(){
  const next=fitCircuit(project.parts,project.wires,1100,800,55,notesVisible?(project.notes??[]):[]);
  zoom=next.zoom;panX=next.panX;panY=next.panY;
- render();
+ renderCamera();
 }
 function changeZoom(factor:number){
  const view=zoomAt({zoom,panX,panY},{x:550,y:400},zoom*factor);
- zoom=view.zoom;panX=view.panX;panY=view.panY;render();
+ zoom=view.zoom;panX=view.panX;panY=view.panY;renderCamera();
 }
 function canvasPoint(clientX:number,clientY:number):Point|null {
  const svg=app.querySelector<SVGSVGElement>('#board'),matrix=svg?.getScreenCTM();
@@ -904,7 +923,7 @@ function render(){
   '<button type="button" data-action="auto-route-wires" '+editDisabled+
   ' title="自动绕开器件：选中导线时只整理所选，否则整理全部无手动折点的导线">↱ 智能避让</button></div><div class="tool-group" role="group" aria-label="代码与报表"><button data-action="code">〈/〉 代码</button><button data-action="bom-open" aria-label="查看自动生成的物料清单">▤ BOM</button><button data-action="schematic-open" aria-label="查看自动生成的原理图">◇ 原理图</button></div>'+renderWorkspaceTabs(workspaceView)+'<div class="tool-group" role="group" aria-label="视图与模型"><button data-action="grid">'+(gridEnabled?'网格吸附：开':'网格吸附：关')+'</button><button data-action="solver-mode" aria-label="切换仿真模型">'+(simulationMode==='classic'?'模型：固定 2V':simulationMode==='nonlinear'?'模型：非线性 DC（实验）':'模型：RC 暂态（实验）')+'</button><button data-action="scope-open" '+(!lastScopeCapture?'disabled':'')+' aria-label="打开模拟示波器">▤ 示波器</button></div><button class="run '+(isRunning?'active':'')+'" data-action="run">'+(isRunning?'■ 停止仿真':'▶ 开始仿真')+'</button></div><div class="workspace"><section class="canvas '+(spaceHeld?'pan-mode':'')+(notePlacement?' note-mode':'')+'" id="workspace-main" role="tabpanel" aria-labelledby="tab-'+workspaceView+'" data-view="'+workspaceView+'">' +(workspaceView==='circuit'?canvas()+quickMarkup+analysisHTML+(!scopeOpen?(lastTransient?rcPanel(lastTransient):lastNetwork?rcNetworkPanel(lastNetwork):''):'')+(scopeOpen&&lastScopeCapture?renderScopePanel(lastScopeCapture,scopeCapacitorId,rcTimeIndex):'')+
    (bomOpen?renderBomPanel(createBom(project)):'')+
-   (schematicOpen?renderSchematicPanel(createSchematic(project),schematicZoom):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button>'+Math.round(zoom*100)+'%<button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div>':workspaceView==='schematic'?renderSchematicWorkspace(createSchematic(project),schematicZoom):renderBomWorkspace(createBom(project)))+'</section><aside class="inspector">'+(workspaceView==='circuit'?side():renderReadonlyInspector(workspaceView))+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'
+   (schematicOpen?renderSchematicPanel(createSchematic(project),schematicZoom):'')+'<div class="canvas-meta">2D · 电路工作台 · '+project.parts.length+' 个元件 · '+project.wires.length+' 根导线 · '+(project.notes?.length??0)+' 条注释 · '+(project.insertions?.length??0)+' 处插孔接触</div><div class="bottom"><span>'+(notePlacement?'添加注释：点击画布放置，Esc 取消':endpointDrag?'正在重接导线：拖动端点到目标引脚':wiring?'正在接线：'+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 松开空白仍保留草稿 · 点击空白加途径点 · Esc 取消':isRunning?(bottomReading??'仿真不可用'):connectionNotice?escape(connectionNotice):selectedIds.size>1?'已选择 '+selectedIds.size+' 个元件 · 拖动整体移动':'设计模式 · 从引脚拖线到另一引脚 · Shift 多选 · 空格或中键平移画布')+'</span>'+(wiring?'<button data-action="wire-direction" aria-label="切换接线走线方向">↳ '+(wiringDirection==='horizontal'?'横向优先':'纵向优先')+' · 点击切换</button><button data-action="cancel-wire">取消接线</button>':'')+'<button data-action="zoom-out">−</button><output id="canvas-zoom" aria-label="电路画布缩放比例">'+Math.round(zoom*100)+'%</output><button data-action="zoom-in">＋</button><button data-action="fit" title="F · 缩放到全部元件">适应</button></div>':workspaceView==='schematic'?renderSchematicWorkspace(createSchematic(project),schematicZoom):renderBomWorkspace(createBom(project)))+'</section><aside class="inspector">'+(workspaceView==='circuit'?side():renderReadonlyInspector(workspaceView))+'</aside></div><footer><span>独立开源教学项目 · DC/RC 与受限 Arduino D13 接线预览，非 AVR 仿真</span><span>v0.4.0-alpha.10 · TypeScript + Vite</span></footer><input id="file" type="file" accept=".json" hidden/>'
  positionQuickProperties();
  applySchematicFocus();
 }
@@ -1486,7 +1505,7 @@ app.addEventListener('wheel',e=>{
  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
  const anchor=pt.matrixTransform(matrix.inverse());
  const view=zoomAt({zoom,panX,panY},{x:anchor.x,y:anchor.y},zoom*(e.deltaY<0?1.12:1/1.12));
- zoom=view.zoom;panX=view.panX;panY=view.panY;render();
+ zoom=view.zoom;panX=view.panX;panY=view.panY;renderCamera();
 },{passive:false});
 function handlePointerDown(e:CanvasPointer){
  ignoredClick=null;
