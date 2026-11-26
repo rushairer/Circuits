@@ -133,6 +133,22 @@ const box=(part:Part):Bounds=>{
  return {left:cx-ex-CLEARANCE,right:cx+ex+CLEARANCE,
   top:cy-ey-CLEARANCE,bottom:cy+ey+CLEARANCE};
 };
+interface RoutingObstacle {id:string;bounds:Bounds}
+interface RoutingScene {
+ partsById:ReadonlyMap<string,Part>;
+ obstacles:readonly RoutingObstacle[];
+ fullBoxes:readonly Bounds[];
+}
+/** Per-operation geometry only: never retain across a part move, rotation or import. */
+function routingScene(parts:readonly Part[]):RoutingScene{
+ const partsById=new Map<string,Part>(),obstacles:RoutingObstacle[]=[];
+ for(const original of parts){
+  const part={...original};
+  if(!partsById.has(part.id))partsById.set(part.id,part);
+  if(part.kind!=='breadboard')obstacles.push({id:part.id,bounds:box(part)});
+ }
+ return {partsById,obstacles,fullBoxes:obstacles.map(item=>item.bounds)};
+}
 const intersects=(a:Bounds,b:Bounds)=>a.right>=b.left&&a.left<=b.right&&
  a.bottom>=b.top&&a.top<=b.bottom;
 const inside=(p:Point,b:Bounds)=>p.x>b.left+EPS&&p.x<b.right-EPS&&
@@ -332,6 +348,12 @@ export function visibleWireVertices(
  wire:Wire,parts:readonly Part[],providedPoints?:readonly Point[],freeEnd=false,
  occupied:readonly OccupiedLeg[]=[]
 ):Point[]|null {
+ return routeWithScene(wire,parts,providedPoints,freeEnd,occupied,()=>routingScene(parts));
+}
+function routeWithScene(
+ wire:Wire,parts:readonly Part[],providedPoints:readonly Point[]|undefined,freeEnd:boolean,
+ occupied:readonly OccupiedLeg[],getScene:()=>RoutingScene
+):Point[]|null {
  const points=providedPoints?providedPoints.map(p=>({...p})):(()=>{
   const pin=createPinResolver(parts),a=pin(wire.from),b=pin(wire.to);
   return a&&b?[a,...(wire.bends??[]).map(p=>({...p})),b]:null;
@@ -349,8 +371,9 @@ export function visibleWireVertices(
  if(!wire.autoAvoid)return fallback;
  if(parts.length>AUTO_ROUTE_PART_LIMIT||points.some(p=>!finite(p)))return fallback;
  const from=points[0],to=points.at(-1)!;
- const find=(ep:Endpoint)=>parts.find(p=>p.id===ep.componentId);
- const source=find(wire.from),dest=freeEnd?undefined:find(wire.to);
+ const scene=getScene();
+ const source=scene.partsById.get(wire.from.componentId);
+ const dest=freeEnd?undefined:scene.partsById.get(wire.to.componentId);
  const start=escapePort(wire.from,from,source);
  const end=freeEnd?{...to}:escapePort(wire.to,to,dest);
  if(!start||!end||!finite(start)||!finite(end))return fallback;
@@ -358,8 +381,7 @@ export function visibleWireVertices(
   left:Math.min(start.x,end.x)-230,right:Math.max(start.x,end.x)+230,
   top:Math.min(start.y,end.y)-230,bottom:Math.max(start.y,end.y)+230
  };
- const all=parts.filter(p=>p.kind!=='breadboard')
-  .map(p=>({id:p.id,bounds:box(p)})).filter(item=>intersects(item.bounds,corridor));
+ const all=scene.obstacles.filter(item=>intersects(item.bounds,corridor));
  const mandatory=new Set(freeEnd?[wire.from.componentId]:
   [wire.from.componentId,wire.to.componentId]);
  const kept=all.filter(item=>mandatory.has(item.id));
@@ -374,7 +396,7 @@ export function visibleWireVertices(
  const allBoxes=all.map(item=>item.bounds);
  // Perimeter lanes may leave the initial corridor: verify them against ALL
  // bodies in the project, never just the sampled corridor obstacles.
- const fullBoxes=parts.filter(p=>p.kind!=='breadboard').map(box);
+ const fullBoxes=scene.fullBoxes;
  if(allBoxes.some(b=>inside(start,b)||inside(end,b)))return fallback;
  // Prefer the familiar clean elbow when no component is in its way.
  // This also avoids building an A* graph for most wires in full-size projects.
@@ -406,6 +428,9 @@ export function projectWireRoutes(
  if(!wires.length)return result;
  // Share one immutable pin snapshot across the entire scene, including paint.
  const resolve=resolvePin??createPinResolver(parts);
+ let scene:RoutingScene|undefined;
+ // Legacy/manual-only scenes never build an obstacle index.
+ const getScene=()=>scene??(scene=routingScene(parts));
  const automatic=(w:Wire)=>!!w.routing&&!!w.autoAvoid&&!w.bends?.length;
  const cooperative=wires.length<=COOPERATIVE_WIRE_LIMIT;
  const ordered=cooperative?[...wires.filter(w=>!automatic(w)),...wires.filter(automatic)]:wires;
@@ -413,8 +438,8 @@ export function projectWireRoutes(
   const start=resolve(w.from),end=resolve(w.to);
   if(!start||!end)continue;
   const points=[start,...(w.bends??[]),end];
-  const route=visibleWireVertices(w,parts,points,false,
-   cooperative&&automatic(w)&&occupied.length<=OCCUPIED_LEG_LIMIT?occupied:[]);
+  const route=routeWithScene(w,parts,points,false,
+   cooperative&&automatic(w)&&occupied.length<=OCCUPIED_LEG_LIMIT?occupied:[],getScene);
   if(!route)continue;
   result.set(w.id,route);
   if(cooperative&&occupied.length<=OCCUPIED_LEG_LIMIT)occupied.push(...legs(route));

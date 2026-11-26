@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {pins,size} from '../.test-dist/model.js';
 import {createPinResolver,pinWorld,wirePath,wirePoints} from '../.test-dist/core/geometry.js';
 import {paintCrossingWires,MAX_BRIDGES_PER_WIRE} from '../.test-dist/core/wire-crossings.js';
-import {projectWireRoutes} from '../.test-dist/core/wire-visibility.js';
+import {projectWireRoutes,visibleWireVertices} from '../.test-dist/core/wire-visibility.js';
 import {wireScene,wireReferenceCases} from './fixtures/wire-scenes.mjs';
 const reference=JSON.parse(readFileSync(new URL('./fixtures/wire-paint-alpha10.json',import.meta.url),'utf8'));
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -116,4 +116,37 @@ test('invalid endpoint references still produce empty paths rather than invented
  p.wires[0].from.componentId='missing';p.wires[1].to.pinId='missing';
  const painted=paintCrossingWires(p.wires,p.parts);
  for(const i of [0,1])assert.deepEqual(painted[i],{id:p.wires[i].id,hitPath:'',displayPath:'',bridgeBackdrops:[],bridgeCount:0});
+});
+
+
+test('automatic scene routes share one obstacle geometry snapshot and refresh after movement',()=>{
+ const parts=[
+  {id:'left',kind:'resistor',x:0,y:100,rotation:0,value:220},
+  {id:'right',kind:'resistor',x:470,y:100,rotation:0,value:220},
+  {id:'blocker',kind:'battery',x:230,y:72,rotation:0,value:9},
+  ...Array.from({length:60},(_,i)=>({id:'remote-'+i,kind:'resistor',x:1000+i*150,y:900,rotation:0,value:220}))
+ ];
+ const wires=Array.from({length:49},(_,i)=>({
+  id:'auto-'+i,from:{componentId:'left',pinId:'b'},to:{componentId:'right',pinId:'a'},
+  color:'#159f91',routing:'horizontal',autoAvoid:true
+ }));
+ let rotationReads=0,idReads=0;
+ const observed=parts.map(part=>new Proxy(part,{get(target,key,receiver){
+  if(key==='rotation')rotationReads++;
+  if(key==='id')idReads++;
+  return Reflect.get(target,key,receiver);
+ }}));
+ const before=structuredClone(parts);
+ const baseline=visibleWireVertices(wires[0],parts);
+ assert.ok(baseline.length>3);
+ const routes=projectWireRoutes(wires,observed);
+ assert.equal(routes.size,wires.length);
+ for(const path of routes.values())assert.deepEqual(path,baseline);
+ assert.ok(rotationReads<=parts.length*2,'one pin and one obstacle snapshot, not per-wire rotations');
+ assert.ok(idReads<=parts.length*4,'no per-wire component scans');
+ assert.deepEqual(parts,before);
+ parts[2].y=600;
+ const moved=projectWireRoutes(wires,observed);
+ assert.notDeepEqual(moved.get('auto-0'),baseline);
+ assert.deepEqual(moved.get('auto-0'),visibleWireVertices(wires[0],parts));
 });
