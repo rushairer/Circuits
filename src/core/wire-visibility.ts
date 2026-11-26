@@ -427,17 +427,6 @@ function routeWithScene(
   top:Math.min(start.y,end.y)-230,bottom:Math.max(start.y,end.y)+230
  };
  const all=scene.obstacles.filter(item=>intersects(item.bounds,corridor));
- const mandatory=new Set(freeEnd?[wire.from.componentId]:
-  [wire.from.componentId,wire.to.componentId]);
- const kept=all.filter(item=>mandatory.has(item.id));
- const extras=all.filter(item=>!mandatory.has(item.id)).sort((a,b)=>{
-   const relevance=(r:Bounds)=>Math.max(0,Math.max(r.left-Math.max(start.x,end.x),Math.min(start.x,end.x)-r.right))+
-     Math.max(0,Math.max(r.top-Math.max(start.y,end.y),Math.min(start.y,end.y)-r.bottom));
-   return relevance(a.bounds)-relevance(b.bounds)||a.id.localeCompare(b.id);
- });
- // Endpoint devices may never be evicted by a crowded nearest-obstacle list.
- const boxes=[...kept,...extras.slice(0,Math.max(0,AUTO_ROUTE_OBSTACLE_LIMIT-kept.length))]
-  .map(item=>item.bounds);
  const allBoxes=all.map(item=>item.bounds);
  // Perimeter lanes may leave the initial corridor: verify them against ALL
  // bodies in the project, never just the sampled corridor obstacles.
@@ -451,6 +440,19 @@ function routeWithScene(
  let path:Point[]|null=routeIsClear(preferred,allBoxes)?preferred:
   routeIsClear(alternative,allBoxes)?alternative:null;
  if(!path){
+  // The bounded graph is only needed if both simple elbows are obstructed.
+  // Do not rank or sort obstacles on the common clear-elbow path.
+  const mandatory=new Set(freeEnd?[wire.from.componentId]:
+   [wire.from.componentId,wire.to.componentId]);
+  const kept=all.filter(item=>mandatory.has(item.id));
+  const extras=all.filter(item=>!mandatory.has(item.id)).sort((a,b)=>{
+    const relevance=(r:Bounds)=>Math.max(0,Math.max(r.left-Math.max(start.x,end.x),Math.min(start.x,end.x)-r.right))+
+      Math.max(0,Math.max(r.top-Math.max(start.y,end.y),Math.min(start.y,end.y)-r.bottom));
+    return relevance(a.bounds)-relevance(b.bounds)||a.id.localeCompare(b.id);
+  });
+  // Endpoint devices may never be evicted by a crowded nearest-obstacle list.
+  const boxes=[...kept,...extras.slice(0,Math.max(0,AUTO_ROUTE_OBSTACLE_LIMIT-kept.length))]
+   .map(item=>item.bounds);
   const searched=orthogonalSearch(start,end,boxes,wire.routing);
   path=searched&&routeIsClear(searched,allBoxes)?searched:
     perimeterRoute(start,end,allBoxes,wire.routing,fullBoxes);

@@ -57,6 +57,14 @@ jobs:
           path: /tmp/circuits-pointer-evidence/
           if-no-files-found: ignore
           retention-days: 7
+      - name: Save browser performance diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-performance
+          path: test-results/**/browser-performance.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload browser test report on failure
         if: failure()
         uses: actions/upload-artifact@v4
