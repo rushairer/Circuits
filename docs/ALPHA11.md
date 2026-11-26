@@ -227,3 +227,16 @@ The completed Quality & Pages run [45763690965](https://github.com/rushairer/Cir
 | 300 parts / 2000 wires | 70.9 / 82.1 | 64 / 155 | 153 / 1442 |
 
 These are shared CI measurements, not hardware display latency. The large WebKit fixture also reported 223 / 1435 ms for nudge and 160 / 1305 ms for undo. This establishes a reason to remove unnecessary DOM replacement on camera-only actions, but does not prove the specific cost of layout versus paint versus JS. The new idle camera path preserves the actual scene/wire DOM nodes and zoom control focus, updating only the transform, readout, hover and floating property position. Active gesture, simulation and modal states retain the full render path. The same profiling suite now checks real node identity; compare its next run with this baseline before claiming a speedup. Nudge/undo rendering and native Safari remain open.
+
+## Keyboard nudge: guarded incremental SVG updates
+
+Run [45770352576](https://github.com/rushairer/Circuits/actions/runs/45770352576) passed the quality/deployment gates at revision `15ce2d148d1dce9cfa245ceb10488a98208e761e`. Six downloaded browser-performance reports give the following capture-to-second-rAF zoom results (ms):
+
+| Fixture | Chromium | Firefox | WebKit |
+|---|---:|---:|---:|
+| 7 boards / 126 wires | 40.7 | 8 | 62 |
+| 300 parts / 2000 wires | 46.7 | 80 | 996 |
+
+Large-scene nudge/undo samples were 101.2/90.7 (Chromium), 178/357 (Firefox), 1716/1012 (WebKit). These are single samples for the large fixture on shared CI, not a controlled performance comparison or hardware display latency. WebKit remains a priority.
+
+For idle keyboard translation with unchanged physical contacts, no connector decorations and no previous/new crossing bridges, use the existing full scene router to obtain current hit/paint paths, then update only changed SVG attributes, selected part positions (including breadboard socket groups), inspector coordinates, history buttons and persistence status. Preserve native nodes and focus; do not approximate electrical contacts or change routing semantics. All guard failures, active solver/gesture states, changed insertion identities, undo and redo continue to use full rendering. The large fixture now checks native node identity, unrelated path stability, coordinates and focus in addition to existing persistence/undo assertions. CI and follow-up timing remain required.

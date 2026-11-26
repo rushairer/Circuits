@@ -138,12 +138,30 @@ test('300 parts and 2000 wires stay editable after import, zoom, nudge and undo'
  const original=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!));
  await assertInPlaceZoom(page,'wire-0');
  await expect(wire).toHaveAttribute('d',originalPath!);
- await page.locator('.item[data-part="p0"]').focus();
+ const movedPart=page.locator('.item[data-part="p0"]');
+ const unrelatedWire=page.locator('.wire[data-wire="wire-1"]');
+ await movedPart.focus();
  await page.keyboard.press('Enter');
+ // Selection performs a full render. Focus its replacement once before nudge.
+ await movedPart.focus();
+ const partNode=await movedPart.elementHandle();
+ const wireNode=await wire.elementHandle();
+ const unrelatedNode=await unrelatedWire.elementHandle();
+ const sceneNode=await page.locator('#scene').elementHandle();
+ const oldUnrelatedPath=await unrelatedWire.getAttribute('d');
  await page.keyboard.press('ArrowRight');
  await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!).parts[0].x))
   .toBe(original.parts[0].x+10);
  await expect(wire).not.toHaveAttribute('d',originalPath!);
+ await expect(movedPart).toHaveAttribute('transform','translate('+(original.parts[0].x+10)+' '+original.parts[0].y+')');
+ await expect(movedPart).toBeFocused();
+ await expect(page.locator('#part-coordinates')).toContainText('坐标 '+(original.parts[0].x+10)+', '+original.parts[0].y);
+ await expect(unrelatedWire).toHaveAttribute('d',oldUnrelatedPath!);
+ expect(await movedPart.evaluate((el,old)=>el===old,partNode)).toBe(true);
+ expect(await wire.evaluate((el,old)=>el===old,wireNode)).toBe(true);
+ expect(await unrelatedWire.evaluate((el,old)=>el===old,unrelatedNode)).toBe(true);
+ expect(await page.locator('#scene').evaluate((el,old)=>el===old,sceneNode)).toBe(true);
+ await partNode?.dispose();await wireNode?.dispose();await unrelatedNode?.dispose();await sceneNode?.dispose();
  await expect(page.locator('.wire[data-wire]')).toHaveCount(2000);
  const after=await page.evaluate(()=>JSON.parse(localStorage.getItem('circuits-project')!));
  expect(after.wires).toEqual(original.wires);

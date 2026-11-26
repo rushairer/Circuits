@@ -139,7 +139,12 @@ function openWorkspace(id:string){
  selection=null;wirePickCycle=null;selectedBend=null;segmentDrag=null;selectedIds.clear();selectedWireIds.clear();selectedNoteId=null;notePlacement=false;notesVisible=true;noteDrag=null;marquee=null;panDrag=null;clearWireDraft();drag=null;bendDrag=null;endpointDrag=null;showProjects=false;showExamples=false;showCode=false;isRunning=false;scopeOpen=false;bomOpen=false;schematicOpen=false;workspaceView='circuit';scopeCapacitorId='';rcConvergence=null;resetUnoPreview();undo=[];redo=[];
  save();render();
 }
-function commit(before:Project){wirePickCycle=null;clearWireDraft();resetUnoPreview();rcConvergence=null;project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();render()}
+function commit(before:Project,nudge=false){
+ const incremental=nudge&&canPatchNudge();
+ wirePickCycle=null;clearWireDraft();resetUnoPreview();rcConvergence=null;
+ project=reconcileInsertions(project);undo.push(before);if(undo.length>50)undo.shift();redo=[];save();
+ if(!incremental||!patchNudge(before))render();
+}
 /** Presentation-only edits preserve active simulator/previews; they have no electrical effect. */
 function commitVisualEdit(before:Project,refresh=true){
  undo.push(before);if(undo.length>50)undo.shift();
@@ -495,6 +500,64 @@ function renderCamera(){
  app.querySelector('#pin-hover')?.setAttribute('opacity','0');
  positionQuickProperties();
 }
+/**
+ * Only keyboard translation in an idle design view may use this fast path.
+ * No solver, connector decoration or physical contact change is approximated.
+ * Full rendering remains the fallback for all other edits.
+ */
+function canPatchNudge(){
+ return workspaceView==='circuit'&&!showProjects&&!showExamples&&!showCode&&
+  !bomOpen&&!schematicOpen&&!scopeOpen&&!isRunning&&!unoPreview&&
+  !drag&&!noteDrag&&!notePlacement&&!bendDrag&&!segmentDrag&&!endpointDrag&&
+  !marquee&&!panDrag&&!wireDrag&&!wiring&&!spaceHeld&&!selectedNoteId&&
+  !selectedBend&&!selectedWireIds.size&&selectedIds.size>0;
+}
+function patchNudge(before:Project):boolean{
+ // Contact changes affect pin artwork and electrical connectivity.
+ if(JSON.stringify(before.insertions??[])!==JSON.stringify(project.insertions??[]))return false;
+ const scene=app.querySelector<SVGGElement>('#scene');
+ const status=app.querySelector<HTMLElement>('header .status');
+ const undoButton=app.querySelector<HTMLButtonElement>('[data-action="undo"]');
+ const redoButton=app.querySelector<HTMLButtonElement>('[data-action="redo"]');
+ const coordinate=app.querySelector<HTMLElement>('#part-coordinates');
+ const part=project.parts.find(p=>p.id===selection);
+ if(!scene||!status||!undoButton||!redoButton||(part&&!coordinate))return false;
+ // Complex decorations need the complete painter ordering. Never remove a
+ // crossover or a connector just to take the faster rendering path.
+ if(project.wires.some(w=>w.type&&w.type!=='normal')||
+    scene.querySelector('.wire-bridge-clear,.wire-connectors,.endpoint-handle,.bend-handle,#wire-preview'))return false;
+ const painted=paintCrossingWires(project.wires,project.parts);
+ if(painted.some(w=>w.bridgeCount||!w.hitPath))return false;
+ const hits=new Map(Array.from(scene.querySelectorAll<SVGPathElement>('.wire-hit[data-wire]'))
+   .map(node=>[node.getAttribute('data-wire'),node] as const));
+ const conductors=new Map(Array.from(scene.querySelectorAll<SVGPathElement>('.wire[data-wire]'))
+   .map(node=>[node.getAttribute('data-wire'),node] as const));
+ if(hits.size!==painted.length||conductors.size!==painted.length||
+    painted.some(w=>!hits.has(w.id)||!conductors.has(w.id)))return false;
+ const previous=new Map(before.parts.map(p=>[p.id,p]));
+ const changed=project.parts.filter(p=>p.x!==previous.get(p.id)?.x||p.y!==previous.get(p.id)?.y);
+ const changedById=new Map(changed.map(p=>[p.id,p]));
+ const movedNodes=Array.from(scene.querySelectorAll<SVGGElement>('.item[data-part],.breadboard-sockets[data-part]'))
+  .filter(node=>changedById.has(node.getAttribute('data-part')??''));
+ if(movedNodes.length!==changed.reduce((n,p)=>n+(p.kind==='breadboard'?2:1),0))return false;
+ // All preconditions checked before mutating any live DOM. Keep the native
+ // SVG groups and only touch attributes whose geometry actually changed.
+ for(const node of movedNodes){
+  const p=changedById.get(node.getAttribute('data-part')!)!;
+  node.setAttribute('transform','translate('+p.x+' '+p.y+')');
+ }
+ for(const w of painted){
+  const hit=hits.get(w.id)!,line=conductors.get(w.id)!;
+  if(hit.getAttribute('d')!==w.hitPath)hit.setAttribute('d',w.hitPath);
+  if(line.getAttribute('d')!==w.displayPath)line.setAttribute('d',w.displayPath);
+ }
+ if(part&&coordinate)coordinate.textContent='坐标 '+Math.round(part.x)+', '+Math.round(part.y)+' · 旋转 '+part.rotation+'°';
+ undoButton.disabled=!undo.length;redoButton.disabled=!redo.length;
+ status.textContent=persistOK?'● 本地已保存':'⚠ 本地保存失败，请导出 JSON';
+ scene.querySelector('#pin-hover')?.setAttribute('opacity','0');
+ positionQuickProperties();
+ return true;
+}
 function fitView(){
  const next=fitCircuit(project.parts,project.wires,1100,800,55,notesVisible?(project.notes??[]):[]);
  zoom=next.zoom;panX=next.panX;panY=next.panY;
@@ -681,7 +744,7 @@ function side(){
      LED_COLORS.map(color=>'<option value="'+color.value+'" '+(ledAppearance(c.ledColor).value===color.value?'selected':'')+'>'+color.label+'</option>').join('')+
      '</select><small>仅改变发光与灯罩外观，当前实验求解器尚未按波长调整器件物理模型。</small>':'')+
    (c.kind==='resistor'?resistorValueFields(c):
-    c.kind==='battery'||c.kind==='capacitor'?'<label>数值 ('+(c.kind==='capacitor'?'µF':'V')+')</label><input id="value" type="number" min="'+(c.kind==='capacitor'?'0.001':'1')+'" step="any" value="'+(c.value??(c.kind==='capacitor'?100:1))+'"/>':'')+(c.kind==='capacitor'?'<label>初始电压（V）</label><input id="rc-initial" type="number" min="-1000" max="1000" step="any" value="'+(c.initialVolts??0)+'"/><small>按 t=0 初始状态计算，不模拟电路的历史充电过程。</small>':'')+'<p>坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(gpioLed?'<p id="gpio-led-inspector">D13 电流：'+gpioLed.currentMilliAmps.toFixed(3)+'mA · '+(gpioLed.status==='overcurrent'?'过流':gpioLed.lit?'点亮':'熄灭')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(rcMeter?'<p id="rc-meter-inspector">RC 采样电压：'+(rcMeter.status==='measured'&&rcMeter.volts!==null?rcMeter.volts.toFixed(3)+' V · 理想高阻表笔':'—（'+rcMeter.reason+'）')+'</p>':'')+(rcValue?'<p>RC 当前采样：'+rcValue.voltageVolts.toFixed(3)+' V · '+rcValue.currentMilliAmps.toFixed(3)+' mA</p>':'')+(networkValue?'<p id="rc-network-inspector">多电容当前采样：'+networkValue.voltageVolts.toFixed(3)+' V · '+(networkValue.currentMilliAmps===null?'未估算':networkValue.currentMilliAmps.toFixed(3)+' mA')+'</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<label for="switch-contact">闭合接触电阻（Ω）</label><input id="switch-contact" type="number" min="0" max="1000000" step="any" value="'+(c.contactOhms??0)+'"/><small>0Ω 为原来的理想闭合开关；可设置 0.1–1,000,000Ω。开路仍不导通。状态改变从 t=0 重新计算。</small><button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+
+    c.kind==='battery'||c.kind==='capacitor'?'<label>数值 ('+(c.kind==='capacitor'?'µF':'V')+')</label><input id="value" type="number" min="'+(c.kind==='capacitor'?'0.001':'1')+'" step="any" value="'+(c.value??(c.kind==='capacitor'?100:1))+'"/>':'')+(c.kind==='capacitor'?'<label>初始电压（V）</label><input id="rc-initial" type="number" min="-1000" max="1000" step="any" value="'+(c.initialVolts??0)+'"/><small>按 t=0 初始状态计算，不模拟电路的历史充电过程。</small>':'')+'<p id="part-coordinates">坐标 '+Math.round(c.x)+', '+Math.round(c.y)+' · 旋转 '+c.rotation+'°</p>'+(ledReading?'<p>非线性 LED：'+(ledReading.status==='overcurrent'?'过流（超出模型适用范围）':ledReading.status==='unpowered'?'未供电':ledReading.currentMilliAmps.toFixed(2)+' mA · '+ledReading.forwardVolts?.toFixed(2)+' V')+'</p>':'')+(gpioLed?'<p id="gpio-led-inspector">D13 电流：'+gpioLed.currentMilliAmps.toFixed(3)+'mA · '+(gpioLed.status==='overcurrent'?'过流':gpioLed.lit?'点亮':'熄灭')+'</p>':'')+(meterReading?'<p>DC 电压读数：'+(meterReading.status==='measured'&&meterReading.volts!==null?meterReading.volts.toFixed(2)+' V':'—（表笔未连至已求解网络）')+'</p>':'')+(rcMeter?'<p id="rc-meter-inspector">RC 采样电压：'+(rcMeter.status==='measured'&&rcMeter.volts!==null?rcMeter.volts.toFixed(3)+' V · 理想高阻表笔':'—（'+rcMeter.reason+'）')+'</p>':'')+(rcValue?'<p>RC 当前采样：'+rcValue.voltageVolts.toFixed(3)+' V · '+rcValue.currentMilliAmps.toFixed(3)+' mA</p>':'')+(networkValue?'<p id="rc-network-inspector">多电容当前采样：'+networkValue.voltageVolts.toFixed(3)+' V · '+(networkValue.currentMilliAmps===null?'未估算':networkValue.currentMilliAmps.toFixed(3)+' mA')+'</p>':'')+(c.kind==='led'||c.kind==='resistor'?'<p>面包板接触 '+(project.insertions??[]).filter(i=>i.componentId===c.id).length+'/2：移动元件，让引脚靠近插孔即可自动吸附。</p>':'')+(c.kind==='switch'?'<label for="switch-contact">闭合接触电阻（Ω）</label><input id="switch-contact" type="number" min="0" max="1000000" step="any" value="'+(c.contactOhms??0)+'"/><small>0Ω 为原来的理想闭合开关；可设置 0.1–1,000,000Ω。开路仍不导通。状态改变从 t=0 重新计算。</small><button data-action="toggle-switch">'+(c.closed?'断开开关':'闭合开关')+'</button>':'')+
    (c.kind==='ammeter'?'<p id="ammeter-inspector">'+
      (simulationMode==='rc'?(rcAmp?.milliAmps!==null&&rcAmp?
        'RC 串联电流：'+rcAmp.milliAmps.toFixed(3)+' mA · '+rcAmp.reason:
@@ -1961,7 +2024,7 @@ window.addEventListener('keydown',e=>{
    const updated=translateComponents(project,[...selectedIds],delta,null);
    if(updated!==project){
      const before=copy();
-     project=reconcileInsertions(updated);commit(before);
+     project=updated;commit(before,true);
    }
  }else if(e.key==='Escape'){
    cancelCanvasGesture();
