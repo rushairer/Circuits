@@ -430,3 +430,48 @@ test('dense breadboard uses a clear intermediate corridor when both shortest elb
  assert.deepEqual(evaluate(p),analysis);
  assert.deepEqual(p,before);
 });
+
+test('alternate elbow exposes a better lane beyond the preferred elbow congestion',()=>{
+ const p=sample();
+ p.parts=[{id:'board',kind:'breadboard',x:0,y:0,rotation:0}];
+ const ep=pinId=>({componentId:'board',pinId});
+ const fixed=(id,from,to,routing)=>({id,from:ep(from),to:ep(to),routing,color:'#159f91'});
+ const auto={...fixed('auto','hole-a-4','hole-j-14','horizontal'),autoAvoid:true,color:'#e45454'};
+ // Four preferred-elbow crossings; the alternate elbow overlaps the
+ // bottom horizontal jumper. Its 12-unit inset reveals a cheaper lane.
+ p.wires=[
+  fixed('v0','hole-b-0','hole-f-0','vertical'),
+  fixed('v11','top-plus-11','hole-h-11','vertical'),
+  fixed('v10','top-plus-10','hole-h-10','vertical'),
+  fixed('rail','top-minus-3','top-minus-11','horizontal'),
+  fixed('v21','hole-a-21','hole-i-21','vertical'),
+  fixed('v17','hole-e-17','bottom-plus-17','vertical'),
+  fixed('v10b','hole-a-10','hole-j-10','vertical'),
+  fixed('v7','top-plus-7','hole-b-7','vertical'),
+  fixed('v8','top-minus-8','hole-b-8','vertical'),
+  fixed('bottom','hole-j-0','hole-j-16','horizontal'),
+  auto
+ ];
+ assert.equal(validProject(p),true);
+ const before=structuredClone(p),analysis=evaluate(p);
+ const routes=projectWireRoutes(p.wires,p.parts),actual=routes.get(auto.id);
+ const independent=visibleWireVertices(auto,p.parts);
+ assert.deepEqual(independent,[{x:100,y:67},{x:280,y:67},{x:280,y:148}]);
+ assert.deepEqual(actual,[{x:100,y:67},{x:100,y:136},{x:280,y:136},{x:280,y:148}]);
+ const crossingCount=path=>p.wires.slice(0,-1).reduce((count,w)=>{
+  const [c,d]=routes.get(w.id);
+  return count+path.slice(1).filter((b,i)=>{
+   const a=path[i],between=(x,y,z)=>x>Math.min(y,z)&&x<Math.max(y,z);
+   return a.y===b.y&&c.x===d.x&&between(c.x,a.x,b.x)&&between(a.y,c.y,d.y)||
+    a.x===b.x&&c.y===d.y&&between(a.x,c.x,d.x)&&between(c.y,a.y,b.y);
+  }).length;
+ },0);
+ assert.equal(crossingCount(independent),4);
+ assert.equal(crossingCount(actual),1);
+ assert.equal(isOrthogonal(actual),true);
+ assert.equal(actual.slice(1).reduce((n,b,i)=>n+Math.abs(b.x-actual[i].x)+Math.abs(b.y-actual[i].y),0),261);
+ for(const w of p.wires.slice(0,-1))assert.deepEqual(routes.get(w.id),visibleWireVertices(w,p.parts));
+ assert.deepEqual(draftWireVertices(auto,p.wires.slice(0,-1),p.parts,[actual[0],actual.at(-1)],false),actual);
+ assert.deepEqual(evaluate(p),analysis);
+ assert.deepEqual(p,before);
+});

@@ -83,6 +83,23 @@ function chooseLane(path:Point[],start:Point,end:Point,boxes:readonly Bounds[],o
   for(const lane of [b.lane-LANE_GAP,b.lane+LANE_GAP])addCorridor(b.axis,lane);
   for(const lane of [b.low-LANE_GAP,b.high+LANE_GAP])addCorridor(a.axis,lane);
  }
+ // The initial clear route is only one of the possible elbows. A
+ // crowded alternate elbow can expose an otherwise missed corridor
+ // (e.g. a horizontal bundle near its far end). Preserve the original
+ // candidates first, then probe both elbows within the SAME budget.
+ for(const elbow of candidates.slice(0,2)){
+  if(seen.size>=16)break;
+  const elbowLegs=legs(elbow);
+  for(const a of elbowLegs)for(const b of occupied){
+   if(seen.size>=16||overlap(a,b)<=EPS)continue;
+   for(const lane of [b.lane-LANE_GAP,b.lane+LANE_GAP])addCorridor(a.axis,lane);
+  }
+  for(const a of elbowLegs)for(const b of occupied){
+   if(seen.size>=16||!crosses(a,b))continue;
+   for(const lane of [b.lane-LANE_GAP,b.lane+LANE_GAP])addCorridor(b.axis,lane);
+   for(const lane of [b.low-LANE_GAP,b.high+LANE_GAP])addCorridor(a.axis,lane);
+  }
+ }
  // A full start-to-end corridor can be blocked even though a single
  // congested leg of a multi-turn detour has room to fan out. Shift that
  // leg locally, absorbing its jogs into adjacent perpendicular legs
