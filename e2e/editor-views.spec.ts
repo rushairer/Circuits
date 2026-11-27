@@ -261,7 +261,8 @@ test('layered layout for a bridge with an extra LED retains all nets and export'
  await expect(svg.locator('.sch-component')).toHaveCount(7);
  await expect(svg.locator('.sch-terminal')).toHaveCount(14);
  await expect(svg.locator('.sch-net')).toHaveCount(4);
- expect(await svg.locator('.sch-crossover').count()).toBeGreaterThan(0);
+ expect(await svg.locator('.sch-crossover').count()).toBe(1);
+ expect(Number(await svg.getAttribute('width'))).toBeLessThan(1590);
  const net=await svg.locator('[data-terminal="extra::cathode"]').getAttribute('data-schematic-net');
  expect(net).toBeTruthy();
  await expect(svg.locator('[data-terminal="cross::a"]')).toHaveAttribute('data-schematic-net',net!);

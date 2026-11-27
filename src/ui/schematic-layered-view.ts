@@ -6,7 +6,7 @@ import { connectedSchematicSymbol } from './schematic-symbols.js';
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 const short=(s:string)=>Array.from(s).length>12?Array.from(s).slice(0,11).join('')+'…':s;
 
-/** Every device column is separate. Foreign horizontal rails crossing a
+/** Device intervals sharing a column are strictly disjoint. Foreign rails crossing a
  * vertical lead receive an insulated bridge with a background knockout.
  * Junction dots occur only on actual endpoint rails. */
 export function renderLayeredSchematic(diagram:SchematicDiagram,layout:LayeredSchematic,style:string,colorFor:(id:string)=>string):string {
