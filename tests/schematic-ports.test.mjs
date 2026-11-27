@@ -45,17 +45,44 @@ test('mixed three-port devices keep each real terminal including repeated net me
  for(const c of moved.parts){c.x+=300;c.rotation+=90;}
  assert.equal(schematicSvg(createSchematic(moved)),svg);
 });
-test('port view escapes source labels and refuses incomplete, mismatched or disconnected graphs',()=>{
+test('port view escapes source labels and refuses mismatched or disconnected graphs but retains unused pins',()=>{
  const p=fixture();p.name='<script>x</script>';p.parts[0].name='<img src=x>';
  const d=createSchematic(p),svg=schematicSvg(d);
  assert.match(svg,/&lt;script&gt;x&lt;\/script&gt;/);assert.match(svg,/&lt;img src=x&gt;/);
  assert.doesNotMatch(svg,/<script\b|<img\b|<foreignObject\b/i);
  const incomplete=structuredClone(p);incomplete.wires.pop();
- assert.equal(portSchematic(createSchematic(incomplete)),null);
+ const partial=createSchematic(incomplete),partialLayout=portSchematic(partial);
+ assert.ok(partialLayout);
+ const unused=partialLayout.devices.flatMap(d=>d.tracks).find(t=>t.terminal.netId===null);
+ assert.equal(unused.terminal.pinId,'wiper');assert.equal(unused.endY,null);assert.deepEqual(unused.crossings,[]);
+ const partialSvg=schematicSvg(partial);
+ assert.match(partialSvg,/data-schematic-route-mode="ports"/);
+ assert.match(partialSvg,/data-terminal="pot::wiper" data-schematic-net="NC"/);
+ assert.equal((partialSvg.match(/class="sch-nc"/g)||[]).length,1);
+ assert.equal((partialSvg.match(/class="sch-junction"/g)||[]).length,8);
+ const badCount=structuredClone(partial);badCount.unconnectedTerminals=0;
+ assert.equal(portSchematic(badCount),null);
+ const detached=structuredClone(p);detached.wires=detached.wires.filter(w=>w.from.componentId!=='pot'&&w.to.componentId!=='pot');
+ assert.equal(portSchematic(createSchematic(detached)),null);
  const mismatch=structuredClone(d);mismatch.nets[0].endpointKeys.pop();
  assert.equal(portSchematic(mismatch),null);
  const island=structuredClone(p);
  island.parts.push({id:'r1',kind:'resistor',x:0,y:300,rotation:0,value:220},{id:'r2',kind:'resistor',x:200,y:300,rotation:0,value:220});
  for(const pinId of ['a','b'])island.wires.push({id:'island-'+pinId,from:{componentId:'r1',pinId},to:{componentId:'r2',pinId},color:'#35b65d'});
  assert.equal(portSchematic(createSchematic(island)),null);
+});
+
+test('adjacent rail optimization strictly reduces crossings without merging port identities',()=>{
+ const p=fixture();p.wires=[];
+ const groups=[['pot','a','servo','signal'],['pot','wiper','pot','b','servo','positive','servo','negative','uno','d13','uno','gnd','uno','v5']];
+ for(const g of groups)for(let i=2;i<g.length;i+=2)p.wires.push({id:'w'+p.wires.length,from:{componentId:g[0],pinId:g[1]},to:{componentId:g[i],pinId:g[i+1]},color:'#35b65d'});
+ const d=createSchematic(p),before=structuredClone(d),l=portSchematic(d);
+ assert.ok(l);
+ const tracks=l.devices.flatMap(dev=>dev.tracks),baseline=[...l.rails].sort((a,b)=>a.x2-b.x2||a.id.localeCompare(b.id,'en'));
+ const oldCount=tracks.reduce((n,t)=>n+baseline.slice(0,baseline.findIndex(r=>r.id===t.terminal.netId)).filter(r=>t.x<=r.x2).length,0);
+ const newCount=tracks.reduce((n,t)=>n+t.crossings.length,0);
+ assert.ok(newCount<oldCount);
+ assert.equal(tracks.length,9);assert.deepEqual(d,before);
+ const reversed=structuredClone(d);reversed.components.reverse();reversed.nets.reverse();
+ assert.deepEqual(portSchematic(reversed),l);
 });

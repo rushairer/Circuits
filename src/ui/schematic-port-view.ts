@@ -23,7 +23,13 @@ export function renderPortSchematic(diagram:SchematicDiagram,layout:PortLayout,s
   // The model pin schema and symbol registry share the same IDs. No invented
   // ports or decorative disconnected symbols are introduced in this view.
   const leads=d.tracks.map(t=>{
-   const id=t.terminal.netId!;
+   const id=t.terminal.netId;
+   if(id===null||t.endY===null){
+    return '<g class="sch-terminal" data-terminal="'+escape(c.id+'::'+t.terminal.pinId)+'" data-schematic-net="NC">'+
+     '<path class="sch-pin-lead" d="'+symbol!.leads.get(t.terminal.pinId)!+'" fill="none" stroke="#8599a3" stroke-width="1.6"/>'+
+     '<circle class="sch-nc" cx="'+t.x+'" cy="'+t.y+'" r="4.5" fill="#f8fbfc" stroke="#8599a3" stroke-width="1.6"/>'+
+     text(d.x+27,t.y-5,t.terminal.pinId+' · NC')+'<title>'+escape(t.terminal.pinId+' · NC')+'</title></g>';
+   }
    let path='M'+t.x+' '+t.y,bridges='';
    for(const cross of t.crossings){
     const y=cross.y,arc='M'+t.x+' '+(y-10)+' Q'+(t.x+16)+' '+y+' '+t.x+' '+(y+10);

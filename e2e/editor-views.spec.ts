@@ -351,3 +351,33 @@ test('multi-port schematic preserves UNO, servo and potentiometer terminal ident
  await page.locator('#tab-circuit').click();
  expect(await saved(page)).toBe(before);
 });
+
+test('partially connected UNO keeps unused pin visible without a network rail',async({page})=>{
+ await page.goto('/');
+ const parts=[{id:'uno',kind:'arduino',x:0,y:0,rotation:0},{id:'r',kind:'resistor',x:300,y:0,rotation:0,value:330}];
+ const wires=[{id:'w1',from:{componentId:'uno',pinId:'v5'},to:{componentId:'r',pinId:'a'},color:'#35b65d'},
+  {id:'w2',from:{componentId:'uno',pinId:'gnd'},to:{componentId:'r',pinId:'b'},color:'#273748'}];
+ await page.locator('#file').setInputFiles({name:'partial-ports.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({schemaVersion:2,name:'Partial ports',parts,wires,code:''}))});
+ const before=await saved(page);
+ await page.locator('#tab-schematic').click();
+ const svg=page.locator('.schematic-svg'),nc=svg.locator('[data-terminal="uno::d13"]');
+ await expect(svg).toHaveAttribute('data-schematic-route-mode','ports');
+ await expect(svg.locator('.sch-terminal')).toHaveCount(5);
+ await expect(svg.locator('.sch-net')).toHaveCount(2);
+ await expect(svg.locator('.sch-junction')).toHaveCount(4);
+ await expect(nc).toHaveAttribute('data-schematic-net','NC');
+ await expect(nc.locator('.sch-nc')).toBeVisible();
+ await expect(nc.locator('.sch-link')).toHaveCount(0);
+ const net=await svg.locator('[data-terminal="uno::v5"]').getAttribute('data-schematic-net');
+ await page.locator('#schematic-net-focus').selectOption(net!);
+ await expect(svg).toHaveAttribute('data-schematic-focus-net',net!);
+ await page.locator('.schematic-workspace [data-action="schematic-zoom-in"]').click();
+ await expect(nc.locator('.sch-nc')).toBeVisible();
+ const download=page.waitForEvent('download');
+ await page.locator('.schematic-workspace [data-action="schematic-export"]').click();
+ const source=await readFile((await (await download).path())!,'utf8');
+ expect(source).toContain('data-terminal="uno::d13" data-schematic-net="NC"');
+ expect(source).not.toContain('sch-dimmed');
+ await page.locator('#tab-circuit').click();
+ expect(await saved(page)).toBe(before);
+});
