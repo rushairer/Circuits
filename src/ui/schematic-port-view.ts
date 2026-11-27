@@ -3,13 +3,19 @@ import type { PortLayout } from '../core/schematic-ports.js';
 import { connectedSchematicSymbol } from './schematic-symbols.js';
 
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
-const short=(s:string)=>Array.from(s).length>24?Array.from(s).slice(0,23).join('')+'…':s;
+const short=(s:string,limit:number)=>Array.from(s).length>limit?Array.from(s).slice(0,limit-1).join('')+'…':s;
 
 /** Render original symbols and independent pin leads; rail crossings are
  * insulated, and only the exact endpoint rail receives a junction dot. */
 export function renderPortSchematic(diagram:SchematicDiagram,layout:PortLayout,style:string,colorFor:(id:string)=>string):string {
  const {width,height}=layout;
  const text=(x:number,y:number,value:string)=>'<text x="'+x+'" y="'+y+'" font-size="11" fill="#314c5a">'+escape(value)+'</text>';
+ // The visible label has a conservative code-point budget plus an actual
+ // SVG viewport clip for wide glyphs/fallback fonts. Full text stays in title.
+ // Override the workbench's broad .canvas svg sizing and touch rule.
+ const boundedText=(x:number,y:number,value:string,available:number,truncate=true)=>
+  '<svg class="sch-port-label" x="'+x+'" y="'+(y-13)+'" width="'+available+'" height="17" overflow="hidden" style="width:'+available+'px;height:17px;touch-action:pan-x pan-y;user-select:text">'+
+  text(0,13,truncate?short(value,Math.max(1,Math.floor(available/11))):value)+'</svg>';
  const wire=(id:string,d:string,cls='sch-link')=>'<path class="'+cls+'" data-schematic-net="'+escape(id)+'" d="'+d+'" fill="none" stroke="'+colorFor(id)+'" stroke-width="2.4"/>';
  const rails=layout.rails.map(r=>{
   const net=diagram.nets.find(n=>n.id===r.id)!;
@@ -28,7 +34,7 @@ export function renderPortSchematic(diagram:SchematicDiagram,layout:PortLayout,s
     return '<g class="sch-terminal" data-terminal="'+escape(c.id+'::'+t.terminal.pinId)+'" data-schematic-net="NC">'+
      '<path class="sch-pin-lead" d="'+symbol!.leads.get(t.terminal.pinId)!+'" fill="none" stroke="#8599a3" stroke-width="1.6"/>'+
      '<circle class="sch-nc" cx="'+t.x+'" cy="'+t.y+'" r="4.5" fill="#f8fbfc" stroke="#8599a3" stroke-width="1.6"/>'+
-     text(d.x+27,t.y-5,t.terminal.pinId+' · NC')+'<title>'+escape(t.terminal.pinId+' · NC')+'</title></g>';
+     boundedText(d.x+27,t.y-5,t.terminal.pinId+' · NC',t.x-d.x-35,false)+'<title>'+escape(t.terminal.pinId+' · NC')+'</title></g>';
    }
    let path='M'+t.x+' '+t.y,bridges='';
    for(const cross of t.crossings){
@@ -40,11 +46,11 @@ export function renderPortSchematic(diagram:SchematicDiagram,layout:PortLayout,s
    path+=' V'+t.endY;
    return '<g class="sch-terminal" data-terminal="'+escape(c.id+'::'+t.terminal.pinId)+'" data-schematic-net="'+escape(id)+'">'+
     wire(id,symbol!.leads.get(t.terminal.pinId)!,'sch-pin-lead')+wire(id,path)+
-    text(d.x+27,t.y-5,t.terminal.pinId)+'<title>'+escape(t.terminal.pinId+' · '+id)+'</title></g>'+bridges+
+    boundedText(d.x+27,t.y-5,t.terminal.pinId,t.x-d.x-35,false)+'<title>'+escape(t.terminal.pinId+' · '+id)+'</title></g>'+bridges+
     '<circle class="sch-junction" data-schematic-net="'+escape(id)+'" cx="'+t.x+'" cy="'+t.endY+'" r="3.1" fill="'+colorFor(id)+'"/>';
   }).join('');
   return '<g class="sch-component" data-schematic-part="'+escape(c.id)+'">'+
-   text(d.x-27,113,short(c.reference+' · '+c.label))+text(d.x-27,130,short(c.specification))+
+   boundedText(d.x-27,113,c.reference+' · '+c.label,d.columnWidth-36)+boundedText(d.x-27,130,c.specification,d.columnWidth-36)+
    leads+symbol!.body+'<title>'+escape(c.reference+' · '+c.label+' · '+c.specification)+'</title></g>';
  }).join('');
  return '<svg class="schematic-svg sch-root" xmlns="http://www.w3.org/2000/svg" width="'+width+'" height="'+height+'" viewBox="0 0 '+width+' '+height+'" data-schematic-route-mode="ports" role="img" aria-label="根据真实 Netlist 自动生成的多引脚原理图">'+

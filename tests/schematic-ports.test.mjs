@@ -86,3 +86,42 @@ test('adjacent rail optimization strictly reduces crossings without merging port
  const reversed=structuredClone(d);reversed.components.reverse();reversed.nets.reverse();
  assert.deepEqual(portSchematic(reversed),l);
 });
+
+test('mixed device columns compact independently without changing track rank or rail identity',()=>{
+ const p=fixture();
+ p.parts[0].name='很长的元件名称'.repeat(8);
+ for(let i=0;i<3;i++){
+  const id='resistor'+i;
+  p.parts.push({id,kind:'resistor',x:0,y:300+i*100,rotation:0,value:330});
+  p.wires.push({id:'extra'+i,from:{componentId:'uno',pinId:'v5'},to:{componentId:id,pinId:'a'},color:'#35b65d'});
+ }
+ const d=createSchematic(p),snapshot=structuredClone(d),l=portSchematic(d);
+ assert.ok(l);
+ assert.equal(l.width,1580); // 80 + 3*270 + 3*230
+ assert.ok(l.width<80+320*l.devices.length);
+ const tracks=l.devices.flatMap(dev=>dev.tracks);
+ const xs=tracks.map(t=>t.x).sort((a,b)=>a-b);
+ for(let i=1;i<xs.length;i++)assert.ok(xs[i]-xs[i-1]>=40);
+ for(const dev of l.devices){
+  assert.equal(dev.columnWidth,dev.tracks.length===3?270:230);
+  for(const t of dev.tracks){
+   assert.ok(t.x-dev.x-35>=90);
+   if(t.terminal.netId===null){assert.equal(t.endY,null);assert.deepEqual(t.crossings,[]);continue;}
+   assert.equal(t.endY,l.rails.find(r=>r.id===t.terminal.netId).y);
+   assert.deepEqual(t.crossings,l.rails.filter(r=>r.y<t.endY&&t.x<=r.x2).map(r=>({netId:r.id,y:r.y})));
+  }
+ }
+ // The old equal-width projection had the same strict left/right track order.
+ const oldX=new Map(l.devices.flatMap((dev,i)=>dev.tracks.map((t,j)=>[t,80+i*320+260-j*55])));
+ const crossings=tracks.reduce((n,t)=>n+t.crossings.length,0);
+ const priorCrossings=tracks.reduce((n,t)=>n+(t.endY===null?0:l.rails.filter(r=>r.y<t.endY&&oldX.get(t)<=Math.max(...tracks.filter(q=>q.terminal.netId===r.id).map(q=>oldX.get(q)))).length),0);
+ assert.equal(crossings,priorCrossings);
+ const svg=schematicSvg(d);
+ assert.match(svg,/width="1580"/);
+ assert.equal((svg.match(/class="sch-port-label"/g)||[]).length,tracks.length+2*l.devices.length);
+ assert.match(svg,/overflow="hidden" style="width:234px;height:17px/);
+ assert.ok(svg.includes(p.parts[0].name)); // full name is retained in title
+ assert.match(svg,/…/);
+ assert.match(svg,/>b · NC<\/text>/);
+ assert.deepEqual(d,snapshot);
+});

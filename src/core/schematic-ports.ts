@@ -4,11 +4,15 @@ import type { SchematicComponent, SchematicDiagram, SchematicTerminal } from './
 export const PORT_MAX_DEVICES=8;
 export const PORT_MAX_NETS=10;
 export const PORT_MAX_CROSSINGS=64;
-const FIRST=80,COLUMN=320,PIN_TOP=150,PIN_GAP=38,RAIL_TOP=300,RAIL_GAP=44;
+const FIRST=80,PIN_TOP=150,PIN_GAP=38,RAIL_TOP=300,RAIL_GAP=44;
+// Keep independent tracks, sufficient clearance for the 10px bridge and
+// a fixed label corridor before the innermost pin. Two-pin devices need
+// one fewer track; NC pins still keep their own anchor.
+const INNER_TRACK=170,TRACK_GAP=40,COLUMN_GUARD=20;
 export interface PortTrack {
  terminal:SchematicTerminal; x:number; y:number; endY:number|null; crossings:{netId:string;y:number}[];
 }
-export interface PortDevice {component:SchematicComponent;x:number;tracks:PortTrack[]}
+export interface PortDevice {component:SchematicComponent;x:number;columnWidth:number;tracks:PortTrack[]}
 export interface PortRail {id:string;y:number;x1:number;x2:number}
 export interface PortLayout {width:number;height:number;devices:PortDevice[];rails:PortRail[]}
 
@@ -25,23 +29,25 @@ export function portSchematic(diagram:SchematicDiagram):PortLayout|null {
  const members=new Map(nets.map(n=>[n.id,[] as PortTrack[]]));
  const devices:PortDevice[]=[];
  const sorted=[...components].sort((a,b)=>a.id.localeCompare(b.id,'en'));
- let unused=0;
+ let unused=0,nextBase=FIRST;
  for(const component of sorted){
   const ids=Object.keys(pins[component.kind]);
   if(component.kind==='breadboard'||ids.length<2||ids.length>3||component.terminals.length!==ids.length)return null;
-  const base=FIRST+devices.length*COLUMN,tracks:PortTrack[]=[];
+  const base=nextBase,columnWidth=INNER_TRACK+(ids.length-1)*TRACK_GAP+COLUMN_GUARD;
+  const tracks:PortTrack[]=[];
   for(let i=0;i<ids.length;i++){
    const terminal=component.terminals.find(t=>t.pinId===ids[i]);
    if(!terminal||terminal.componentId!==component.id||
       (terminal.netId!==null&&!known.has(terminal.netId)))return null;
-   const track:PortTrack={terminal,x:base+260-i*55,y:PIN_TOP+i*PIN_GAP,endY:null,crossings:[]};
+   const track:PortTrack={terminal,x:base+INNER_TRACK+(ids.length-1-i)*TRACK_GAP,y:PIN_TOP+i*PIN_GAP,endY:null,crossings:[]};
    tracks.push(track);
    if(terminal.netId===null)unused++;
    else members.get(terminal.netId)!.push(track);
   }
   // Keep wholly disconnected devices in the complete fallback view.
   if(!tracks.some(t=>t.terminal.netId!==null))return null;
-  devices.push({component,x:base+45,tracks});
+  devices.push({component,x:base+45,columnWidth,tracks});
+  nextBase+=columnWidth;
  }
  if(unused!==diagram.unconnectedTerminals)return null;
  for(const net of nets){
@@ -83,5 +89,5 @@ export function portSchematic(diagram:SchematicDiagram):PortLayout|null {
   count+=track.crossings.length;
  }
  if(count>PORT_MAX_CROSSINGS)return null;
- return {width:Math.max(990,FIRST+devices.length*COLUMN),height:rails[rails.length-1].y+65,devices,rails};
+ return {width:Math.max(990,nextBase),height:rails[rails.length-1].y+65,devices,rails};
 }

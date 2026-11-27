@@ -381,3 +381,35 @@ test('partially connected UNO keeps unused pin visible without a network rail',a
  await page.locator('#tab-circuit').click();
  expect(await saved(page)).toBe(before);
 });
+
+test('compact mixed-port labels retain bounded SVG viewports at browser zoom',async({page})=>{
+ await page.goto('/');
+ const name='很长的元件名称'.repeat(8);
+ const parts=[{id:'uno',kind:'arduino',x:0,y:0,rotation:0,name},
+  ...Array.from({length:4},(_,i)=>({id:'r'+i,kind:'resistor',x:300,y:100*i,rotation:0,value:330}))];
+ const wires=Array.from({length:4},(_,i)=>({id:'w'+i,from:{componentId:'uno',pinId:'v5'},to:{componentId:'r'+i,pinId:'a'},color:'#35b65d'}));
+ await page.locator('#file').setInputFiles({name:'compact-ports.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({schemaVersion:2,name:'Compact ports',parts,wires,code:''}))});
+ const before=await saved(page);
+ await page.locator('#tab-schematic').click();
+ const svg=page.locator('.schematic-svg');
+ await expect(svg).toHaveAttribute('data-schematic-route-mode','ports');
+ await expect(svg).toHaveAttribute('width','1270');
+ await expect(svg.locator('.sch-component')).toHaveCount(5);
+ await expect(svg.locator('.sch-nc')).toHaveCount(6);
+ await expect(svg.locator('.sch-port-label')).toHaveCount(21);
+ await expect(svg.locator('[data-schematic-part="uno"] > title')).toContainText(name);
+ await expect(svg.locator('[data-terminal="uno::d13"] .sch-port-label')).toContainText('d13 · NC');
+ for(let i=0;i<2;i++){
+  // Nested SVG bounding rects describe painted content on Chromium, not
+  // the viewport. Compare CSS geometry with the declared viewport instead.
+  const widths=await svg.locator('.sch-port-label').evaluateAll(nodes=>nodes.map(n=>{
+   const el=n as unknown as SVGSVGElement,css=getComputedStyle(el);
+   return {actual:parseFloat(css.width),expected:el.width.baseVal.value,height:parseFloat(css.height),
+    overflow:css.overflow,nc:el.textContent?.endsWith('NC'),textWidth:el.querySelector('text')!.getBBox().width};
+  }));
+  expect(widths.every(w=>Math.abs(w.actual-w.expected)<1&&w.height===17&&w.overflow==='hidden'&&(!w.nc||w.textWidth<=w.expected))).toBeTruthy();
+  if(i===0)await page.locator('.schematic-workspace [data-action="schematic-zoom-in"]').click();
+ }
+ await page.locator('#tab-circuit').click();
+ expect(await saved(page)).toBe(before);
+});
