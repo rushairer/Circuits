@@ -316,3 +316,38 @@ test('multi-source layered schematic preserves reversed battery polarity, net fo
  await page.locator('#tab-circuit').click();
  expect(await saved(page)).toBe(before);
 });
+
+test('multi-port schematic preserves UNO, servo and potentiometer terminal identities',async({page})=>{
+ await page.goto('/');
+ const parts=[{id:'uno',kind:'arduino',x:0,y:0,rotation:0},
+  {id:'servo',kind:'servo',x:300,y:0,rotation:0},
+  {id:'pot',kind:'potentiometer',x:600,y:0,rotation:0,value:10000}];
+ const wires:Array<{id:string;from:{componentId:string;pinId:string};to:{componentId:string;pinId:string};color:string}>=[];
+ const connect=(a:string,ap:string,b:string,bp:string)=>wires.push({id:'w'+wires.length,from:{componentId:a,pinId:ap},to:{componentId:b,pinId:bp},color:'#35b65d'});
+ connect('uno','v5','servo','positive');connect('uno','gnd','servo','negative');
+ connect('uno','d13','servo','signal');connect('uno','v5','pot','a');
+ connect('uno','gnd','pot','b');connect('uno','gnd','pot','wiper');
+ await page.locator('#file').setInputFiles({name:'ports.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({schemaVersion:2,name:'Ports',parts,wires,code:''}))});
+ const before=await saved(page);
+ await page.locator('#tab-schematic').click();
+ const svg=page.locator('.schematic-svg');
+ await expect(svg).toHaveAttribute('data-schematic-route-mode','ports');
+ await expect(svg.locator('.sch-component')).toHaveCount(3);
+ await expect(svg.locator('.sch-terminal')).toHaveCount(9);
+ await expect(svg.locator('.sch-net')).toHaveCount(3);
+ const net=await svg.locator('[data-terminal="uno::gnd"]').getAttribute('data-schematic-net');
+ expect(net).toBeTruthy();
+ await expect(svg.locator('[data-terminal="pot::wiper"]')).toHaveAttribute('data-schematic-net',net!);
+ await expect(svg.locator('[data-terminal="servo::negative"]')).toHaveAttribute('data-schematic-net',net!);
+ await page.locator('#schematic-net-focus').selectOption(net!);
+ await expect(svg).toHaveAttribute('data-schematic-focus-net',net!);
+ await page.locator('.schematic-workspace [data-action="schematic-zoom-in"]').click();
+ await expect(svg).toHaveAttribute('data-schematic-focus-net',net!);
+ const download=page.waitForEvent('download');
+ await page.locator('.schematic-workspace [data-action="schematic-export"]').click();
+ const source=await readFile((await (await download).path())!,'utf8');
+ expect(source).toContain('data-schematic-route-mode="ports"');
+ expect(source).not.toContain('sch-dimmed');
+ await page.locator('#tab-circuit').click();
+ expect(await saved(page)).toBe(before);
+});
