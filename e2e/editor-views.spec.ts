@@ -168,3 +168,39 @@ test('complete single-battery branch layout keeps net focus and export without t
  await page.locator('#tab-circuit').click();
  expect(await saved(page)).toBe(before);
 });
+
+test('nested series-parallel layout shares real nets and preserves focus, zoom, SVG export and project',async({page})=>{
+ await page.goto('/');
+ const parts=[
+  {id:'bat',kind:'battery',x:0,y:0,rotation:0,value:9},
+  ...['r0','r1','r2','r3'].map((id,i)=>({id,kind:'resistor',x:120+i*140,y:180,rotation:0,value:220}))
+ ];
+ const wires:Array<{id:string;from:{componentId:string;pinId:string};to:{componentId:string;pinId:string};color:string}>=[];
+ const connect=(a:string,ap:string,b:string,bp:string)=>wires.push({id:'w'+wires.length,from:{componentId:a,pinId:ap},to:{componentId:b,pinId:bp},color:'#35b65d'});
+ connect('bat','positive','r0','a');connect('r0','b','r1','a');connect('r0','b','r2','a');
+ connect('r1','b','r3','a');connect('r2','b','r3','a');connect('r3','b','bat','negative');
+ await page.locator('#file').setInputFiles({name:'nested.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({schemaVersion:2,name:'Nested',parts,wires,code:''}))});
+ const before=await saved(page);
+ await page.locator('#tab-schematic').click();
+ const svg=page.locator('.schematic-svg');
+ await expect(svg).toHaveAttribute('data-schematic-route-mode','nested');
+ await expect(svg.locator('.sch-component')).toHaveCount(5);
+ await expect(svg.locator('.sch-terminal')).toHaveCount(10);
+ await expect(svg.locator('.sch-net')).toHaveCount(4);
+ const net=await svg.locator('[data-terminal="r0::b"]').getAttribute('data-schematic-net');
+ expect(net).toBeTruthy();
+ await expect(svg.locator('[data-terminal="r1::a"]')).toHaveAttribute('data-schematic-net',net!);
+ await expect(svg.locator('[data-terminal="r2::a"]')).toHaveAttribute('data-schematic-net',net!);
+ await expect(svg.locator('.sch-junction[data-schematic-net="'+net+'"]')).toHaveCount(1);
+ await page.locator('#schematic-net-focus').selectOption(net!);
+ await expect(svg).toHaveAttribute('data-schematic-focus-net',net!);
+ await page.locator('.schematic-workspace [data-action="schematic-zoom-in"]').click();
+ await expect(svg).toHaveAttribute('data-schematic-focus-net',net!);
+ const download=page.waitForEvent('download');
+ await page.locator('.schematic-workspace [data-action="schematic-export"]').click();
+ const source=await readFile((await (await download).path())!,'utf8');
+ expect(source).toContain('data-schematic-route-mode="nested"');
+ expect(source).not.toContain('sch-dimmed');
+ await page.locator('#tab-circuit').click();
+ expect(await saved(page)).toBe(before);
+});

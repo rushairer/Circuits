@@ -3,6 +3,8 @@ import { routeSchematic } from '../core/schematic-routing.js';
 import { connectedSchematicSymbol } from './schematic-symbols.js';
 import { schematicBranches } from '../core/schematic-branches.js';
 import { branchSheetSize, renderBranchSchematic } from './schematic-branch-view.js';
+import { nestedSchematic } from '../core/schematic-nested.js';
+import { nestedSheetSize, renderNestedSchematic } from './schematic-nested-view.js';
 
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({
  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -59,6 +61,8 @@ const STYLE='<style>'+
 export function schematicSvg(result:SchematicDiagram):string {
  const branches=schematicBranches(result);
  if(branches)return renderBranchSchematic(result,branches,STYLE,colorFor);
+ const nested=nestedSchematic(result);
+ if(nested)return renderNestedSchematic(result,nested,STYLE,colorFor);
  const routing=routeSchematic(result);
  const links=routing.mode==='orthogonal'?[
    ...routing.links.map(line=>'<path class="sch-link" data-schematic-net="'+escape(line.netId)+'" '+
@@ -94,8 +98,9 @@ export function schematicSvg(result:SchematicDiagram):string {
 function schematicBody(result:SchematicResult,zoom=1):string {
  const scale=Number.isFinite(zoom)?Math.max(0.5,Math.min(2,zoom)):1;
  const branches=result.ok?schematicBranches(result):null;
- const routeInfo=result.ok&&!branches?routeSchematic(result):null;
- const sheet=branches?branchSheetSize(branches):result.ok?result:null;
+ const nested=result.ok&&!branches?nestedSchematic(result):null;
+ const routeInfo=result.ok&&!branches&&!nested?routeSchematic(result):null;
+ const sheet=branches?branchSheetSize(branches):nested?nestedSheetSize(nested):result.ok?result:null;
  const inner=result.ok?
    '<div class="schematic-toolbar-stats"><span>元件 <b>'+result.components.length+'</b></span>'+
    '<span>导通网络 <b>'+result.nets.length+'</b></span>'+
@@ -103,7 +108,7 @@ function schematicBody(result:SchematicResult,zoom=1):string {
    '<span>实际导线 <b>'+result.wireCount+'</b></span>'+
    '<span>插孔接触 <b>'+result.insertionCount+'</b></span></div>'+
    '<div class="schematic-view-toolbar" role="group" aria-label="原理图缩放">'+
-   '<span>只读原理图 · '+(branches?'拓扑串并联布局':routeInfo?.mode==='orthogonal'?'自动正交布线':'网络编号模式')+'</span>'+
+   '<span>只读原理图 · '+(branches?'拓扑串并联布局':nested?'多级串并联布局':routeInfo?.mode==='orthogonal'?'自动正交布线':'网络编号模式')+'</span>'+
    '<button data-action="schematic-zoom-out" aria-label="缩小原理图" '+(scale<=0.5?'disabled':'')+'>−</button>'+
    '<output aria-label="原理图缩放比例">'+Math.round(scale*100)+'%</output>'+
    '<button data-action="schematic-zoom-in" aria-label="放大原理图" '+(scale>=2?'disabled':'')+'>＋</button>'+
