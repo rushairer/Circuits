@@ -10,18 +10,19 @@ export interface LayeredRail {id:string;y:number;x1:number;x2:number;labelX:numb
 export interface LayeredDevice {step:BranchStep;x:number;top:number;bottom:number;mid:number;crossings:{netId:string;y:number}[]}
 export interface LayeredSchematic {width:number;height:number;high:string;low:string;rails:LayeredRail[];devices:LayeredDevice[]}
 
-/** Bounded graph projection for complete, connected single-source two-terminal
+/** Bounded graph projection for complete, connected one- or multi-source two-terminal
  * networks. Each net owns one row; disjoint device intervals may share columns.
  * This is a bounded rail layout, not a planar graph optimizer or a solver.
  * Existing specialized layouts take precedence. */
 export function layeredSchematic(diagram:SchematicDiagram):LayeredSchematic|null {
  const {components,nets}=diagram;
  if(components.length<3||components.length>LAYERED_MAX_DEVICES||
-    nets.length<3||nets.length>LAYERED_MAX_NETS||diagram.unconnectedTerminals)return null;
+    nets.length<2||nets.length>LAYERED_MAX_NETS||diagram.unconnectedTerminals)return null;
  const known=new Set(nets.map(n=>n.id));
  if(known.size!==nets.length||new Set(components.map(c=>c.id)).size!==components.length)return null;
- const batteries=components.filter(c=>c.kind==='battery');
- if(batteries.length!==1)return null;
+ const batteries=components.filter(c=>c.kind==='battery').sort((a,b)=>a.id.localeCompare(b.id,'en'));
+ if(!batteries.length||(batteries.length===1&&nets.length<3))return null;
+ // The first source is only a deterministic layout anchor, not a voltage reference.
  const battery=batteries[0];
  const positive=battery.terminals.find(t=>t.pinId==='positive'),negative=battery.terminals.find(t=>t.pinId==='negative');
  if(!positive?.netId||!negative?.netId||positive.netId===negative.netId)return null;
@@ -37,8 +38,12 @@ export function layeredSchematic(diagram:SchematicDiagram):LayeredSchematic|null
      a.componentId!==c.id||b.componentId!==c.id)return null;
   members.get(a.netId)!.push(c.id+'::'+a.pinId);
   members.get(b.netId)!.push(c.id+'::'+b.pinId);
+  // Preserve the single-source ranking. With multiple sources the full
+  // component graph defines connectedness, including the anchor source.
+  if(c!==battery||batteries.length>1){
+   adjacency.get(a.netId)!.add(b.netId);adjacency.get(b.netId)!.add(a.netId);
+  }
   if(c===battery)continue;
-  adjacency.get(a.netId)!.add(b.netId);adjacency.get(b.netId)!.add(a.netId);
   steps.push({component:c,from:a,to:b});
  }
  // Do not drop board-only nets, dangling terminals, or inconsistent identities.

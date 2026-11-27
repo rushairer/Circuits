@@ -13,9 +13,11 @@ export function renderLayeredSchematic(diagram:SchematicDiagram,layout:LayeredSc
  const {width,height}=layout;
  const text=(x:number,y:number,value:string)=>'<text x="'+x+'" y="'+y+'" font-size="11" fill="#314c5a">'+escape(value)+'</text>';
  const wire=(id:string,d:string,cls='sch-link')=>'<path class="'+cls+'" data-schematic-net="'+escape(id)+'" d="'+d+'" fill="none" stroke="'+colorFor(id)+'" stroke-width="2.4"/>';
+ const multiSource=layout.devices.filter(d=>d.step.component.kind==='battery').length>1;
+ const sourceLabel=multiSource?layout.devices[0].step.component.reference:'电池';
  const rails=layout.rails.map(r=>{
   const net=diagram.nets.find(n=>n.id===r.id)!;
-  const label=r.id===layout.high?r.id+' · 电池 +':r.id===layout.low?r.id+' · 电池 −':r.id;
+  const label=r.id===layout.high?r.id+' · '+sourceLabel+' +':r.id===layout.low?r.id+' · '+sourceLabel+' −':r.id;
   return wire(r.id,'M'+r.x1+' '+r.y+' H'+r.x2,'sch-bus')+
    '<g class="sch-net" data-schematic-net="'+escape(r.id)+'">'+text(r.labelX,r.y-7,label)+
    '<title>'+escape(r.id+': '+[...net.endpointKeys,...net.boardContacts].join('、'))+'</title></g>';
@@ -25,7 +27,10 @@ export function renderLayeredSchematic(diagram:SchematicDiagram,layout:LayeredSc
   const upper=mid-20,lower=mid+20;
   const symbol=connectedSchematicSymbol({...c,x:x-70,terminals:c.terminals.map((t,i)=>({...t,x,y:i===0?upper:lower}))});
   const reversed=c.terminals[0].pinId!==step.from.pinId;
-  const art=reversed&&c.kind==='led'?'<g transform="rotate(180 '+x+' '+mid+')">'+(symbol?.body??'')+'</g>':symbol?.body??'';
+  // Reflect a reversed battery vertically, keeping polarity marks on the
+  // left of its plates (away from reference/value text on the right).
+  const art=reversed&&c.kind==='battery'?'<g transform="translate(0 '+(2*mid)+') scale(1 -1)">'+(symbol?.body??'')+'</g>':
+   reversed&&c.kind==='led'?'<g transform="rotate(180 '+x+' '+mid+')">'+(symbol?.body??'')+'</g>':symbol?.body??'';
   const lead=(t:BranchStep['from'],path:string)=>'<g class="sch-terminal" data-terminal="'+escape(t.componentId+'::'+t.pinId)+'" data-schematic-net="'+escape(t.netId!)+'">'+
    wire(t.netId!,path,'sch-pin-lead')+'<title>'+escape(t.pinId+' · '+t.netId)+'</title></g>';
   let lowerPath='M'+x+' '+lower,bridges='';
