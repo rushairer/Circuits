@@ -133,3 +133,38 @@ test('legacy toolbar viewers and scope actions are not inert when accessed from 
  await page.keyboard.press('Escape');
  await expect(page.locator('.schematic-dialog')).toHaveCount(0);
 });
+
+test('complete single-battery branch layout keeps net focus and export without touching saved circuit',async({page})=>{
+ await page.goto('/');
+ const parts=[
+  {id:'battery',kind:'battery',x:0,y:0,rotation:0,value:9},
+  {id:'r1',kind:'resistor',x:200,y:100,rotation:0,value:330},
+  {id:'r2',kind:'resistor',x:400,y:100,rotation:0,value:1000}
+ ];
+ const wires=parts.slice(1).flatMap((p,i)=>[
+  {id:'p'+i,from:{componentId:'battery',pinId:'positive'},to:{componentId:p.id,pinId:'a'},color:'#35b65d'},
+  {id:'n'+i,from:{componentId:p.id,pinId:'b'},to:{componentId:'battery',pinId:'negative'},color:'#35b65d'}
+ ]);
+ await page.locator('#file').setInputFiles({name:'parallel.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({schemaVersion:2,name:'Parallel',parts,wires,code:''}))});
+ const before=await saved(page);
+ await page.locator('#tab-schematic').click();
+ const svg=page.locator('.schematic-svg');
+ await expect(svg).toHaveAttribute('data-schematic-route-mode','branches');
+ await expect(svg.locator('.sch-component')).toHaveCount(3);
+ await expect(svg.locator('.sch-terminal')).toHaveCount(6);
+ await expect(svg.locator('.sch-net')).toHaveCount(2);
+ const high=await svg.locator('[data-terminal="battery::positive"]').getAttribute('data-schematic-net');
+ await expect(svg.locator('[data-terminal="r1::a"]')).toHaveAttribute('data-schematic-net',high!);
+ await expect(svg.locator('[data-terminal="r2::a"]')).toHaveAttribute('data-schematic-net',high!);
+ await page.locator('#schematic-net-focus').selectOption(high!);
+ await expect(svg).toHaveAttribute('data-schematic-focus-net',high!);
+ await page.locator('.schematic-workspace [data-action="schematic-zoom-in"]').click();
+ await expect(svg).toHaveAttribute('data-schematic-focus-net',high!);
+ const download=page.waitForEvent('download');
+ await page.locator('.schematic-workspace [data-action="schematic-export"]').click();
+ const source=await readFile((await (await download).path())!,'utf8');
+ expect(source).toContain('data-schematic-route-mode="branches"');
+ expect(source).not.toContain('sch-dimmed');
+ await page.locator('#tab-circuit').click();
+ expect(await saved(page)).toBe(before);
+});
