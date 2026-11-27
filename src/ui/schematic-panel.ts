@@ -7,6 +7,8 @@ import { nestedSchematic } from '../core/schematic-nested.js';
 import { nestedSheetSize, renderNestedSchematic } from './schematic-nested-view.js';
 import { schematicBridge } from '../core/schematic-bridge.js';
 import { bridgeSheetSize, renderBridgeSchematic } from './schematic-bridge-view.js';
+import { layeredSchematic } from '../core/schematic-layered.js';
+import { renderLayeredSchematic } from './schematic-layered-view.js';
 
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({
  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -67,6 +69,8 @@ export function schematicSvg(result:SchematicDiagram):string {
  if(nested)return renderNestedSchematic(result,nested,STYLE,colorFor);
  const bridge=schematicBridge(result);
  if(bridge)return renderBridgeSchematic(result,bridge,STYLE,colorFor);
+ const layered=layeredSchematic(result);
+ if(layered)return renderLayeredSchematic(result,layered,STYLE,colorFor);
  const routing=routeSchematic(result);
  const links=routing.mode==='orthogonal'?[
    ...routing.links.map(line=>'<path class="sch-link" data-schematic-net="'+escape(line.netId)+'" '+
@@ -104,8 +108,9 @@ function schematicBody(result:SchematicResult,zoom=1):string {
  const branches=result.ok?schematicBranches(result):null;
  const nested=result.ok&&!branches?nestedSchematic(result):null;
  const bridge=result.ok&&!branches&&!nested?schematicBridge(result):null;
- const routeInfo=result.ok&&!branches&&!nested&&!bridge?routeSchematic(result):null;
- const sheet=branches?branchSheetSize(branches):nested?nestedSheetSize(nested):bridge?bridgeSheetSize:result.ok?result:null;
+ const layered=result.ok&&!branches&&!nested&&!bridge?layeredSchematic(result):null;
+ const routeInfo=result.ok&&!branches&&!nested&&!bridge&&!layered?routeSchematic(result):null;
+ const sheet=branches?branchSheetSize(branches):nested?nestedSheetSize(nested):bridge?bridgeSheetSize:layered?layered:result.ok?result:null;
  const inner=result.ok?
    '<div class="schematic-toolbar-stats"><span>元件 <b>'+result.components.length+'</b></span>'+
    '<span>导通网络 <b>'+result.nets.length+'</b></span>'+
@@ -113,7 +118,7 @@ function schematicBody(result:SchematicResult,zoom=1):string {
    '<span>实际导线 <b>'+result.wireCount+'</b></span>'+
    '<span>插孔接触 <b>'+result.insertionCount+'</b></span></div>'+
    '<div class="schematic-view-toolbar" role="group" aria-label="原理图缩放">'+
-   '<span>只读原理图 · '+(branches?'拓扑串并联布局':nested?'多级串并联布局':bridge?'桥式拓扑布局':routeInfo?.mode==='orthogonal'?'自动正交布线':'网络编号模式')+'</span>'+
+   '<span>只读原理图 · '+(branches?'拓扑串并联布局':nested?'多级串并联布局':bridge?'桥式拓扑布局':layered?'通用分层布局':routeInfo?.mode==='orthogonal'?'自动正交布线':'网络编号模式')+'</span>'+
    '<button data-action="schematic-zoom-out" aria-label="缩小原理图" '+(scale<=0.5?'disabled':'')+'>−</button>'+
    '<output aria-label="原理图缩放比例">'+Math.round(scale*100)+'%</output>'+
    '<button data-action="schematic-zoom-in" aria-label="放大原理图" '+(scale>=2?'disabled':'')+'>＋</button>'+
@@ -127,7 +132,7 @@ function schematicBody(result:SchematicResult,zoom=1):string {
    '<p class="schematic-net-summary" role="status" hidden></p>'+
    (routeInfo?.reason?'<p class="schematic-warning">'+escape(routeInfo.reason)+'</p>':'')+
    (result.warnings.length?'<p class="schematic-warning">'+escape(result.warnings.join('；'))+'</p>':'')+
-   '<p class="schematic-disclaimer">实心圆点表示同网络汇流；拱形跨线属于不同网络且不导通，最终连通性只由 N 编号和 Netlist 决定。面包板插孔按真实连接合并；元件符号通过独立引脚接入网络；UNO 与伺服仍为简化模块，符合条件的单电池串并联与桥式电路采用拓扑布局，其他电路保留完整总线或网络编号布局；并非原版像素级原理图。</p>':
+   '<p class="schematic-disclaimer">实心圆点表示同网络汇流；拱形跨线属于不同网络且不导通，最终连通性只由 N 编号和 Netlist 决定。面包板插孔按真实连接合并；元件符号通过独立引脚接入网络；UNO 与伺服仍为简化模块，符合条件的单电池串并联、桥式及复杂双端器件网络采用拓扑布局，其他电路保留完整总线或网络编号布局；并非原版像素级原理图。</p>':
    '<div class="schematic-unavailable" role="status"><strong>暂不能生成完整原理图</strong>'+
    '<p>'+escape(result.reason)+'</p><small>原电路与仿真均未改变；不会输出不完整的原理图。</small></div>';
  return inner;

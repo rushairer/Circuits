@@ -240,3 +240,40 @@ test('bridge layout preserves two midpoint networks, focus, SVG export and persi
  await page.locator('#tab-circuit').click();
  expect(await saved(page)).toBe(before);
 });
+
+test('layered layout for a bridge with an extra LED retains all nets and export',async({page})=>{
+ await page.goto('/');
+ const parts=[{id:'bat',kind:'battery',x:0,y:0,rotation:0,value:9},
+  ...['r1','r2','r3','r4','cross'].map((id,i)=>({id,kind:'resistor',x:i*140,y:100,rotation:0,value:220})),
+  {id:'extra',kind:'led',x:100,y:300,rotation:0}];
+ const wires:Array<{id:string;from:{componentId:string;pinId:string};to:{componentId:string;pinId:string};color:string}>=[];
+ const connect=(a:string,ap:string,b:string,bp:string)=>wires.push({id:'w'+wires.length,from:{componentId:a,pinId:ap},to:{componentId:b,pinId:bp},color:'#35b65d'});
+ connect('bat','positive','r1','a');connect('bat','positive','r3','a');
+ connect('r1','b','r2','a');connect('r3','b','r4','a');
+ connect('r2','b','bat','negative');connect('r4','b','bat','negative');
+ connect('r1','b','cross','a');connect('r3','b','cross','b');
+ connect('r1','b','extra','cathode');connect('r3','b','extra','anode');
+ await page.locator('#file').setInputFiles({name:'layered.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({schemaVersion:2,name:'Layered',parts,wires,code:''}))});
+ const before=await saved(page);
+ await page.locator('#tab-schematic').click();
+ const svg=page.locator('.schematic-svg');
+ await expect(svg).toHaveAttribute('data-schematic-route-mode','layered');
+ await expect(svg.locator('.sch-component')).toHaveCount(7);
+ await expect(svg.locator('.sch-terminal')).toHaveCount(14);
+ await expect(svg.locator('.sch-net')).toHaveCount(4);
+ expect(await svg.locator('.sch-crossover').count()).toBeGreaterThan(0);
+ const net=await svg.locator('[data-terminal="extra::cathode"]').getAttribute('data-schematic-net');
+ expect(net).toBeTruthy();
+ await expect(svg.locator('[data-terminal="cross::a"]')).toHaveAttribute('data-schematic-net',net!);
+ await page.locator('#schematic-net-focus').selectOption(net!);
+ await expect(svg).toHaveAttribute('data-schematic-focus-net',net!);
+ await page.locator('.schematic-workspace [data-action="schematic-zoom-in"]').click();
+ await expect(svg).toHaveAttribute('data-schematic-focus-net',net!);
+ const download=page.waitForEvent('download');
+ await page.locator('.schematic-workspace [data-action="schematic-export"]').click();
+ const source=await readFile((await (await download).path())!,'utf8');
+ expect(source).toContain('data-schematic-route-mode="layered"');
+ expect(source).not.toContain('sch-dimmed');
+ await page.locator('#tab-circuit').click();
+ expect(await saved(page)).toBe(before);
+});
