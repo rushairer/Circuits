@@ -15,6 +15,10 @@ test('editor switches between circuit, schematic, BOM without editing a single e
  await expect(page.locator('.schematic-dialog')).toHaveCount(0);
  await expect(page.locator('.schematic-svg .sch-net')).toHaveCount(3);
  await expect(page.locator('.schematic-svg .sch-link')).toHaveCount(6);
+ await expect(page.locator('.schematic-svg .sch-symbol')).toHaveCount(4);
+ await expect(page.locator('.schematic-svg .sch-pin-lead')).toHaveCount(9);
+ const resistorLead=page.locator('.schematic-svg [data-terminal="r1::a"] .sch-pin-lead');
+ await expect(resistorLead).toHaveAttribute('d',/^M[0-9.]+ [0-9.]+ H[0-9.]+$/);
  await expect(page.locator('#board')).toHaveCount(0);
  expect(await saved(page)).toBe(before);
  await page.locator('#tab-bom').click();
